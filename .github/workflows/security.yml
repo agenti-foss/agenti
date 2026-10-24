@@ -1,0 +1,88 @@
+# Security checks beyond ci.yml: known-vulnerable dependencies, static
+# analysis, and (on pull requests) newly introduced vulnerable dependencies.
+# Also runs weekly, because an advisory can land against code nobody touched.
+# Actions are pinned to a commit hash (comment names the release).
+name: Security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    name: Dependencies with known vulnerabilities (pip-audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - run: pip install pip-audit==2.9.0
+      # agenti-runtime's three hash-pinned locks are exactly what installs.
+      # --no-deps keeps the audit to the pinned set, --disable-pip avoids
+      # resolving anew. A finding means: bump the pin (packaging/runtime/
+      # lock.sh), bump packaging/runtime/VERSION, release agenti-runtime.
+      - run: pip-audit --disable-pip --no-deps --require-hashes -r packaging/runtime/agent.lock
+      - run: pip-audit --disable-pip --no-deps --require-hashes -r packaging/runtime/api.lock
+      - run: pip-audit --disable-pip --no-deps --require-hashes -r packaging/runtime/authd.lock
+
+  codeql:
+    name: Static analysis (CodeQL, python + javascript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: read   # write, once results are uploaded (see below)
+      actions: read           # CodeQL reads its own run's details (required on a private repo)
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      # Code scanning is a paid feature on a private repo, so the findings are
+      # kept as a file and any finding fails the job (operator decision
+      # 2026-10-21). Once the repo is public: upload: always, security-events:
+      # write, and drop the two steps after this one.
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}
+          upload: never
+          upload-database: false
+          output: codeql-results
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: codeql-${{ matrix.language }}
+          path: codeql-results/
+          if-no-files-found: error
+      - name: Findings (any one not reviewed fails this job)
+        # Each finding is either fixed or listed, with its reason, in
+        # .github/codeql-reviewed.json (audit run 1, item 9).
+        run: python3 .github/scripts/codeql_gate.py codeql-results .github/codeql-reviewed.json
+
+  dependency-review:
+    name: New vulnerable dependencies in this pull request
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate

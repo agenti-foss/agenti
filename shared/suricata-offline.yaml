@@ -1,0 +1,177 @@
+%YAML 1.1
+---
+# suricata-offline.yaml — the ONE Suricata configuration a file-analysis agent
+# runs. It reads a capture file that an operator attached; it never sniffs.
+#
+# Not the system's /etc/suricata/suricata.yaml, on purpose: that file configures
+# live capture (af-packet, NFQ, afpacket tuning, file-store, unix sockets) and
+# is 90 KB of settings an offline run has no use for and the model must not be
+# able to reach. The model cannot choose anything in here — `--set` and `-c`
+# are not options it is offered (shared/analysis_programs.py).
+#
+# Paths below are paths INSIDE the sandbox (shared/suricata_offline.py binds
+# the host's files there read-only):
+#   /cfg/…    this file, classification.config, reference.config, threshold.config
+#   /rules    the rule files (suricata-update's output if the operator has run
+#             it, else the event rules the suricata package ships)
+#   /out      this run's private log directory (the only writable place)
+
+default-log-dir: /out
+default-rule-path: /rules
+rule-files:
+  - "*.rules"
+classification-file: /cfg/classification.config
+reference-config-file: /cfg/reference.config
+threshold-file: /cfg/threshold.config
+
+# A capture taken on a host with checksum offload has bad checksums on every
+# packet it sent; validating them would silently drop that host's traffic.
+pcap-file:
+  checksum-checks: no
+
+# Offline: one thread, no capture runmode. (The runmode for -r is single.)
+max-pending-packets: 1024
+stats:
+  enabled: yes
+  interval: 8
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: yes
+        level: info
+        filename: suricata.log
+
+outputs:
+  - fast:
+      enabled: yes
+      filename: fast.log
+      append: no
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            payload: no
+            metadata: yes
+            http-body: no
+        - anomaly:
+            enabled: yes
+        - http
+        - dns
+        - tls
+        - files
+        - flow
+        - ssh
+        - smb
+        - dhcp
+        - ftp
+        - smtp
+        - krb5
+        - ike
+        - mqtt
+        - rdp
+        - nfs
+        - tftp
+        - sip
+        - snmp
+  - stats:
+      enabled: yes
+      filename: stats.log
+      append: no
+
+# Every parser on. This is analysis, not a production sensor: a protocol that is
+# switched off is traffic the agent cannot see, and Suricata refuses to load a rule
+# file for a protocol it is not parsing (the package ships event rules for the
+# industrial protocols, for example). The sandbox is what contains a parser bug.
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+    http2:
+      enabled: yes
+    doh2:
+      enabled: yes
+    tls:
+      enabled: yes
+    dns:
+      enabled: yes
+    mdns:
+      enabled: yes
+    smb:
+      enabled: yes
+    dcerpc:
+      enabled: yes
+    ftp:
+      enabled: yes
+    smtp:
+      enabled: yes
+    imap:
+      enabled: yes
+    pop3:
+      enabled: yes
+    ssh:
+      enabled: yes
+    dhcp:
+      enabled: yes
+    rdp:
+      enabled: yes
+    krb5:
+      enabled: yes
+    nfs:
+      enabled: yes
+    tftp:
+      enabled: yes
+    sip:
+      enabled: yes
+    snmp:
+      enabled: yes
+    mqtt:
+      enabled: yes
+    ike:
+      enabled: yes
+    telnet:
+      enabled: yes
+    rfb:
+      enabled: yes
+    pgsql:
+      enabled: yes
+    websocket:
+      enabled: yes
+    bittorrent-dht:
+      enabled: yes
+    modbus:
+      enabled: yes
+      detection-ports:
+        dp: 502
+    dnp3:
+      enabled: yes
+      detection-ports:
+        dp: 20000
+    enip:
+      enabled: yes
+      detection-ports:
+        dp: 44818
+        sp: 44818
+    ntp:
+      enabled: yes
+    quic:
+      enabled: yes
+    ldap:
+      enabled: yes
+
+# Never write the content of files found in the traffic to disk, and never
+# carve them out. (file-store is off by default; stated so a future edit sees
+# the intent.)
+file-store:
+  version: 2
+  enabled: no
+
+# No Lua scripts, no Unix socket, no live rule reload: none of it applies to an
+# offline run, and a scripting engine does not belong near a hostile file.
+unix-command:
+  enabled: no

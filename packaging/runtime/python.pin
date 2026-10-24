@@ -1,0 +1,8 @@
+# The standalone CPython inside agenti-runtime (python-build-standalone,
+# https://github.com/astral-sh/python-build-standalone, MIT/PSF). One line per
+# CPU type: <dpkg arch> <file> <sha256>, from that release's SHA256SUMS.
+# Changing it is a reviewed change; bump packaging/runtime/VERSION with it.
+PYTHON_VERSION=3.14.8
+RELEASE=20261013
+arm64 cpython-3.14.8+20261013-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz d8ae14f303d3971431184cf423ae5467202de2bc19bf6491a490250b87647d4b
+amd64 cpython-3.14.8+20261013-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz d8faa1b588506b9e3e5a3f57807bb056d534a1641a6b10d15b6ea3f0b413b960

@@ -1,0 +1,41 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+*.img
+scans/
+dev-scans/
+dev-run/
+reports/
+secrets.env
+
+# Per-agent engagement configs. RETIRED as a concept (CLAUDE.md §4 item 42:
+# engagement belongs to the organisation now, as org/engagement.json), but
+# ignored rather than merely absent for two reasons: a scaffold created
+# before that phase can still have one on disk, and this file is what makes
+# CLAUDE.md's long-standing "gitignored, never committed" claim about them
+# actually TRUE — until now nothing enforced it, so a single `git add -A`
+# would have put a real client's scope into history permanently (§5, "Git
+# hygiene"). The tracked example for the CURRENT shape is
+# shared/engagement.example.json; there is deliberately no committed
+# example of this retired per-agent one any more.
+engagement_config.py
+engagement_config_lab.py
+
+# Local dev tooling for driving the live GUI with a real browser
+# (Playwright MCP registration) — machine-specific paths, not product code.
+.mcp.json
+playwright-mcp-config.json
+
+# Operator workflow notes (Claude Code memory — not product docs)
+MEMORY.md
+UX_LAWS_AUDIT.md
+
+# Build history (operator-internal; box-specific values, published from a fresh repo)
+docs/history/
+
+# Built packages (packaging/build-deb.sh, build-runtime.sh)
+dist/
+
+# Local Claude Code permissions: per-developer, never published.
+.claude/settings.json

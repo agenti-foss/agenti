@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body class="report-page">
+  <div id="topnav-mount" class="no-print"></div>
+
+  <main class="report-main">
+    <div class="report-toolbar no-print">
+      <a class="back-link" id="rp-back" href="dashboard.html" style="margin-bottom:0;"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>Back to agent</a>
+      <div class="report-actions">
+        <select id="rp-file" aria-label="Which report" title="Which report to show"></select>
+        <button type="button" class="btn compact" id="rp-print" data-icon="print" title="Opens the print dialog — choose “Save as PDF” as the destination"><span class="btn-label">Save as PDF / Print</span></button>
+        <a class="btn compact" id="rp-docx" href="#" download data-icon="download" title="Download as a Word document"><span class="btn-label">Download .docx</span></a>
+        <button type="button" class="btn compact" id="rp-keep" data-icon="star" hidden title="Keep this report in your permanent Outputs store, where it is not deleted after 30 days"><span class="btn-label">Keep this report</span></button>
+        <button type="button" class="btn compact" id="rp-send" data-send-agent="" data-icon="send" hidden title="Hand this report to another agent"><span class="btn-label">Send to an agent</span></button>
+        <button type="button" class="btn btn-ghost compact" id="rp-raw" data-icon="file" title="Show the report's Markdown source"><span class="btn-label">Raw</span></button>
+      </div>
+    </div>
+    <div id="rp-banner" class="banner err no-print"></div>
+    <article class="report" id="report-body"><p class="muted">Loading…</p></article>
+    <pre id="rp-raw-body" class="raw-source no-print" hidden></pre>
+  </main>
+
+  <footer class="page-footer no-print">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/markdown.js" defer></script>
+  <script src="js/send-output.js" defer></script>
+  <script src="js/report.js" defer></script>
+</body>
+</html>

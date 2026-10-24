@@ -1,0 +1,6 @@
+#!/bin/sh
+# config — debconf asks nothing at install time. The one question, whether to
+# delete the data, is asked by postrm on purge.
+set -e
+. /usr/share/debconf/confmodule
+exit 0

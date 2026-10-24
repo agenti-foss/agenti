@@ -1,0 +1,6 @@
+# research.deps — apt packages this agent's tooling needs.
+#
+# Deliberately empty: research-agent.py's tools (fetch_page, web_search) use
+# only Python's standard library (http.client, html.parser, json, urllib) —
+# no external binary, no third-party package. The file exists anyway, so
+# packaging/build-deb.sh can tell "genuinely zero deps" apart from "nobody said".

@@ -1,0 +1,60 @@
+#!/bin/sh
+# postrm — after the files are gone. On purge: delete the settings, and ask
+# (debconf, default No) whether to delete ALL DATA too: every engagement's
+# reports and scan data, the vault image, the user database, the API keys.
+# Without a terminal (automation) the answer is No and the data stays.
+#
+# This is the only place that purges: the package's own files, configure.sh
+# included, are already deleted when it runs.
+set -e
+
+STATE=/var/lib/agenti
+DATA=$STATE/data
+ETC=/etc/agenti
+
+if [ "$1" = purge ]; then
+    mapper=agenti_vault
+    if [ -f "$ETC/vault.conf" ]; then
+        m=$(sed -n 's/^MAPPER=//p' "$ETC/vault.conf" | head -n1)
+        [ -n "$m" ] && mapper=$m
+    fi
+    rm -rf "$ETC"
+
+    delete=false
+    if [ -e /usr/share/debconf/confmodule ]; then
+        . /usr/share/debconf/confmodule
+        db_fset agenti/purge-data seen false || true
+        db_input high agenti/purge-data || true
+        db_go || true
+        if db_get agenti/purge-data; then delete="$RET"; fi
+        db_purge || true
+    fi
+
+    if [ "$delete" = true ]; then
+        if mountpoint -q "$DATA" 2>/dev/null; then
+            umount "$DATA" || { echo "agenti: could not unmount $DATA — no data was deleted" >&2; exit 0; }
+        fi
+        if [ -e "/dev/mapper/$mapper" ]; then cryptsetup close "$mapper" 2>/dev/null || true; fi
+        chattr -i "$DATA" 2>/dev/null || true
+        rm -rf "$STATE"
+        for u in agenti-run agenti-api agenti-authd; do
+            if getent passwd "$u" >/dev/null; then userdel "$u" 2>/dev/null || true; fi
+        done
+        for g in agenti-shared agenti-sock; do
+            if getent group "$g" >/dev/null; then groupdel "$g" 2>/dev/null || true; fi
+        done
+        echo "agenti: all data, the user database and the service accounts were deleted."
+    elif [ -d "$STATE" ]; then
+        cat <<MSG
+agenti: settings removed. Your data was KEPT (the default; to be asked, purge
+from a terminal: sudo apt purge agenti):
+    $STATE   every engagement's data, the user database$( [ -f "$STATE/vault.img" ] && echo ", the vault image (locked)" )
+    the service accounts agenti-run, agenti-api, agenti-authd
+  Delete them yourself when you are sure:
+    sudo chattr -i $DATA; sudo rm -rf $STATE
+    sudo userdel agenti-run; sudo userdel agenti-api; sudo userdel agenti-authd
+    sudo groupdel agenti-shared; sudo groupdel agenti-sock
+MSG
+    fi
+fi
+exit 0

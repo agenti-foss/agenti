@@ -1,0 +1,15 @@
+# research.capabilities — Linux capabilities this agent's systemd unit needs.
+#
+# Deliberately empty: research-agent.py only ever makes ordinary outbound
+# HTTPS connections (fetch_page, web_search) — no raw sockets, no packet
+# capture. agenti@.service's template grants CAP_NET_RAW + CAP_NET_ADMIN to
+# every agent by default (enum needs both for nmap; trafficmon needs both
+# for tcpdump); this file tells deploy.sh to install a systemd drop-in that
+# removes both for this agent specifically.
+#
+# deploy.sh finds this file (its presence, even empty of capability names,
+# is what distinguishes "deliberately zero" from "nobody's said either
+# way yet" — see deploy.sh's own comment on TEMPLATE_CAPS for the full
+# explanation) and narrows accordingly. A capability listed here that isn't
+# already part of what agenti@.service's template grants would cause deploy.sh
+# to REFUSE — this file can only ask for LESS than the template, never more.

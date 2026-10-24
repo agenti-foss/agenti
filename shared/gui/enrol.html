@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenti — Set up your account</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+<script src="js/api.js" defer></script>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="panel login-card" style="max-width:520px;">
+      <h1>Set up your account</h1>
+      <p class="sub muted" id="enrol-sub">Checking your link…</p>
+
+      <div id="enrol-banner" class="banner err"></div>
+
+      <form id="enrol-form" hidden>
+        <h2>1. Choose a password</h2>
+        <div class="field">
+          <label for="enrol-password">Password</label>
+          <input type="password" id="enrol-password" autocomplete="new-password" required minlength="8">
+        </div>
+        <div class="field">
+          <label for="enrol-password2">Confirm it</label>
+          <input type="password" id="enrol-password2" autocomplete="new-password" required minlength="8">
+        </div>
+
+        <h2 id="enrol-totp-heading">2. Set up two-factor authentication</h2>
+        <p class="hint" id="enrol-totp-why"></p>
+        <div class="qr-row">
+          <div id="enrol-qr"></div>
+          <div class="qr-side">
+            <p class="hint" style="margin-top:0;">Scan with an authenticator app, or enter the secret:</p>
+            <div class="copyable"><code class="value" id="enrol-secret"></code></div>
+            <p style="margin:8px 0;"><a id="enrol-otpauth-link" href="#" class="btn btn-sm">Open in authenticator app</a></p>
+            <div class="field" style="margin-top:8px;">
+              <label for="enrol-totp-code">Code from the app, right now</label>
+              <input type="text" id="enrol-totp-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+            </div>
+          </div>
+        </div>
+        <label id="enrol-skip-wrap" style="display:flex; align-items:center; gap:8px; margin:6px 0 12px;" hidden>
+          <input type="checkbox" id="enrol-skip" style="width:auto;"> Skip 2FA for now (you can turn it on later from Settings)
+        </label>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Finish setting up</button>
+      </form>
+
+      <div id="enrol-done" hidden>
+        <div class="banner ok show">Your account is ready.</div>
+        <div id="enrol-recovery" hidden>
+          <p class="hint"><strong>Recovery codes</strong> — each works once. Save them now; they won't be shown again.</p>
+          <div class="copyable"><pre id="enrol-recovery-codes" class="feed" style="font-size:0.85rem; flex:1; margin:0;"></pre></div>
+        </div>
+        <a class="btn btn-primary" href="login.html" style="width:100%; justify-content:center; margin-top:12px;">Sign in</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // No auth on this page by design — see shared/api/main.py's comment on
+    // GET/POST /enrol/{token}. The token itself is the proof; it is
+    // single-use and expires (iam.ENROLMENT_TOKEN_TTL_S), so this page's
+    // whole job is to spend it exactly once, checking first so a stale link
+    // says so plainly instead of failing opaquely on submit.
+    //
+    // 2FA (CLAUDE.md §4 item 25): GET /enrol/{token} says whether the
+    // require-2fa policy applies to this account and hands over a CANDIDATE
+    // secret (nothing is stored — the same two-step shape as Settings' own
+    // enrol/confirm). The server only commits it when the code typed here
+    // was generated from it, so a mistyped secret or a wrong clock can never
+    // leave the account enrolled in a factor it cannot produce.
+    document.addEventListener("DOMContentLoaded", async () => {
+      const token = new URLSearchParams(location.search).get("token") || "";
+      const sub = document.getElementById("enrol-sub");
+      const banner = document.getElementById("enrol-banner");
+      const form = document.getElementById("enrol-form");
+      const done = document.getElementById("enrol-done");
+      const skipWrap = document.getElementById("enrol-skip-wrap");
+      const skip = document.getElementById("enrol-skip");
+      const codeInput = document.getElementById("enrol-totp-code");
+
+      if (!token) {
+        sub.textContent = "This link is missing its token.";
+        Agenti.banner(banner, "err", "Ask whoever invited you for a fresh link.");
+        return;
+      }
+
+      let info;
+      try {
+        info = await Agenti.get(`enrol/${encodeURIComponent(token)}`, { noRedirect: true });
+      } catch (err) {
+        sub.textContent = "This link is invalid or has expired.";
+        Agenti.banner(banner, "err", "Ask an admin to send you a new one — links are valid for 48 hours and work once.");
+        return;
+      }
+
+      sub.textContent = `Welcome, ${info.user}. Two short steps and your account is ready.`;
+      form.hidden = false;
+
+      // The second factor: mandatory under the policy, offered otherwise.
+      const required = !!info.totp_required;
+      document.getElementById("enrol-totp-why").textContent = required
+        ? "Required for this account — every sign-in will ask for a code from the app as well as your password."
+        : "Recommended. Every sign-in will then ask for a code from the app as well as your password.";
+      const qrHost = document.getElementById("enrol-qr");
+      const img = Agenti.qrImage(info.qr_svg, "QR code for your authenticator app");
+      if (img) qrHost.appendChild(img);
+      const secretEl = document.getElementById("enrol-secret");
+      secretEl.textContent = info.totp_secret || "";
+      secretEl.parentElement.appendChild(Agenti.copyButton(info.totp_secret || "", "Copy secret"));
+      document.getElementById("enrol-otpauth-link").href = info.otpauth_uri || "#";
+      codeInput.required = required;
+      if (!required) {
+        skipWrap.hidden = false;
+        skip.addEventListener("change", () => {
+          codeInput.disabled = skip.checked;
+          if (skip.checked) codeInput.value = "";
+        });
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        banner.className = "banner";
+        const p1 = document.getElementById("enrol-password").value;
+        const p2 = document.getElementById("enrol-password2").value;
+        if (p1 !== p2) { Agenti.banner(banner, "err", "Those two passwords don't match."); return; }
+        if (p1.length < 8) { Agenti.banner(banner, "err", "Use at least 8 characters."); return; }
+        const code = codeInput.value.trim();
+        const enrolling = !(skip.checked && !required);
+        if (enrolling && !/^[0-9]{6}$/.test(code)) {
+          Agenti.banner(banner, "err", required
+            ? "Enter the 6-digit code from your authenticator app — 2FA is required for this account."
+            : "Enter the 6-digit code from your authenticator app, or tick “Skip 2FA for now”.");
+          return;
+        }
+        const body = { new: p1 };
+        if (enrolling) { body.totp_secret = info.totp_secret; body.totp_code = code; }
+        const btn = form.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const r = await Agenti.post(`enrol/${encodeURIComponent(token)}`, body, { noRedirect: true });
+          form.hidden = true;
+          done.hidden = false;
+          if (r.recovery_codes && r.recovery_codes.length) {
+            const pre = document.getElementById("enrol-recovery-codes");
+            pre.textContent = r.recovery_codes.join("\n");
+            pre.parentElement.appendChild(Agenti.copyButton(r.recovery_codes.join("\n"), "Copy recovery codes"));
+            document.getElementById("enrol-recovery").hidden = false;
+          }
+        } catch (err) {
+          Agenti.banner(banner, "err", Agenti.errorText(err));
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

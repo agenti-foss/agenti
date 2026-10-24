@@ -1,0 +1,10 @@
+Template: agenti/purge-data
+Type: boolean
+Default: false
+Description: Delete all Agenti data as well?
+ Agenti's settings are being removed. This question is about its data in
+ /var/lib/agenti: every engagement's reports and scan data (the vault image
+ too, if the vault was on), the user database and the API keys.
+ .
+ If they are kept, they can be deleted later by hand. Deleting them now
+ cannot be undone.

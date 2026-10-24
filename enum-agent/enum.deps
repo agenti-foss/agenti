@@ -1,0 +1,20 @@
+# enum.deps — apt packages this agent's tooling needs.
+#
+# packaging/build-deb.sh turns this list (one package per line, # comments
+# ignored) into the package's Recommends: apt installs them by default, and a
+# name a distribution lacks (netexec, enum4linux-ng outside Kali) never blocks
+# installing Agenti itself.
+#
+# Keep this list in step with the agent's program list (enum-agent/manifest.json):
+# a tool that is allow-listed but not installed costs a wasted turn and real
+# API budget every time the model reaches for it.
+nmap
+nikto
+gobuster
+# dig
+dnsutils
+whatweb
+enum4linux-ng
+# smbclient brings rpcclient with it
+smbclient
+netexec

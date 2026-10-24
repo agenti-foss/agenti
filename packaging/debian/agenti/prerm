@@ -1,0 +1,19 @@
+#!/bin/sh
+# prerm — before the files go. On removal: stop everything Agenti runs
+# (including any agent run) and remove its units and sudoers grant; settings,
+# accounts and data stay until purge. On upgrade nothing stops: the new
+# postinst restarts the services onto the new code.
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        /usr/lib/agenti/configure.sh remove
+        ;;
+    upgrade|failed-upgrade)
+        ;;
+    *)
+        echo "prerm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+exit 0

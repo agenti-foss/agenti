@@ -1,0 +1,8 @@
+# Weekly pull requests that bump the pinned GitHub Actions in
+# .github/workflows/. Review and merge them; CI runs on each one first.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

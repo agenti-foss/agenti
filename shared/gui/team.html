@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div id="topnav-mount"></div>
+
+  <main>
+    <a class="back-link" href="dashboard.html"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>Dashboard</a>
+
+    <div class="panel">
+      <div class="page-header">
+        <div class="agent-card-head" style="gap:14px;">
+          <div class="avatar" id="tm-avatar" style="width:52px;height:52px;font-size:1.1rem;"></div>
+          <div class="agent-card-title">
+            <h1 id="tm-title" style="margin-bottom:2px;">&nbsp;</h1>
+            <div class="meta" id="tm-meta">&nbsp;</div>
+          </div>
+          <span id="tm-badge" class="badge-slot"></span>
+        </div>
+      </div>
+      <div id="tm-banner" class="banner err"></div>
+    </div>
+
+    <!-- Roster: each member's own assigned role and its live status,
+         linking through to its own agent console for full detail. -->
+    <div class="panel">
+      <h2 class="ih" data-icon="team">Roster</h2>
+      <div id="tm-roster" class="stack" style="gap:8px;"><p class="muted">Loading…</p></div>
+    </div>
+
+    <!-- Consensus (CLAUDE.md's teams-in-the-GUI plan): the project is not
+         complete until every current member has voted AND nothing new has
+         come up since. Computed server-side by the SAME function an
+         agent's own standby loop uses — this panel only displays it. -->
+    <div class="panel">
+      <h2 class="ih" data-icon="check">Project status</h2>
+      <div id="tm-consensus"><p class="muted">Loading…</p></div>
+      <div id="tm-document-link" hidden style="margin-top:10px;">
+        <a class="btn btn-primary" id="tm-open-document" href="#" data-icon="file"><span>Open the team document</span></a>
+      </div>
+    </div>
+
+    <!-- The group chat: the shared channel (kickoff, messages, notes,
+         completion votes) merged by time with what each member is
+         THINKING and DOING from its own ledger (agent:says narration, tool
+         calls, results) — one colour per member, you on the right, so a
+         human can follow who said what to whom and what each agent was
+         doing in between. Everything shown is what the team itself can
+         already see plus each member's own console; nothing new is exposed. -->
+    <div class="panel console-panel">
+      <div class="console-head">
+        <h2 class="ih" data-icon="chat">Group chat</h2>
+        <span class="console-status" id="tm-console-status"></span>
+        <label class="chat-toggle" title="Also show what each agent said to itself and how many steps it took, between the messages">
+          <input type="checkbox" id="tm-show-thinking"> Show each agent's work
+        </label>
+      </div>
+      <div class="chat" id="tm-feed" role="log" aria-live="polite" aria-label="Team group chat"></div>
+      <form class="composer" id="tm-chat-form">
+        <input type="text" id="tm-chat-input" placeholder="Message the whole team, or add a note…" aria-label="Message the team" autocomplete="off">
+        <button type="submit" class="btn btn-primary compact" id="tm-send-btn" data-icon="send" title="Send to the whole team"><span class="btn-label">Send</span></button>
+        <button type="button" class="btn compact" id="tm-note-btn" data-icon="note" title="Note — recorded in the channel; never reaches any agent"><span class="btn-label">Note</span></button>
+        <button type="button" class="btn compact" id="tm-attach-btn" data-icon="paperclip" title="Attach a file for every member — members running now get it at once"><span class="btn-label">Attach</span></button>
+        <span class="composer-controls" id="tm-controls">
+          <button type="button" class="icon-btn" data-action="pause" aria-label="Pause every member" title="Pause — freezes every member in place">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/></svg><span class="icon-label">Pause all</span>
+          </button>
+          <button type="button" class="icon-btn" data-action="resume" aria-label="Resume every member" title="Resume — continues every paused or stopped member">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg><span class="icon-label">Resume all</span>
+          </button>
+          <button type="button" class="icon-btn danger" data-action="stop" aria-label="Stop every member" title="Stop — ends every member's current run; a partial report is still written for each">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg><span class="icon-label">Stop all</span>
+          </button>
+          <button type="button" class="icon-btn" data-action="acknowledge" aria-label="Mark this team complete" title="Mark complete — stops any member still running, then records the project as reviewed/done">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-label">Mark complete</span>
+          </button>
+        </span>
+      </form>
+      <p class="hint" id="tm-msg" hidden></p>
+    </div>
+
+    <details class="panel tools-panel" id="tm-files-panel" hidden>
+      <summary><h2 class="ih" data-icon="paperclip" style="margin:0;">Files</h2>
+        <span class="hint" id="tm-files-summary"></span></summary>
+      <div id="tm-files-body"></div>
+    </details>
+  </main>
+
+  <footer class="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/markdown.js" defer></script>
+  <script src="js/activity.js" defer></script>
+  <script src="js/attachments.js" defer></script>
+  <script src="js/team.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div id="topnav-mount"></div>
+
+  <main>
+    <div id="page-banner" class="banner err"></div>
+    <div class="page-header">
+      <div class="segmented" id="view-switch" role="tablist">
+        <button type="button" class="active" data-view="active" data-icon="grid" role="tab" aria-selected="true"><span>Active Agents</span></button>
+        <button type="button" data-view="history" data-icon="history" role="tab" aria-selected="false"><span>Task History</span></button>
+      </div>
+      <!-- Shown once dashboard.js knows the caller may start something (an
+           operator or admin here, or agent:start on at least one agent):
+           a viewer gets no button that could only 403. -->
+      <a class="btn btn-primary" id="launch-btn" href="launch.html" data-icon="rocket" hidden><span>Launch agent</span></a>
+    </div>
+
+    <!-- ===================== Active Agents view ===================== -->
+    <section id="view-active">
+      <div class="grid-toolbar" id="active-toolbar" hidden>
+        <label class="inline-field" for="active-sort"><span class="muted">Sort</span>
+          <select id="active-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="attention">Needs me first</option>
+            <option value="agent">Agent type</option>
+            <option value="name">Name, A–Z</option>
+          </select>
+        </label>
+      </div>
+      <div class="card-grid" id="active-agents-grid">
+        <!-- populated by dashboard.js from GET /dashboard -->
+        <p class="muted" id="active-loading">Loading your agents…</p>
+      </div>
+      <div class="empty-state" id="active-empty" hidden>
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>
+          </svg>
+        </div>
+        <h3>Nothing running</h3>
+        <p>Running agents, and finished ones waiting for your review.</p>
+        <a class="btn btn-primary" id="launch-btn-empty" href="launch.html" data-icon="rocket" hidden><span>Launch an agent</span></a>
+        <p class="view-only" id="view-only-note" hidden></p>
+      </div>
+    </section>
+
+    <!-- ===================== Task History view =====================
+         Two sub-views behind the same segmented toggle as the one above:
+         the runs you've reviewed, and the files you've kept (Outputs).
+         They sit together because both are "what's left once the work is
+         done". The sub-view is in the URL fragment (#history / #outputs). -->
+    <section id="view-history" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="segmented" id="history-switch" role="tablist">
+            <button type="button" class="active" data-sub="history" data-icon="history" role="tab" aria-selected="true"><span>Task History</span></button>
+            <button type="button" data-sub="outputs" data-icon="outputs" role="tab" aria-selected="false"><span>Outputs</span></button>
+          </div>
+          <div class="inline-field" id="history-filter-field">
+            <select id="history-filter" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="completed">Completed</option>
+              <option value="canceled">Canceled</option>
+              <option value="paused">Paused</option>
+              <option value="failed">Failed / other</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="sub-history">
+        <div class="table-scroll">
+        <table id="history-table">
+          <thead>
+            <tr>
+              <th><button class="sort" data-key="agent">Agent</button></th>
+              <th><button class="sort" data-key="target">Target</button></th>
+              <th><button class="sort" data-key="status">Status</button></th>
+              <th><button class="sort" data-key="findings_count">Findings</button></th>
+              <th><button class="sort" data-key="ended">Ended</button></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+        </div>
+        <div class="empty-state" id="history-empty" hidden>
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16M4 12h16M4 18h10"/>
+            </svg>
+          </div>
+          <h3>No finished runs yet</h3>
+          <p>A run lands here once you've marked it complete on the Active
+            Agents tab.</p>
+        </div>
+        </div>
+
+        <!-- Outputs: files kept permanently (filled by outputs.js the first
+             time this sub-view is opened). -->
+        <div id="sub-outputs" hidden>
+          <div id="outputs-banner" class="banner err"></div>
+          <p class="hint">Kept permanently. Run data is cleared after 30 days.</p>
+          <div id="usage-kv"></div>
+          <div class="panel-head" id="outputs-bulkbar" hidden>
+            <p class="hint" id="outputs-selected-count" style="margin:0;"></p>
+            <button type="button" class="btn btn-sm btn-danger" id="outputs-delete-selected" data-icon="trash">Delete selected</button>
+          </div>
+          <div class="table-scroll" id="outputs-table-wrap" hidden>
+            <table id="outputs-table">
+              <thead>
+                <tr>
+                  <th style="width:2em;"><input type="checkbox" id="outputs-select-all" style="width:auto;" aria-label="Select all outputs" hidden></th>
+                  <th>Name</th>
+                  <th>Size</th>
+                  <th>Kept</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="outputs-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="outputs-empty" hidden>
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.8 2.2h9A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>
+              </svg>
+            </div>
+            <h3>Nothing kept yet</h3>
+            <p>Open a report and choose <strong>Keep this report</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/markdown.js" defer></script>
+  <script src="js/activity.js" defer></script>
+  <script src="js/outputs.js" defer></script>
+  <script src="js/send-output.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
+</body>
+</html>

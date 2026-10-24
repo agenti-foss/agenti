@@ -1,0 +1,53 @@
+#!/bin/sh
+# fetch-claude-code — put Anthropic's Claude Code program where the Claude Agent
+# SDK looks for it (agent/.../claude_agent_sdk/_bundled/claude).
+#
+#   sudo /usr/lib/agenti-runtime/fetch-claude-code          fetch and check it
+#   sudo /usr/lib/agenti-runtime/fetch-claude-code --remove delete it
+#
+# agenti-runtime does not redistribute this program: it is Anthropic's, under
+# Anthropic's own terms (the SDK around it is MIT). The package carries only a
+# pin (claude-code.pin, written at build): the PyPI wheel it comes in, that
+# wheel's SHA-256, and the program's own SHA-256. This script downloads that
+# exact wheel from PyPI, checks both hashes and installs the one file. The
+# package's postinst runs it; with no network it says so and the install still
+# completes (agenti verify and every run's preflight then name this command).
+set -eu
+
+RT=/usr/lib/agenti-runtime
+PIN="$RT/claude-code.pin"
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+[ -f "$PIN" ] || die "$PIN is missing — reinstall: sudo apt install --reinstall agenti-runtime"
+val() { sed -n "s/^$1=//p" "$PIN"; }
+URL=$(val url); WHEEL_SHA=$(val wheel_sha256); MEMBER=$(val member); SHA=$(val sha256); DEST="$RT/$(val dest)"
+[ -n "$URL" ] && [ -n "$WHEEL_SHA" ] && [ -n "$MEMBER" ] && [ -n "$SHA" ] || die "$PIN is incomplete — reinstall agenti-runtime"
+
+if [ "${1:-}" = "--remove" ]; then
+    rm -f "$DEST"
+    exit 0
+fi
+[ "$(id -u)" -eq 0 ] || die "must run as root: sudo $0"
+
+if [ -f "$DEST" ] && echo "$SHA  $DEST" | sha256sum -c --quiet - 2>/dev/null; then
+    echo "Claude Code is already in place (SHA-256 checked)."
+    exit 0
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+if ! curl -fsSL --retry 3 --proto '=https' --tlsv1.2 -o "$work/sdk.whl" "$URL"; then
+    die "could not download Claude Code from PyPI ($URL). Agent runs need it.
+  With network access, run: sudo $0"
+fi
+echo "$WHEEL_SHA  $work/sdk.whl" | sha256sum -c --quiet - \
+    || die "the downloaded wheel does not match its pinned SHA-256; nothing was installed"
+"$RT/agent/bin/python3" -I -c '
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z, open(sys.argv[3], "wb") as out:
+    out.write(z.read(sys.argv[2]))
+' "$work/sdk.whl" "$MEMBER" "$work/claude" || die "the wheel holds no $MEMBER"
+echo "$SHA  $work/claude" | sha256sum -c --quiet - \
+    || die "the program in the wheel does not match its pinned SHA-256; nothing was installed"
+install -D -m 0755 -o root -g root "$work/claude" "$DEST"
+echo "Claude Code installed from PyPI (wheel and program SHA-256 checked)."

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docs — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body class="docs-page">
+  <div id="topnav-mount"></div>
+
+  <main class="docs-main">
+    <header class="docs-head" id="docs-head">
+      <h1>Docs</h1>
+      <p class="hint">How to use Agenti. Search looks through every page and takes you to the exact section.</p>
+    </header>
+
+    <form class="docs-search" id="docs-search" role="search" autocomplete="off">
+      <svg class="docs-search-icon" viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.3"/><path d="M12.8 12.8 17 17"/></svg>
+      <input type="search" id="docs-q" name="search" placeholder="Search the docs" aria-label="Search the docs"
+             maxlength="200" spellcheck="false" enterkeyhint="search" aria-controls="docs-results" aria-describedby="docs-status">
+      <button type="button" class="docs-clear" id="docs-clear" aria-label="Clear the search" title="Clear (Esc)" hidden>
+        <svg viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"/></svg>
+      </button>
+      <kbd class="docs-kbd" aria-hidden="true" title="Press / to search">/</kbd>
+    </form>
+
+    <div id="docs-banner" class="banner err" hidden></div>
+    <p class="docs-status" id="docs-status" role="status" aria-live="polite"></p>
+    <div class="docs-results" id="docs-results" hidden></div>
+
+    <nav class="list docs-list" id="docs-list" aria-label="Help pages"><p class="list-empty">Loading…</p></nav>
+
+    <div class="docs-view" id="docs-view" hidden>
+      <div class="docs-hl" id="docs-hl" hidden>
+        <span id="docs-hl-text"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="docs-hl-clear">Clear</button>
+      </div>
+      <article class="panel report docs-article" id="docs-article"></article>
+    </div>
+  </main>
+
+  <footer class="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/markdown.js" defer></script>
+  <script src="js/docs.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# The auth service's environment (/usr/lib/agenti-runtime/authd): exactly one
+# library, for WebAuthn signature checks; kept apart from the API's on purpose
+# (shared/authd.py). Changing this pin is a reviewed change.
+cryptography==50.0.1

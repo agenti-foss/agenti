@@ -1,0 +1,21 @@
+# /etc/sudoers.d/agenti-api — installed by the agenti package (configure.sh
+# checks it with `visudo -c` before it can take effect). Do not edit: an
+# upgrade replaces it, and `apt remove agenti` deletes it.
+#
+# Grants the agenti-api service account (unprivileged, nologin, owns nothing)
+# passwordless sudo for EXACTLY ONE program, with NO arguments: the bridge.
+#
+#   - The API never runs as root. Every action goes through the bridge
+#     (api/cli_bridge.py -> /usr/lib/agenti/api_bridge.py), which checks it
+#     against the list of verbs the web tier actually uses and then runs the
+#     agenti CLI, so it inherits every scope check, vault gate, preflight gate
+#     and audit line the CLI enforces. There is no second code path.
+#   - The trailing "" means sudo refuses the bridge if it is given ANY
+#     argument. The command travels as one JSON line on standard input, so
+#     sudo's log holds the bridge's name and nothing else: no password, link
+#     token or grant (audit run 1, N05).
+#   - `-n` (never prompt): if this grant is missing, requests fail at once
+#     with a clear error instead of hanging on a password prompt.
+#   - The CLI itself is NOT allowed: a compromised API process cannot reach a
+#     verb the bridge does not list (audit run 1, fix 2).
+agenti-api ALL=(root) NOPASSWD: /usr/lib/agenti/api_bridge.py ""

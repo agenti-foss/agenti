@@ -1,0 +1,31 @@
+{
+  "engagement_id": "ACME-2026-03",
+  "client": "Acme Corp (fictional example — replace every field)",
+  "authorizing_party": "Jane Okafor",
+  "authorizing_title": "CISO, authorized signatory on the SOW",
+  "authorization_ref": "SOW-ACME-2026-03 / RoE v1.1",
+  "valid_from": "2026-03-01",
+  "valid_until": "2026-03-14",
+  "emergency_contact": "soc@acme.example  +1 555 0100",
+  "notes": "Testing window 18:00-06:00 UTC only. The DC at 10.0.0.10 is fragile: enumerate, do not stress.",
+  "capture_payloads": false,
+  "retention_days": 0,
+  "redact": [],
+  "scope": {
+    "cidr": {
+      "in_scope": ["10.0.0.0/24 (internal server VLAN)"],
+      "out_of_scope": ["10.0.5.0/24 (production payroll)", "any host not in 10.0.0.0/24"]
+    },
+    "domain": {
+      "in_scope": ["acme.example (corporate web presence)"],
+      "out_of_scope": ["any domain not under acme.example"]
+    }
+  },
+  "policy": {
+    "require_approval": true,
+    "max_turns_ceiling": 40,
+    "max_budget_usd_ceiling": 10.00,
+    "timeout_s_ceiling": 3600,
+    "allowed_models": ["haiku", "sonnet"]
+  }
+}

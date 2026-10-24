@@ -1,0 +1,116 @@
+# /etc/systemd/system/agenti-__AGENT__-instance@.service
+#
+# TEMPLATE unit — one file per AGENT, rendered by capability-dropin.sh's
+# render_slot_template (configure.sh, the CLI); every placeholder is substituted
+# at render time (docs/packaging.md § Layout): __ROOT__ the data root, __LIBDIR__
+# the code, __MASTER__ this agent's code folder, __PYTHON__ the bundled agent
+# Python. %i is the RUN SLOT: every run lives in its owner's own slot,
+# "<owner>" or "<owner>.<copy>" (runs are private to the user who launched them).
+#
+#     systemctl start agenti-__AGENT__-instance@alice
+#         -> __MASTER__/__AGENT__-agent.py   (the one master copy)
+#            state, reports, run-target, … in __ROOT__/org/__AGENT__/instances/alice/
+#
+# One template per agent because %i cannot be partially extracted: here it has
+# exactly one job (the slot), and the agent name is a literal.
+#
+# ISOLATION BETWEEN USERS: every slot runs as the same service account, so
+# file permissions alone would let one user's run read another's. The
+# organisation directory is therefore replaced by an empty read-only
+# filesystem for this process (TemporaryFileSystem=), and only what this run
+# needs is bound back: its own slot (read-write) and the engagement, approval
+# and secrets files (read-only). No other user's runs — of this agent or any
+# other — are visible at all. A TEAM member's slot additionally gets a
+# team.conf drop-in (written by the CLI at team start/resume —
+# capability-dropin.sh's team_dropin) binding back exactly its own team's
+# channel file; a solo run sees no part of teams/.
+
+[Unit]
+Description=Agenti agent "__AGENT__" instance "%i" (authorized engagement only)
+Documentation=file:__MASTER__/__AGENT__-agent.py
+
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+# GATE 1 — the vault (this line is rendered only while the vault is enabled:
+# then the data root must be the unlocked container, never the bare disk
+# underneath), and the agent's own MASTER copy. Fixed literals, not %i — %i is
+# the run slot and has no bearing on whether the code exists.
+AssertPathIsMountPoint=__ROOT__
+AssertPathExists=__MASTER__/__AGENT__-agent.py
+
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=__SVC_USER__
+Group=__SVC_USER__
+WorkingDirectory=__ROOT__/org/__AGENT__/instances/%i
+
+Environment=AGENTI_ROOT=__ROOT__
+Environment=AGENTI_LIBDIR=__LIBDIR__
+Environment=AGENT_NAME=__AGENT__
+# This run's own slot directory; every agent and preflight.py resolve their
+# data root from it.
+Environment=AGENTI_INSTANCE=__ROOT__/org/__AGENT__/instances/%i
+# Metadata only (the slot name), for logs and reports.
+Environment=AGENTI_INSTANCE_LABEL=%i
+Environment=PYTHONPATH=__LIBDIR__
+Environment=HOME=__ROOT__/org/__AGENT__/instances/%i
+Environment=PYTHONUNBUFFERED=1
+# The engine's own auto-memory would let a run persist notes that steer later
+# runs outside our context files. Off: only files an admin controls feed an agent.
+Environment=CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+
+# GATE 2 — credentials: platform, organisation, agent, then slot; last wins.
+# Read by systemd before the filesystem rules below apply.
+EnvironmentFile=-__ROOT__/shared/secrets.env
+EnvironmentFile=-__ROOT__/org/secrets.env
+EnvironmentFile=-__ROOT__/org/__AGENT__/secrets.env
+EnvironmentFile=-__ROOT__/org/__AGENT__/instances/%i/secrets.env
+
+# GATE 3 — preflight (incl. the admin scope-approval, when the policy asks for it).
+ExecStartPre=__PYTHON__ __LIBDIR__/preflight.py
+ExecStart=__PYTHON__ __MASTER__/__AGENT__-agent.py
+
+# --- Privilege: the CEILING. A capability drop-in on this template
+# (capability-dropin.sh's render_capability_dropin) may only narrow it.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=yes
+
+# --- Filesystem: whole system read-only; of the organisation directory, only
+# what this run needs exists at all (see "ISOLATION BETWEEN USERS" above).
+ProtectSystem=strict
+TemporaryFileSystem=__ROOT__/org:ro
+BindPaths=__ROOT__/org/__AGENT__/instances/%i
+BindReadOnlyPaths=-__ROOT__/org/__AGENT__/agent-scope.json -__ROOT__/org/__AGENT__/tool-settings.json -__ROOT__/org/engagement.json -__ROOT__/org/approval.json -__ROOT__/org/secrets.env -__ROOT__/org/__AGENT__/secrets.env
+ReadWritePaths=__ROOT__/org/__AGENT__/instances/%i
+ProtectHome=yes
+PrivateTmp=yes
+# Processes: each run has its own PID namespace and its own /proc, so one run
+# cannot read another's working folder, environment (API key) or command line
+# through /proc/<pid>/ (audit run 1, N12: every run is the same agenti-run
+# account, so the mount isolation above was bypassable that way). systemd 257+;
+# an older systemd ignores it with a warning, and `agenti verify` says so.
+PrivatePIDs=yes
+ProtectProc=invisible
+TasksMax=512
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+# No AF_PACKET: raw frames leave a unit without passing its IP fence (audit
+# run 2, confirmed live; operator decision 9). capability-dropin.sh adds it back
+# for PACKET_CAPTURE_AGENTS only (trafficmon's capture).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+Restart=no
+TimeoutStopSec=120
+KillSignal=SIGTERM
+
+# No [Install] section, on purpose: start-on-demand only, never enabled, so a
+# box never resumes scanning by itself after a power cycle (CLAUDE.md §1.5).

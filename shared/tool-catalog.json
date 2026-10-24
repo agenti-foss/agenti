@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "about": "Programs an admin may add to an agent that runs shell commands (enum). Reviewed in code, shipped read-only. Every entry is RECONNAISSANCE ONLY: it observes, it does not exploit, brute-force, upload, execute remotely or change anything on a target. 'extra_denied' are argument patterns refused for that program ON TOP of the agent's own denied patterns and the scope check (every command must still name an in-scope IP). Exploitation tooling is deliberately absent and belongs to a separate, separately-approved project.",
+  "baseline_programs": [
+    {
+      "name": "nmap",
+      "group": "network",
+      "purpose": "port/service scanner and NSE script host — the primary recon tool"
+    },
+    {
+      "name": "ping",
+      "group": "network",
+      "purpose": "basic reachability check"
+    },
+    {
+      "name": "dig",
+      "group": "network",
+      "purpose": "DNS lookups (records, zone data where allowed)"
+    },
+    {
+      "name": "nikto",
+      "group": "web",
+      "purpose": "web server scanner for known issues and misconfigurations"
+    },
+    {
+      "name": "gobuster",
+      "group": "web",
+      "purpose": "directory/vhost/DNS brute-forcer for content discovery"
+    },
+    {
+      "name": "whatweb",
+      "group": "web",
+      "purpose": "web technology fingerprinter"
+    },
+    {
+      "name": "enum4linux-ng",
+      "group": "windows",
+      "purpose": "SMB/NetBIOS enumeration (shares, users, policies)"
+    },
+    {
+      "name": "rpcclient",
+      "group": "windows",
+      "purpose": "MS-RPC client for querying Windows services"
+    },
+    {
+      "name": "smbclient",
+      "group": "windows",
+      "purpose": "SMB client for listing and reading allowed shares"
+    },
+    {
+      "name": "netexec",
+      "group": "windows",
+      "purpose": "network service enumeration across SMB/LDAP/WinRM/etc."
+    },
+    {
+      "name": "GetUserSPNs.py",
+      "group": "windows",
+      "purpose": "Impacket: request service tickets (Kerberoasting)"
+    },
+    {
+      "name": "GetNPUsers.py",
+      "group": "windows",
+      "purpose": "Impacket: find accounts without pre-auth (AS-REP roasting)"
+    }
+  ],
+  "programs": [
+    {
+      "name": "curl",
+      "group": "web",
+      "purpose": "fetch a web page or response headers over HTTP(S) — GET only",
+      "extra_denied": [
+        "(^|\\s)(-d|--data\\S*|-F|--form\\S*|-T|--upload-file|-X|--request|-K|--config|-u|--user|-o|-O|--output|--remote-name)(\\s|=|$)",
+        "\\b(file|gopher|dict|ftp|ftps|scp|sftp|ldap|smb)://"
+      ]
+    },
+    {
+      "name": "sslscan",
+      "group": "tls",
+      "purpose": "list the TLS versions and ciphers a service accepts",
+      "extra_denied": []
+    },
+    {
+      "name": "sslyze",
+      "group": "tls",
+      "purpose": "analyse a service's TLS configuration",
+      "extra_denied": []
+    },
+    {
+      "name": "testssl.sh",
+      "group": "tls",
+      "purpose": "test a service's TLS ciphers and known TLS flaws",
+      "extra_denied": []
+    },
+    {
+      "name": "whois",
+      "group": "network",
+      "purpose": "look up who an address is registered to",
+      "extra_denied": []
+    },
+    {
+      "name": "traceroute",
+      "group": "network",
+      "purpose": "show the network path to a host",
+      "extra_denied": []
+    },
+    {
+      "name": "nbtscan",
+      "group": "windows",
+      "purpose": "list NetBIOS names on a network",
+      "extra_denied": []
+    },
+    {
+      "name": "showmount",
+      "group": "unix",
+      "purpose": "list a host's NFS exports",
+      "extra_denied": []
+    },
+    {
+      "name": "smbmap",
+      "group": "windows",
+      "purpose": "list SMB shares and their permissions",
+      "extra_denied": [
+        "(^|\\s)(-x|--execute|--upload|--download|--delete|--skip)(\\s|=|$)",
+        "(^|\\s)-(u|p|H)(\\s|$)"
+      ]
+    },
+    {
+      "name": "snmpwalk",
+      "group": "network",
+      "purpose": "read a device's SNMP data (read-only)",
+      "extra_denied": [
+        "(^|\\s)-v\\s*3"
+      ]
+    },
+    {
+      "name": "ldapsearch",
+      "group": "windows",
+      "purpose": "read directory entries over LDAP (anonymous only)",
+      "extra_denied": [
+        "(^|\\s)(-w|-W|-y|-D|-Y|-H\\s*ldapi)(\\s|=|$)"
+      ]
+    },
+    {
+      "name": "ike-scan",
+      "group": "network",
+      "purpose": "detect and fingerprint IPsec VPN gateways",
+      "extra_denied": [
+        "--aggressive|(^|\\s)-A(\\s|$)"
+      ]
+    },
+    {
+      "name": "wafw00f",
+      "group": "web",
+      "purpose": "detect which web application firewall protects a site",
+      "extra_denied": []
+    }
+  ],
+  "rules_for_built_in_programs": {
+    "netexec": [
+      "(^|\\s)(-x|-X|--exec-method|--put-file|--sam|--lsa|--ntds|--dpapi|--laps)(\\s|=|$)"
+    ],
+    "smbclient": [
+      "(^|\\s)-c\\s*['\"]?\\s*(put|mput|del|rm|rmdir|mkdir|rename)\\b"
+    ]
+  },
+  "never_in_this_catalog": [
+    "msfconsole",
+    "msfvenom",
+    "sqlmap",
+    "hydra",
+    "medusa",
+    "ncrack",
+    "john",
+    "hashcat",
+    "responder",
+    "mimikatz",
+    "evil-winrm",
+    "psexec.py",
+    "wmiexec.py",
+    "smbexec.py",
+    "secretsdump.py",
+    "aircrack-ng",
+    "aireplay-ng",
+    "ettercap",
+    "bettercap",
+    "crackmapexec",
+    "searchsploit"
+  ]
+}

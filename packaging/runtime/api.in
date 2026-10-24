@@ -1,0 +1,5 @@
+# The API environment (/usr/lib/agenti-runtime/api): agenti-api.service.
+# Plain uvicorn on purpose: no file watcher, websockets, YAML or dotenv
+# support (uvicorn[standard]), none of which the API uses.
+fastapi
+uvicorn

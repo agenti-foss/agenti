@@ -1,0 +1,38 @@
+# trafficmon.deps — apt packages this agent's tooling needs.
+#
+# packaging/build-deb.sh turns this list (one package per line, # comments
+# ignored) into the package's Recommends: apt installs them by default, and a
+# name a distribution lacks never blocks installing Agenti itself.
+#
+# Keep this list in step with the agent's binary allow-list. A tool that is
+# allow-listed but not installed costs a wasted turn and real API budget every
+# time the model reaches for it.
+
+# --- capture -------------------------------------------------------------
+tcpdump
+tshark
+
+# --- signature-based alerting -------------------------------------------
+# Packaged for arm64, installs cleanly on a Pi.
+suricata
+
+# --- protocol analysis ---------------------------------------------------
+# Zeek is the highest-value feed: it emits structured connection, DNS, HTTP and
+# TLS logs, so the model reads metadata records rather than packet bytes. That
+# is both far cheaper and the main reason payloads never need to enter context.
+#
+# STATUS on this box (checked 2026-09-20): Kali Rolling DOES list
+# zeek 5.1.1-0kali3 for arm64, so `apt-cache policy zeek` shows a candidate and
+# looks encouraging. It is not installable: the package pins
+# libc6 (<< 2.38) and this box runs libc6 2.43, so apt reaches conflicting
+# assignments and refuses. Check installability, not just availability:
+#     apt-get -s install zeek
+# Alternatives if it becomes worth the effort: the OpenSUSE Build Service repo
+# for Debian/arm64, or building from source (a long compile on a Pi).
+#
+# The harness degrades to tshark-derived connection records when Zeek is
+# absent, so this is an upgrade rather than a prerequisite — trafficmon's
+# run_zeek() checks shutil.which() and simply returns no logs. Uncommenting the
+# line below once the package is installable is the only change needed; nothing
+# else has to be touched.
+# zeek

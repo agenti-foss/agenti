@@ -1,0 +1,12 @@
+#!/bin/sh
+# agenti-runtime prerm — the fetched Claude Code program is not a file dpkg
+# knows about, so remove it here (on upgrade too: the new version's postinst
+# fetches the program its own pin names).
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        /usr/lib/agenti-runtime/fetch-claude-code --remove || true
+        ;;
+esac
+exit 0

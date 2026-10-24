@@ -1,0 +1,6 @@
+# The agent environment (/usr/lib/agenti-runtime/agent): every agent run and
+# its preflight. Regenerate the lock with packaging/runtime/lock.sh.
+claude-agent-sdk
+# The exploit agent's Metasploit RPC client (agenti-pro). Kept here so both
+# editions share one runtime package.
+msgpack

@@ -1,0 +1,27 @@
+name: Bug report
+description: Something is broken or confusing. Not for security problems (use the private advisory link).
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security problem?** Do not file it here. Use "Report a vulnerability" under the Security tab.
+        Issues are public: remove API keys, passwords, client names and real addresses before pasting.
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: What you did, what you expected, what you saw. }
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes: { label: Agenti version, description: "Output of: dpkg -s agenti | grep Version" }
+  - type: input
+    id: os
+    attributes: { label: Operating system }
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did you use it
+      options: [Web interface, Command line, Both, Not sure]
+  - type: textarea
+    id: error
+    attributes: { label: Exact error message or log lines (redacted), render: text }

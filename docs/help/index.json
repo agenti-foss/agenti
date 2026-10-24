@@ -1,0 +1,60 @@
+{
+  "pages": {
+    "agent-page": {
+      "summary": "Following a run: status, messages, notes and controls.",
+      "icon": "activity"
+    },
+    "analysing-files": {
+      "summary": "Giving a file-analysis agent a capture or other file to examine.",
+      "icon": "file"
+    },
+    "attaching-files": {
+      "summary": "Attaching files to a run or a team.",
+      "icon": "paperclip"
+    },
+    "building-agents": {
+      "summary": "How administrators build their own agents in settings.",
+      "icon": "building"
+    },
+    "finding-help": {
+      "summary": "Searching the help pages, in the app and from the command line.",
+      "icon": "search"
+    },
+    "installing": {
+      "summary": "Installing, first-run setup, updating and removing Agenti (for admins).",
+      "icon": "download"
+    },
+    "keeping-reports": {
+      "summary": "Keeping a report permanently, and re-enabling a disabled user.",
+      "icon": "star"
+    },
+    "private-dashboards": {
+      "summary": "Who can see which runs.",
+      "icon": "lock"
+    },
+    "security-testing": {
+      "summary": "How Agenti's security is audited and tested, what the audits found, and how to report a problem.",
+      "icon": "shield"
+    },
+    "sending-output": {
+      "summary": "Handing a run's results to another agent.",
+      "icon": "send"
+    },
+    "signing-in": {
+      "summary": "Passwords, second factors and passkeys.",
+      "icon": "key"
+    },
+    "teams": {
+      "summary": "Running several agents together as a team.",
+      "icon": "team"
+    },
+    "the-vault": {
+      "summary": "The optional encrypted data folder: turning it on, unlocking after a reboot, uninstalling.",
+      "icon": "lock"
+    },
+    "updates": {
+      "summary": "Checking whether a newer release is out. Report-only.",
+      "icon": "refresh"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "name": "enum",
+  "title": "Network enumeration",
+  "description": "Maps hosts and services on in-scope networks with reviewed recon tools. Never exploits.",
+  "kind": "recon",
+  "scope_kind": "cidr",
+  "tool_names": [
+    "run_scan",
+    "read_scan"
+  ],
+  "category": "cybersecurity",
+  "programs": [
+    {
+      "name": "nmap",
+      "purpose": "port/service scanner and NSE script host — the primary recon tool"
+    },
+    {
+      "name": "ping",
+      "purpose": "basic reachability check"
+    },
+    {
+      "name": "dig",
+      "purpose": "DNS lookups (records, zone data where allowed)"
+    },
+    {
+      "name": "nikto",
+      "purpose": "web server scanner for known issues and misconfigurations"
+    },
+    {
+      "name": "gobuster",
+      "purpose": "directory/vhost/DNS brute-forcer for content discovery"
+    },
+    {
+      "name": "whatweb",
+      "purpose": "web technology fingerprinter"
+    },
+    {
+      "name": "enum4linux-ng",
+      "purpose": "SMB/NetBIOS enumeration (shares, users, policies)"
+    },
+    {
+      "name": "rpcclient",
+      "purpose": "MS-RPC client for querying Windows services"
+    },
+    {
+      "name": "smbclient",
+      "purpose": "SMB client for listing and reading allowed shares"
+    },
+    {
+      "name": "netexec",
+      "purpose": "network service enumeration across SMB/LDAP/WinRM/etc."
+    },
+    {
+      "name": "GetUserSPNs.py",
+      "purpose": "Impacket: request service tickets (Kerberoasting)"
+    },
+    {
+      "name": "GetNPUsers.py",
+      "purpose": "Impacket: find accounts without pre-auth (AS-REP roasting)"
+    }
+  ]
+}

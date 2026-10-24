@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div id="topnav-mount"></div>
+
+  <main>
+    <div id="mfa-required-banner" class="banner err"></div>
+
+    <!-- One list of sections, laid out as a row of tabs on a phone and a
+         sidebar on a desktop (theme.css .settings-layout). settings.js
+         hides the tab AND the pane of any section the caller cannot use,
+         so what is on screen is what this role can act on: Account,
+         Security and Appearance for everyone; Agents, Engagement, Users and
+         Platform only for an admin. The active section lives in the URL fragment
+         (#security, …); ?mfa=required lands on Security. -->
+    <div class="settings-layout">
+      <nav class="settings-tabs" id="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" class="settings-tab active" role="tab" data-pane="account" aria-selected="true"></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="security" aria-selected="false"></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="appearance" aria-selected="false"></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="agents" aria-selected="false" hidden></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="engagement" aria-selected="false" hidden></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="users" aria-selected="false" hidden></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="platform" aria-selected="false" hidden></button>
+      </nav>
+
+      <div class="settings-content">
+
+        <!-- ===================== Account ===================== -->
+        <section class="settings-pane" id="pane-account" role="tabpanel">
+          <h1>Account</h1>
+          <p class="hint">Who you're signed in as.</p>
+          <div class="panel">
+            <dl class="kv" id="account-kv"></dl>
+          </div>
+          <div class="panel">
+            <h2 class="ih" data-icon="logout">Session</h2>
+            <p class="hint">Ends this session everywhere.</p>
+            <button type="button" class="btn" id="logout-btn-2" data-icon="logout">Log out</button>
+          </div>
+        </section>
+
+        <!-- ===================== Security ===================== -->
+        <section class="settings-pane" id="pane-security" role="tabpanel" hidden>
+          <h1>Security</h1>
+          <p class="hint">Password, two-factor and passkeys.</p>
+
+          <div class="panel">
+            <h2 class="ih" data-icon="key">Password</h2>
+            <div id="pw-banner" class="banner err"></div>
+            <form id="password-form" class="stack">
+              <div class="field">
+                <label for="pw-new">New password</label>
+                <input type="password" id="pw-new" autocomplete="new-password" required minlength="8">
+                <p class="hint">At least 8 characters.</p>
+              </div>
+              <button type="submit" class="btn btn-primary" data-icon="key">Change password</button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h2 class="ih" data-icon="shield">Two-factor authentication</h2>
+            <div id="mfa-banner" class="banner err"></div>
+            <p class="hint" id="mfa-status">…</p>
+
+            <div id="mfa-start-panel">
+              <p class="hint" id="mfa-old-code-hint" hidden>You'll need a code from your current device, or a recovery code.</p>
+              <button type="button" class="btn btn-primary" id="mfa-start-btn" data-icon="shield">Set up / replace 2FA</button>
+            </div>
+
+            <div id="mfa-confirm-panel" hidden>
+              <div class="qr-row">
+                <div id="mfa-qr"></div>
+                <div class="qr-side">
+                  <p class="hint" style="margin-top:0;">Scan with your authenticator app, or enter the secret.</p>
+                  <div class="field">
+                    <label>Secret (manual entry)</label>
+                    <div class="copyable"><code class="value" id="mfa-secret"></code></div>
+                  </div>
+                  <p><a id="mfa-otpauth-link" href="#" class="btn btn-sm">Open in authenticator app</a></p>
+                  <div class="field">
+                    <label for="mfa-code">Code from your authenticator app, right now</label>
+                    <input type="text" id="mfa-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+                  </div>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-primary" id="mfa-confirm-btn" data-icon="check">Confirm and turn on</button>
+                <button type="button" class="btn" id="mfa-cancel-btn">Cancel</button>
+              </div>
+            </div>
+
+            <div id="mfa-recovery-panel" hidden>
+              <div class="banner ok show">2FA is on. Save these recovery codes now — each works once if you lose the device, and they will not be shown again.</div>
+              <div class="copyable"><pre id="mfa-recovery-codes" class="feed" style="font-size:0.85rem; flex:1; margin:0;"></pre></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2 class="ih" data-icon="fingerprint">Passkeys</h2>
+            <div id="passkey-banner" class="banner err"></div>
+            <p class="hint">Sign in with your fingerprint, face or device PIN — no password.</p>
+
+            <div id="passkey-list" class="list" style="margin-bottom:12px;" hidden></div>
+            <p class="hint" id="passkey-empty" hidden>No passkeys registered yet.</p>
+
+            <div id="passkey-add-panel">
+              <div class="field">
+                <label for="passkey-name">Name this device <span class="hint">(optional)</span></label>
+                <input type="text" id="passkey-name" maxlength="64" placeholder="e.g. iPhone, MacBook Pro">
+              </div>
+              <button type="button" class="btn btn-primary" id="passkey-add-btn" data-icon="fingerprint">Add a passkey</button>
+            </div>
+            <p class="hint" id="passkey-unsupported" hidden>This browser does not support passkeys.</p>
+          </div>
+        </section>
+
+        <!-- ===================== Appearance ===================== -->
+        <section class="settings-pane" id="pane-appearance" role="tabpanel" hidden>
+          <h1>Appearance</h1>
+          <p class="hint">Saved in this browser.</p>
+          <div class="panel">
+            <h2 class="ih" data-icon="palette">Theme</h2>
+            <div class="theme-cards" id="theme-cards" role="radiogroup" aria-label="Theme"></div>
+          </div>
+          <div class="panel">
+            <h2 class="ih" data-icon="moon">Mode</h2>
+            <div class="segmented mode-seg" id="mode-seg" role="radiogroup" aria-label="Light or dark">
+              <button type="button" data-mode="system" role="radio" aria-checked="false"></button>
+              <button type="button" data-mode="light" role="radio" aria-checked="false"></button>
+              <button type="button" data-mode="dark" role="radio" aria-checked="false"></button>
+            </div>
+            <p class="hint" id="mode-hint" style="margin-top:10px;"></p>
+          </div>
+        </section>
+
+        <!-- ===================== Agents (CLAUDE.md "Current plan" phase 4) ===================== -->
+        <section class="settings-pane" id="pane-agents" role="tabpanel" hidden>
+          <h1>Agents</h1>
+          <p class="hint">Agent types, their controls, and your own builds.</p>
+
+          <div class="panel" id="deployed-agents-panel" hidden>
+            <div class="panel-head">
+              <h2 class="ih" data-icon="cpu">Agent types</h2>
+              <button type="button" class="btn btn-primary" id="build-agent-btn" data-icon="plus" hidden>Build an agent</button>
+            </div>
+            <div id="deployed-agents-banner" class="banner err"></div>
+            <div class="agent-type-list" id="deployed-agents-list"></div>
+          </div>
+
+          <div class="panel" id="agent-scope-panel" hidden>
+            <h2 class="ih" data-icon="sliders">Agent control centre</h2>
+            <p class="hint">Everything that controls one agent.</p>
+            <div id="agent-scope-banner" class="banner err"></div>
+            <div class="field-row">
+              <div class="field" style="flex:1;"><label for="agent-scope-agent">Agent</label><select id="agent-scope-agent"></select></div>
+            </div>
+            <div id="agent-drift" class="banner" style="margin:8px 0;"></div>
+            <div id="agent-controls"></div>
+            <div id="agent-context" style="margin-top:18px;">
+              <h3 class="ih" data-icon="file">Edit the instructions this agent reads</h3>
+              <p class="hint">Text the model reads. It never widens scope, tools or limits.</p>
+              <div class="field"><label for="agent-context-kind">File</label>
+                <select id="agent-context-kind">
+                  <option value="system-prompt">System prompt — what this agent is for (required)</option>
+                  <option value="skills">Skills — techniques this agent may try</option>
+                  <option value="platform-skills">Skills — shared by every agent</option>
+                </select></div>
+              <div id="agent-context-editor"></div>
+            </div>
+            <div id="agent-scope-editor" hidden style="margin-top:18px;">
+              <h3 class="ih" data-icon="target">Edit this agent's scope</h3>
+              <p class="hint">Can only <strong>narrow</strong> the engagement. Leave empty to inherit it.</p>
+              <div id="agent-scope-body">
+              <p class="hint" style="margin:6px 0;"><strong>The engagement allows:</strong> <span id="agent-scope-org-in"></span></p>
+              <div class="field"><label for="agent-scope-in">May touch (one per line)</label>
+                <textarea id="agent-scope-in" rows="3" placeholder="e.g. 192.0.2.31 — empty = inherit the engagement's"></textarea></div>
+              <div class="field"><label for="agent-scope-out">Extra exclusions (one per line)</label>
+                <textarea id="agent-scope-out" rows="2"></textarea></div>
+              <p class="hint" style="margin:6px 0;"><strong>A run is held to:</strong> <span id="agent-scope-effective"></span></p>
+              <button type="button" class="btn btn-primary" id="agent-scope-save" data-icon="check">Save agent scope</button>
+              </div>
+            </div>
+            <div id="agent-tools-editor" hidden style="margin-top:18px;">
+              <h3 class="ih" data-icon="terminal">Edit this agent's tool allow-list</h3>
+              <p class="hint">Remove any program, or add one from the reviewed catalog.</p>
+              <div id="agent-tools-banner" class="banner err"></div>
+              <div id="agent-tools-baseline"></div>
+              <div id="agent-tools-catalog" style="margin-top:12px;"></div>
+              <button type="button" class="btn btn-primary" id="agent-tools-save" data-icon="check" style="margin-top:10px;">Save tool allow-list</button>
+              <details class="disclosure" style="margin-top:10px;">
+                <summary><strong>History</strong> <span class="muted" id="agent-tools-hist-count"></span></summary>
+                <div class="list" id="agent-tools-hist-list" style="margin-top:6px;"></div>
+              </details>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ===================== Engagement (admin) ===================== -->
+        <section class="settings-pane" id="pane-engagement" role="tabpanel" hidden>
+          <h1>Engagement</h1>
+          <p class="hint">What your agents are authorized to touch, and the limits they run under.</p>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2 class="ih" data-icon="shield">Engagement</h2>
+              <button type="button" class="btn btn-primary" id="eng-edit-btn" data-icon="edit">Edit engagement</button>
+            </div>
+            <div id="eng-summary"><p class="hint">Loading…</p></div>
+          </div>
+
+          <div class="panel">
+            <h2 class="ih" data-icon="file">Organisation instructions</h2>
+            <p class="hint">Rules every agent reads — e.g. report style, contacts. Guides behaviour only.</p>
+            <div id="org-policy-editor"></div>
+          </div>
+        </section>
+
+        <!-- ===================== Users (admin) ===================== -->
+        <section class="settings-pane" id="pane-users" role="tabpanel" hidden>
+          <h1>Users</h1>
+          <p class="hint">Who can sign in, and what they can reach.</p>
+
+          <div class="panel" id="users-panel" hidden>
+            <h2 class="ih" data-icon="users">Users</h2>
+            <p class="hint">A new user has no access until you grant it.</p>
+            <p class="hint"><span class="icon-legend"><span data-icon="key">Access &amp; security</span><span data-icon="dashboard">Dashboard</span><span data-icon="edit">Rename</span><span data-icon="check">Re-enable</span><span data-icon="lock">Disable</span><span data-icon="trash">Delete</span></span></p>
+            <div id="users-banner" class="banner err"></div>
+            <div id="new-user-link-panel" hidden>
+              <div class="banner ok show">
+                <span id="new-user-link-lead">Account created. Send this ONE-TIME link to them — it lets them set their own password and expires in 48h:</span>
+                <div class="copyable" style="margin-top:6px;"><code class="value" id="new-user-link"></code></div>
+              </div>
+            </div>
+            <div class="btn-row" style="margin-bottom:14px;">
+              <button type="button" class="btn btn-primary" id="new-user-open-btn" data-icon="plus">New user</button>
+            </div>
+            <div class="table-scroll">
+            <table id="users-table" class="table-compact">
+              <thead><tr><th>Name</th><th>Kind</th><th class="status-cell" title="Status"><span class="lbl-full">Status</span></th><th>Role</th><th class="dashboard-cell"><span class="lbl-full">Dashboard</span></th><th></th></tr></thead>
+              <tbody id="users-tbody"></tbody>
+            </table>
+            </div>
+            <div class="list-pager" id="users-pager"></div>
+          </div>
+
+        </section>
+
+        <!-- ===================== Platform (platform admin) ===================== -->
+        <section class="settings-pane" id="pane-platform" role="tabpanel" hidden>
+          <h1>Platform</h1>
+          <p class="hint">Policies and the deployment.</p>
+
+          <div class="panel" id="limits-panel" hidden>
+            <h2 class="ih" data-icon="sliders">Policies</h2>
+            <p class="hint">Change these on the host with the command shown.</p>
+            <div id="policy-list" class="stack" style="gap:6px;"></div>
+          </div>
+
+          <div class="panel" id="vault-panel" hidden>
+            <h2 class="ih" data-icon="lock">Vault</h2>
+            <p class="hint">The vault keeps reports, scans, attached files and API keys in an encrypted container on this server.</p>
+            <div id="vault-banner" class="banner"></div>
+            <div id="vault-state" class="stack" style="gap:6px;"></div>
+            <div class="row" id="vault-on-row" style="margin-top:12px;" hidden><button type="button" class="btn btn-primary" id="vault-on-btn" data-icon="lock">Turn on the vault</button></div>
+          </div>
+
+          <div class="panel" id="updates-panel" hidden>
+            <h2 class="ih" data-icon="download">Updates</h2>
+            <p class="hint">Checking asks GitHub whether a newer release exists. It only reports; nothing is downloaded or installed. This is off until you allow it on the host.</p>
+            <div id="updates-banner" class="banner"></div>
+            <div id="updates-result" class="stack" style="gap:6px;"></div>
+            <div class="row" style="margin-top:12px;"><button type="button" class="btn" id="updates-check-btn">Check for updates</button></div>
+          </div>
+
+          <div class="panel" id="domain-setup-panel" hidden>
+            <h2 class="ih" data-icon="globe">Set up your own domain for passkeys</h2>
+            <p class="hint">Passkeys need a real domain name, not an IP address.</p>
+            <div id="ds-banner" class="banner"></div>
+
+            <ol class="setup-steps" style="padding-left:1.2em; margin:0;">
+              <li style="margin-bottom:16px;">
+                <div class="ti-title">1. Point a domain at this server</div>
+                <p class="hint">Add a DNS <strong>A record</strong> pointing at <code id="ds-current-host">—</code>. It only needs to resolve on your network.</p>
+              </li>
+              <li style="margin-bottom:16px;">
+                <div class="ti-title">2. Switch the deployment over to it</div>
+                <div class="field" style="margin-top:8px;">
+                  <label for="ds-domain-input">The domain you just pointed at this server</label>
+                  <input type="text" id="ds-domain-input" placeholder="agenti.yourdomain.com">
+                </div>
+                <p class="hint">Run on the host:</p>
+                <ol class="cmd-steps">
+                  <li><div class="copyable"><code id="ds-command-1" class="cmd-block"></code></div></li>
+                  <li><div class="copyable"><code id="ds-command-2" class="cmd-block"></code></div></li>
+                </ol>
+                <p class="hint">Generates a fresh certificate for the new domain.</p>
+              </li>
+              <li style="margin-bottom:16px;">
+                <div class="ti-title">3. Trust the certificate once</div>
+                <p class="hint">Compare the printed SHA-256 fingerprint with the browser's warning, then proceed.</p>
+              </li>
+              <li style="margin-bottom:16px;">
+                <div class="ti-title">4. Turn on passkey sign-in</div>
+                <p class="hint">Open the new address once, then:</p>
+                <button type="button" class="btn btn-primary" id="ds-enable-btn" disabled>Turn on WebAuthn / passkeys</button>
+              </li>
+              <li>
+                <div class="ti-title">5. Register your own passkey and test it</div>
+                <p class="hint">Add one under Security, then sign in with only the passkey.</p>
+              </li>
+            </ol>
+
+            <button type="button" class="btn" id="ds-recheck-btn" style="margin-top:12px;" data-icon="refresh">Check status</button>
+          </div>
+
+          <div class="panel" id="tool-requests-panel" hidden>
+            <h2 class="ih" data-icon="wrench">Tool requests</h2>
+            <p class="hint">Requests for tools the library doesn't have yet.</p>
+            <div id="tool-requests-banner" class="banner err"></div>
+            <div id="tool-requests-list" class="list"></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- The shared role picker — ONE definition, mounted identically into both
+       the New user dialog and the User security settings dialog by
+       settings.js's mountAccessSection(), so the two are the same markup, not
+       two hand-copied lookalikes. Granting a role needs the admin's fresh
+       re-authentication; admin is only grantable by someone who already holds it. -->
+  <template id="access-section-template">
+    <div class="field">
+      <label>Role</label>
+      <div class="field-row">
+        <label class="choice choice-role">
+          <input type="radio" name="role" value="operator" checked>
+          <span class="choice-role-body"><span class="choice-role-name">operator</span>
+            <span class="choice-role-desc">Launches and runs agents. Their runs are private to them.</span></span>
+        </label>
+        <label class="choice choice-role">
+          <input type="radio" name="role" value="admin">
+          <span class="choice-role-body"><span class="choice-role-name">admin</span>
+            <span class="choice-role-desc">Full authority: users, engagement, agents and policies.</span></span>
+        </label>
+      </div>
+    </div>
+  </template>
+
+  <!-- "<name>'s dashboard": an exact copy of that user's landing page,
+       opened from the Users table's Dashboard column (settings.js). -->
+  <dialog id="user-dashboard-dialog" aria-labelledby="ud-title">
+    <div class="ud-head">
+      <h2 id="ud-title"></h2>
+      <button type="button" class="btn btn-sm btn-icon" id="ud-close" title="Close" aria-label="Close" data-icon="close"></button>
+    </div>
+    <iframe id="ud-frame" src="about:blank"></iframe>
+  </dialog>
+
+  <dialog id="new-user-dialog">
+    <form id="add-user-form" method="dialog" class="stack">
+      <h2 style="margin-top:0;" class="ih" data-icon="plus">New user</h2>
+      <div class="field">
+        <label for="new-user-name">Username</label>
+        <input type="text" id="new-user-name" pattern="[a-z0-9][a-z0-9_\-]{0,63}" required>
+      </div>
+      <div class="field">
+        <label for="new-user-kind">Kind</label>
+        <select id="new-user-kind">
+          <option value="user">user (signs in with a password)</option>
+          <option value="service">service (uses an API key, not a password)</option>
+        </select>
+      </div>
+      <div data-access-mount></div>
+      <div id="new-user-banner" class="banner err"></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" id="new-user-submit" data-icon="plus">Create user</button>
+        <button type="button" class="btn" id="new-user-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- User security settings: every admin-authenticated action on one
+       account, in one place — current access, a password or MFA reset, and a
+       "Save access" action for the role. -->
+  <dialog id="grant-dialog">
+    <form id="grant-form" method="dialog" class="stack">
+      <h2 style="margin-top:0;">Security settings for <span id="grant-who"></span></h2>
+      <div class="field" id="grant-current-field" hidden>
+        <label>Current access</label>
+        <div id="grant-current-list" class="stack" style="gap:6px;"></div>
+        <p class="hint">Removals apply immediately.</p>
+      </div>
+      <details class="disclosure" id="reset-section" hidden>
+        <summary>Credentials — reset this user's password or 2FA</summary>
+      <div class="field" id="reset-password-field" hidden>
+        <label>Reset password</label>
+        <div class="btn-row">
+          <button type="button" class="btn" id="reset-password-direct-btn">Set a new password</button>
+          <button type="button" class="btn" id="reset-password-link-btn">Send a one-time reset link</button>
+        </div>
+        <div class="stack" id="reset-password-direct-form" hidden style="margin-top:8px; gap:8px;">
+          <input type="password" id="reset-password-value" placeholder="New password" autocomplete="new-password">
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="reset-password-direct-confirm">Set password</button>
+            <button type="button" class="btn" id="reset-password-direct-cancel">Cancel</button>
+          </div>
+        </div>
+        <div id="reset-password-link-result" hidden style="margin-top:8px;">
+          <div class="banner ok show">
+            <span>One-time reset link — send it to them, it expires in 24h:</span>
+            <div class="copyable" style="margin-top:6px;"><code class="value" id="reset-password-link-value"></code></div>
+          </div>
+        </div>
+        <p class="hint">Signs that account out everywhere.</p>
+      </div>
+      <div class="field" id="reset-mfa-field" hidden>
+        <label>Reset two-factor authentication</label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-danger" id="reset-mfa-btn">Reset MFA</button>
+        </div>
+        <p class="hint">Removes every authenticator and passkey. They'll set 2FA up again at next sign-in.</p>
+      </div>
+      <div id="reset-banner" class="banner err"></div>
+      </details>
+      <h3 class="ih dlg-section" data-icon="key">Access</h3>
+      <div data-access-mount></div>
+      <p class="hint">New grants need approval; removals apply immediately.</p>
+      <div id="grant-banner" class="banner err"></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" id="grant-submit">Save access</button>
+        <button type="button" class="btn" id="grant-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- The Engagement dialog. Fields are always populated so a caller with only
+       engagement:approve can see what they're approving; they're disabled (and
+       Save hidden) unless the caller also holds engagement:manage — js decides
+       which on open. Save always replaces BOTH scope kinds' lists wholesale
+       (what-you-see-is-what-you-get for a form), matching POST /engagement. -->
+  <dialog id="vault-dialog" aria-labelledby="vault-dialog-title">
+    <form id="vault-form" method="dialog" class="stack">
+      <h2 id="vault-dialog-title" style="margin-top:0;" class="ih" data-icon="lock">Turn on the vault</h2>
+      <div id="vault-form-banner" class="banner err"></div>
+      <p>Everything in Agenti's data folder is copied into a new encrypted container, checked, and the unencrypted original is deleted.</p>
+      <ul class="hint" style="margin:0; padding-left:1.2em;">
+        <li><strong>There is no recovery if the passphrase is lost.</strong> Not even an admin can get the data back.</li>
+        <li>After <strong>every restart</strong> of the server, someone must unlock it at the server's terminal: <code>sudo agenti vault unlock</code>. Until then nobody can start an agent or read a report (signing in still works).</li>
+        <li>No run may be going while it is turned on. It takes a few minutes.</li>
+      </ul>
+      <div class="field">
+        <label for="vault-size">Container size</label>
+        <select id="vault-size">
+          <option value="4G">4 GB</option><option value="8G" selected>8 GB</option>
+          <option value="16G">16 GB</option><option value="32G">32 GB</option><option value="64G">64 GB</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="vault-pass">Passphrase (at least 12 characters)</label>
+        <input type="password" id="vault-pass" minlength="12" maxlength="512" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="vault-pass2">The same passphrase again</label>
+        <input type="password" id="vault-pass2" minlength="12" maxlength="512" autocomplete="new-password" required>
+      </div>
+      <label class="row" style="gap:8px; align-items:flex-start;"><input type="checkbox" id="vault-ack" required> <span>I have stored the passphrase somewhere safe, and I understand it must be typed at the server after every restart.</span></label>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" data-icon="lock">Continue</button>
+        <button type="button" class="btn" id="vault-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="user-rename-dialog">
+    <form id="user-rename-form" method="dialog" class="stack">
+      <h2 style="margin-top:0;" class="ih" data-icon="edit">Rename user</h2>
+      <div id="user-rename-banner" class="banner err"></div>
+      <div class="field">
+        <label for="user-rename-name">New username for <span id="user-rename-who"></span></label>
+        <input type="text" id="user-rename-name" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+        <p class="hint">Lowercase letters, digits, - or _. Everything moves with the account.</p>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" data-icon="edit">Continue</button>
+        <button type="button" class="btn" id="user-rename-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="engagement-dialog">
+    <form id="engagement-form" method="dialog" class="stack">
+      <h2 style="margin-top:0;" class="ih" data-icon="shield">Engagement</h2>
+      <div id="engagement-status" class="banner"></div>
+      <p class="hint">Shared by every agent. Applies from each agent's next start.</p>
+      <h3 class="ih dlg-section" data-icon="shield">Authorization</h3>
+      <div class="field-row">
+        <div class="field" style="flex:1;"><label for="eng2-id">Engagement ID</label>
+          <input type="text" id="eng2-id" required></div>
+        <div class="field" style="flex:1;"><label for="eng2-client">Client</label>
+          <input type="text" id="eng2-client" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1;"><label for="eng2-party">Authorizing party</label>
+          <input type="text" id="eng2-party" required></div>
+        <div class="field" style="flex:1;"><label for="eng2-title">Their title / authority</label>
+          <input type="text" id="eng2-title" required></div>
+      </div>
+      <div class="field"><label for="eng2-ref">Authorization reference (signed SOW / RoE)</label>
+        <input type="text" id="eng2-ref" required></div>
+      <div class="field-row">
+        <div class="field" style="flex:1;"><label for="eng2-from">Valid from</label>
+          <input type="date" id="eng2-from" required></div>
+        <div class="field" style="flex:1;"><label for="eng2-until">Valid until</label>
+          <input type="date" id="eng2-until" required></div>
+      </div>
+      <h3 class="ih dlg-section" data-icon="target">Scope</h3>
+      <div class="field"><label for="eng2-cidr-in">CIDR — in scope <span class="hint">(one per line; an optional label in parentheses is fine)</span></label>
+        <textarea id="eng2-cidr-in" rows="2" placeholder="10.0.0.0/24 (client lab VLAN)"></textarea></div>
+      <div class="field"><label for="eng2-cidr-out">CIDR — out of scope <span class="hint">(one per line, optional)</span></label>
+        <textarea id="eng2-cidr-out" rows="2"></textarea></div>
+      <div class="field"><label for="eng2-domain-in">Domain — in scope <span class="hint">(one per line, e.g. example.com)</span></label>
+        <textarea id="eng2-domain-in" rows="2" placeholder="example.com"></textarea></div>
+      <div class="field"><label for="eng2-domain-out">Domain — out of scope <span class="hint">(one per line, optional)</span></label>
+        <textarea id="eng2-domain-out" rows="2"></textarea></div>
+      <p class="hint">Add at least one in-scope entry.</p>
+      <div class="field"><label for="eng2-contact">Emergency contact</label>
+        <input type="text" id="eng2-contact"></div>
+      <div class="field"><label for="eng2-notes">Notes</label>
+        <textarea id="eng2-notes" rows="2"></textarea></div>
+      <details>
+        <summary>Data handling (passive-monitoring agents)</summary>
+        <div class="field-row" style="margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+            <input type="checkbox" id="eng2-capture" style="width:auto;"> capture payload contents, not just metadata
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+            <input type="checkbox" id="eng2-exploitation-enabled" style="width:auto;">
+            <span>permit the <strong>exploit agent</strong> to start runs against this engagement
+              <span class="hint">(requires CVP enrolment — changes this field invalidate the current approval)</span>
+            </span>
+          </label>
+          <div class="field"><label for="eng2-retention">Retention (days, 0 = destroy on close)</label>
+            <input type="text" id="eng2-retention" inputmode="numeric" value="0" style="width:8em;"></div>
+        </div>
+        <div class="field"><label for="eng2-redact">Fields to redact before storage <span class="hint">(one per line, optional)</span></label>
+          <textarea id="eng2-redact" rows="2"></textarea></div>
+      </details>
+      <details open>
+        <summary>Operational policy — caps, models, approval</summary>
+        <p class="hint" style="margin-top:8px;">Ceilings — a launch can only go lower.</p>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin-top:8px;">
+          <input type="checkbox" id="eng2-require-approval" style="width:auto;" checked>
+          require admin approval before a run can start (recommended)
+        </label>
+        <div class="field-row" style="margin-top:8px;">
+          <div class="field"><label for="eng2-turns-ceiling">Max turns ceiling</label>
+            <div class="field-row" style="gap:4px;">
+              <input type="number" id="eng2-turns-ceiling" min="1" placeholder="platform default" style="flex:1;">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="turns" title="Revert to the platform default">Reset</button>
+            </div></div>
+          <div class="field"><label for="eng2-budget-ceiling">Max budget ceiling (USD)</label>
+            <div class="field-row" style="gap:4px;">
+              <input type="number" id="eng2-budget-ceiling" min="0" step="0.01" placeholder="platform default" style="flex:1;">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="budget" title="Revert to the platform default">Reset</button>
+            </div></div>
+          <div class="field"><label for="eng2-timeout-ceiling">Timeout ceiling (seconds)</label>
+            <div class="field-row" style="gap:4px;">
+              <input type="number" id="eng2-timeout-ceiling" min="1" placeholder="platform default" style="flex:1;">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="timeout" title="Revert to the platform default">Reset</button>
+            </div></div>
+        </div>
+        <div class="field"><label>Allowed models</label>
+          <div class="field-row">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+              <input type="checkbox" class="eng2-model" value="haiku" style="width:auto;"> Haiku</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+              <input type="checkbox" class="eng2-model" value="sonnet" style="width:auto;"> Sonnet</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+              <input type="checkbox" class="eng2-model" value="opus" style="width:auto;"> Opus</label>
+          </div>
+          <p class="hint">None checked = every model is allowed (the platform default).</p>
+        </div>
+      </details>
+      <div id="engagement-banner" class="banner err"></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" id="engagement-save" data-icon="check">Save</button>
+        <button type="button" class="btn" id="engagement-approve" data-icon="shield">Approve as-is</button>
+        <button type="button" class="btn" id="engagement-cancel">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="page-footer" id="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/context-editor.js" defer></script>
+  <script src="js/agent-builder.js" defer></script>
+  <script src="js/catalog-editor.js" defer></script>
+  <script src="js/settings.js" defer></script>
+</body>
+</html>

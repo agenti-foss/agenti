@@ -1,0 +1,399 @@
+/* arcade.css — the "Arcade" skin.
+ *
+ * Loaded on every page after theme.css and scoped entirely under
+ * <html data-skin="arcade"> (set by js/theme.js), so it costs the Original
+ * skin nothing: no rule here matches, and a @font-face is only fetched
+ * once something actually uses it.
+ *
+ * The brief: an eighties arcade, "just enough" — pleasant to look at and
+ * navigate, not a novelty. What that means in practice:
+ *   - pixel type for the brand and the h1/h2 titles only (Press Start 2P),
+ *     a readable monospace for everything else (JetBrains Mono — the
+ *     pairing the reference material itself used); both are OFL fonts
+ *     shipped in ../fonts/ with their licences, never fetched from a CDN
+ *     (the GUI is served on a LAN box that may have no internet at all);
+ *   - hard-edged surfaces: 2px borders, an offset "ink" shadow instead of
+ *     a blur, small radii — but not zero, which reads as unstyled;
+ *   - a palette per mode: navy + hot pink + cyan for dark (the cabinet),
+ *     cream + orange-red + yellow over faint grid paper for light (the
+ *     retro shop); status colours stay green/amber/red, only brighter;
+ *   - segmented meters, square status dots, a two-tone rule under the
+ *     header, a very faint scanline over dark mode;
+ *   - sprite avatars (Agenti.avatarInner) instead of initials.
+ * Every token theme.css defines is redefined here per mode, so components
+ * that only use tokens need no rule of their own. The rules below are the
+ * shapes tokens cannot express: fonts, borders, shadows, glows, textures.
+ */
+
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("../fonts/PressStart2P-Regular.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Italic.woff2") format("woff2");
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ---------- tokens ---------- */
+:root[data-skin="arcade"] {
+  --font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: "Press Start 2P", "JetBrains Mono", monospace;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --border-w: 2px;
+}
+
+/* Light: the retro shop — cream paper, a faint grid, orange-red action,
+ * yellow highlights, brown-black ink. */
+:root[data-skin="arcade"][data-mode="light"] {
+  --bg: #f7f1e1;
+  --bg-elevated: #fffaee;
+  --bg-inset: #f0e8d3;
+  --bg-hover: #ece2c6;
+  --text: #23201b;
+  --text-dim: #6b6354;
+  --text-faint: #746d5f;
+  --border: #d8cdb2;
+  --border-strong: #23201b;
+  --accent: #c53f1c;
+  --accent-hover: #b8381a;
+  --accent-soft: rgba(217, 69, 31, 0.13);
+  --accent-text: #ffffff;
+  --hi: #f6c945;
+  --ink: #23201b;
+  --ink-soft: rgba(35, 32, 27, 0.22);
+  --ok: #1c7e38;
+  --warn: #996000;
+  --err: #c62828;
+  --info: #3b6fa8;
+  --shadow-sm: 2px 2px 0 var(--ink-soft);
+  --shadow: 3px 3px 0 var(--ink-soft);
+  --shadow-lg: 6px 6px 0 var(--ink-soft);
+  --glow: none;
+}
+
+/* Dark: the cabinet — deep navy, hot pink action, cyan detail, neon status. */
+:root[data-skin="arcade"][data-mode="dark"] {
+  --bg: #0b0a1f;
+  --bg-elevated: #141235;
+  --bg-inset: #0e0d28;
+  --bg-hover: #1c1a48;
+  --text: #eef0ff;
+  --text-dim: #a9a7d6;
+  --text-faint: #7d7cac;
+  --border: #2a2860;
+  --border-strong: #4b47a0;
+  --accent: #ff4fbb;
+  --accent-hover: #ff7ccc;
+  --accent-soft: rgba(255, 79, 187, 0.16);
+  --accent-text: #16071e;
+  --hi: #35e0ff;
+  --ink: #05040f;
+  --ink-soft: rgba(0, 0, 0, 0.55);
+  --ok: #4ff08a;
+  --warn: #ffd23f;
+  --err: #ff5c5c;
+  --info: #7de3ff;
+  --shadow-sm: 2px 2px 0 var(--ink-soft);
+  --shadow: 4px 4px 0 var(--ink-soft);
+  --shadow-lg: 6px 6px 0 var(--ink-soft);
+  --glow: 0 0 6px rgba(255, 79, 187, 0.55), 0 0 18px rgba(255, 79, 187, 0.3);
+}
+
+/* ---------- surfaces and texture ---------- */
+[data-skin="arcade"] body {
+  /* Monospace runs wide; a hair under the base size keeps line lengths
+   * where the sans layout put them. */
+  font-size: 0.95rem;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+[data-skin="arcade"][data-mode="light"] body {
+  background-image:
+    linear-gradient(rgba(35, 32, 27, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 32, 27, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+[data-skin="arcade"][data-mode="dark"] body {
+  /* A sparse scatter of coloured "stars", fixed so it does not scroll with
+   * the content — the attract screen behind the cabinet. */
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(255, 79, 187, 0.55) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(53, 224, 255, 0.5) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(255, 210, 63, 0.5) 0 1px, transparent 1.6px);
+  background-size: 260px 220px, 340px 300px, 300px 260px, 420px 380px;
+  background-position: 30px 40px, 120px 160px, 210px 20px, 60px 240px;
+  background-attachment: fixed;
+}
+[data-skin="arcade"][data-mode="dark"] body::before {
+  /* Scanlines, at an opacity that reads as texture rather than stripes —
+   * anything stronger costs legibility, which is the one thing a skin must
+   * never spend. Fixed, non-interactive, under the top layer (dialogs). */
+  content: "";
+  position: fixed; inset: 0; z-index: 9990; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+  opacity: 0.5;
+}
+[data-skin="arcade"] ::selection { background: var(--accent); color: var(--accent-text); }
+[data-skin="arcade"] :focus-visible { outline: 2px solid var(--hi); outline-offset: 2px; border-radius: 2px; }
+[data-skin="arcade"] *::-webkit-scrollbar-thumb { border-radius: 2px; }
+[data-skin="arcade"] * { scrollbar-color: var(--border-strong) transparent; }
+
+/* ---------- type ---------- */
+[data-skin="arcade"] h1, [data-skin="arcade"] h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.55;
+}
+[data-skin="arcade"] h1 { font-size: 1.05rem; }
+[data-skin="arcade"] h2 { font-size: 0.72rem; }
+[data-skin="arcade"] h3 { font-size: 0.88rem; font-weight: 700; letter-spacing: 0; }
+[data-skin="arcade"] main > h1 { margin-bottom: var(--space-3); }
+[data-skin="arcade"] details.tools-panel > summary h2 { font-size: 0.72rem; }
+/* A report keeps the Original skin's type here too (theme.css --report-font):
+ * undo the pixel headings for it, keep only the skin's heavier rule. */
+[data-skin="arcade"] .report h1, [data-skin="arcade"] .report h2,
+[data-skin="arcade"] .report h3, [data-skin="arcade"] .report h4 {
+  font-family: var(--report-font); text-transform: none; letter-spacing: normal; font-weight: 650; line-height: 1.3;
+}
+[data-skin="arcade"] .report h1 { font-size: 1.5rem; }
+[data-skin="arcade"] .report h2 { font-size: 1.15rem; border-bottom-width: 2px; }
+[data-skin="arcade"] .report h3 { font-size: 0.98rem; }
+[data-skin="arcade"] .report h4 { font-size: 0.92rem; }
+[data-skin="arcade"] .report th { font-size: inherit; text-transform: none; letter-spacing: normal; }
+/* Headings inside a console or chat message (.md) are message text, set in the
+ * report's type like the rest of the conversation (theme.css re-points --font
+ * there), not the pixel face; keep the small size theme.css gives them. */
+[data-skin="arcade"] .md h1, [data-skin="arcade"] .md h2,
+[data-skin="arcade"] .md h3, [data-skin="arcade"] .md h4 {
+  font-family: var(--report-font); text-transform: none; letter-spacing: normal;
+  font-weight: 650; line-height: 1.3; font-size: 0.95em;
+}
+[data-skin="arcade"] label { font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+[data-skin="arcade"] .choice { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 0.9rem; }
+[data-skin="arcade"] th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; }
+[data-skin="arcade"] .card-caption { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.68rem; }
+[data-skin="arcade"] .hint { font-size: 0.8rem; }
+
+/* ---------- header ---------- */
+[data-skin="arcade"] .topnav {
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-bottom: 2px solid var(--border-strong);
+}
+[data-skin="arcade"] .topnav::after {
+  /* The two-tone rule under the bar: pink into cyan in dark, orange into
+   * yellow in light — the one piece of neon a page always carries. */
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: -4px; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--hi));
+  opacity: 0.9;
+}
+[data-skin="arcade"] .topnav .brand {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  padding: 2px 0;
+}
+[data-skin="arcade"] .topnav .whoami-user { font-weight: 700; }
+[data-skin="arcade"] .topnav .nav-icon-btn, [data-skin="arcade"] #theme-toggle {
+  border-radius: var(--radius-sm);
+}
+[data-skin="arcade"] .topnav .nav-icon-btn, [data-skin="arcade"] #theme-toggle { border-width: 2px; border-color: var(--border-strong); color: var(--text); }
+[data-skin="arcade"] .topnav .nav-dash { border-radius: var(--radius-sm); border-width: 2px; border-color: var(--border-strong); color: var(--text); font-weight: 700; }
+[data-skin="arcade"] .topnav .nav-dash[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+[data-skin="arcade"] .topnav .nav-back { border-radius: var(--radius-sm); font-weight: 700; }
+[data-skin="arcade"] .topnav.compact { box-shadow: none; }
+[data-skin="arcade"] .dropdown-panel {
+  border-width: 2px; border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+}
+[data-skin="arcade"] .menu-item { border-radius: 3px; font-weight: 500; }
+[data-skin="arcade"] .menu-item.active { background: var(--accent); color: var(--accent-text); }
+[data-skin="arcade"] .menu-item.active svg { color: inherit; }
+[data-skin="arcade"] .menu-sep { height: 2px; }
+
+/* ---------- panels and cards ---------- */
+[data-skin="arcade"] .panel, [data-skin="arcade"] .agent-card {
+  border-width: 2px; border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+[data-skin="arcade"] .agent-card:hover, [data-skin="arcade"] .category-card:hover:not(.disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow);
+  border-color: var(--border-strong);
+}
+[data-skin="arcade"] .category-card.selected { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+[data-skin="arcade"] .category-card.disabled { box-shadow: none; border-style: dashed; }
+[data-skin="arcade"] .agent-card-title .name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+[data-skin="arcade"] .team-member-name { font-size: 0.84rem; }
+[data-skin="arcade"] .list { border-width: 2px; border-color: var(--border-strong); }
+[data-skin="arcade"] .list-row .list-icon, [data-skin="arcade"] .cat-icon,
+[data-skin="arcade"] .empty-state .empty-icon, [data-skin="arcade"] .theme-card-body .check {
+  border-radius: 3px;
+}
+[data-skin="arcade"] .empty-state .empty-icon, [data-skin="arcade"] .cat-icon { border: 2px solid var(--border-strong); }
+[data-skin="arcade"] .empty-state h3 { font-family: var(--font-display); font-weight: 400; font-size: 0.7rem; text-transform: uppercase; line-height: 1.6; }
+
+/* ---------- avatars: the sprite instead of the initials ---------- */
+[data-skin="arcade"] .avatar, [data-skin="arcade"] .chat-avatar {
+  border-radius: 4px;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-inset);
+  padding: 2px;
+}
+[data-skin="arcade"] .avatar .av-initials, [data-skin="arcade"] .chat-avatar .av-initials { display: none; }
+[data-skin="arcade"] .avatar .av-sprite, [data-skin="arcade"] .chat-avatar .av-sprite { display: block; }
+[data-skin="arcade"] .chat-msg.you .chat-avatar { background: var(--accent); }
+[data-skin="arcade"] .avatar-sm { padding: 1px; border-width: 1px; }
+
+/* ---------- controls ---------- */
+[data-skin="arcade"] .btn, [data-skin="arcade"] .btn-sm, [data-skin="arcade"] .btn-primary,
+[data-skin="arcade"] .icon-btn, [data-skin="arcade"] .copy-btn {
+  border-width: 2px; border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 2px 2px 0 var(--ink-soft);
+  font-weight: 600; letter-spacing: 0.01em;
+}
+[data-skin="arcade"] .btn-ghost, [data-skin="arcade"] .btn-ghost:hover:not(:disabled) { border-color: transparent; box-shadow: none; }
+[data-skin="arcade"] .btn:active:not([aria-disabled="true"]), [data-skin="arcade"] .btn-sm:active:not(:disabled),
+[data-skin="arcade"] .icon-btn:active, [data-skin="arcade"] .copy-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+[data-skin="arcade"] .btn-primary { border-color: var(--accent-hover); text-shadow: none; }
+[data-skin="arcade"] .btn-danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 60%, var(--border-strong)); }
+[data-skin="arcade"] .icon-btn { color: var(--text); }
+[data-skin="arcade"] .icon-btn.danger { color: var(--err); }
+[data-skin="arcade"] .segmented { border-width: 2px; border-color: var(--border-strong); border-radius: var(--radius-sm); padding: 2px; }
+[data-skin="arcade"] .segmented button { border-radius: 3px; font-weight: 600; }
+[data-skin="arcade"] .segmented button.active { background: var(--accent); color: var(--accent-text); box-shadow: none; }
+[data-skin="arcade"] .settings-tab { border-radius: var(--radius-sm); border-width: 2px; font-weight: 600; }
+[data-skin="arcade"] .settings-tab.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-skin="arcade"] .settings-tab.active .tab-note { color: inherit; opacity: 0.8; }
+@media (min-width: 860px) {
+  [data-skin="arcade"] .settings-tab { border-color: transparent; }
+  [data-skin="arcade"] .settings-tab.active { border-color: var(--accent); }
+}
+[data-skin="arcade"] input, [data-skin="arcade"] select, [data-skin="arcade"] textarea {
+  border-width: 2px; border-color: var(--border-strong); border-radius: var(--radius-sm);
+}
+[data-skin="arcade"] input:focus, [data-skin="arcade"] select:focus, [data-skin="arcade"] textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 2px 2px 0 var(--accent);
+}
+[data-skin="arcade"] .composer, [data-skin="arcade"] .console, [data-skin="arcade"] .feed, [data-skin="arcade"] .chat,
+[data-skin="arcade"] .raw-source, [data-skin="arcade"] .report pre, [data-skin="arcade"] .cmd-block, [data-skin="arcade"] code.value {
+  border-width: 2px;
+}
+[data-skin="arcade"] .console .row.says .says-text { border-width: 2px; border-radius: 4px; }
+[data-skin="arcade"] .say, [data-skin="arcade"] .chat-card, [data-skin="arcade"] .member-row { border-width: 2px; border-radius: 4px; }
+[data-skin="arcade"] .composer-controls { border-left-width: 2px; }
+[data-skin="arcade"] .chat-bubble { border-radius: 4px; border-width: 2px; }
+[data-skin="arcade"] .chat-msg.you .chat-bubble { border-radius: 4px; border: 2px solid var(--accent-hover); }
+[data-skin="arcade"] .chat-system .pill { border-radius: 3px; border-width: 2px; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; }
+[data-skin="arcade"] .banner { border-width: 2px; }
+[data-skin="arcade"] .chip { border-radius: 3px; }
+[data-skin="arcade"] .back-link { border-radius: var(--radius-sm); font-weight: 600; }
+[data-skin="arcade"] .theme-card { border-width: 2px; border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+[data-skin="arcade"] .theme-card.active { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+[data-skin="arcade"] dialog#grant-dialog { border: 2px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+[data-skin="arcade"] details.tools-panel > summary::after { border-width: 0 3px 3px 0; }
+[data-skin="arcade"] .report-page article.report { border-width: 2px; border-color: var(--border-strong); }
+
+/* ---------- status ---------- */
+[data-skin="arcade"] .badge {
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+}
+[data-skin="arcade"] .badge::before { border-radius: 1px; width: 6px; height: 6px; }
+/* Running: a hard on/off blink, like a cabinet's attract-mode light. */
+[data-skin="arcade"] .badge.running::before { box-shadow: 0 0 6px currentColor; animation: arcade-blink 1s steps(1, end) infinite; }
+@keyframes arcade-blink { 50% { opacity: 0.15; } }
+[data-skin="arcade"] .badge.completed::before { width: 6px; height: 3px; border-radius: 0; }
+[data-skin="arcade"][data-mode="dark"] .badge.running { text-shadow: var(--glow); }
+[data-skin="arcade"][data-mode="dark"] .badge.completed { text-shadow: 0 0 8px rgba(79, 240, 138, 0.45); }
+@media (prefers-reduced-motion: reduce) { [data-skin="arcade"] .badge.running::before { animation: none; } }
+[data-skin="arcade"][data-mode="dark"] .badge.awaiting, [data-skin="arcade"][data-mode="dark"] .badge.warn-soft,
+[data-skin="arcade"][data-mode="dark"] .badge.paused { text-shadow: 0 0 8px rgba(255, 210, 63, 0.4); }
+[data-skin="arcade"] .console-status.running { text-shadow: var(--glow); }
+[data-skin="arcade"] .meter {
+  height: 12px; padding: 1px;
+  border: 2px solid var(--border-strong); border-radius: 3px;
+  background: var(--bg-inset);
+}
+[data-skin="arcade"] .meter > span {
+  border-radius: 1px;
+  background: repeating-linear-gradient(90deg, var(--ok) 0 7px, transparent 7px 9px);
+}
+[data-skin="arcade"] .meter.warn > span { background: repeating-linear-gradient(90deg, var(--warn) 0 7px, transparent 7px 9px); }
+[data-skin="arcade"] .meter.over > span { background: repeating-linear-gradient(90deg, var(--err) 0 7px, transparent 7px 9px); }
+
+/* ---------- login ---------- */
+[data-skin="arcade"] .login-card { border-width: 2px; box-shadow: var(--shadow-lg); }
+[data-skin="arcade"] .login-card h1 {
+  font-size: 1.5rem; color: var(--accent); text-shadow: var(--glow); margin-bottom: 10px; line-height: 1.5;
+}
+[data-skin="arcade"] .login-card .sub { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---------- print: a report is a document, never a cabinet ---------- */
+@media print {
+  [data-skin="arcade"] body, [data-skin="arcade"] body::before { background: #fff !important; }
+  [data-skin="arcade"] body::before { display: none; }
+  /* (print: reports already use --report-font in every skin) */
+}
+
+/* The pixel-font brand is wide: on a phone it pushed the menu button 6px
+ * past the screen. Smaller brand, and the signed-in name may shrink. */
+@media (max-width: 480px) {
+  [data-skin="arcade"] .topnav .brand { font-size: 0.72rem; }
+  [data-skin="arcade"] .topnav .whoami { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-skin="arcade"] .topnav .dropdown, [data-skin="arcade"] .topnav .nav-icon-btn, [data-skin="arcade"] #theme-toggle { flex: 0 0 auto; }
+}
+[data-skin="arcade"] .docs-search input[type=search] { border-radius: var(--radius-sm); }
+[data-skin="arcade"] .docs-search input[type=search]:focus { box-shadow: 2px 2px 0 var(--accent); }
+[data-skin="arcade"] .docs-empty, [data-skin="arcade"] .docs-hl { border: 2px solid var(--border-strong); border-radius: var(--radius-sm); }
+[data-skin="arcade"] .docs-clear { border-radius: var(--radius-sm); }

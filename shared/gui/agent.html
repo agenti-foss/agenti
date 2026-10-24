@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div id="topnav-mount"></div>
+
+  <main>
+    <a class="back-link" id="ag-back" href="dashboard.html"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg><span id="ag-back-label">Dashboard</span></a>
+
+    <div class="panel">
+      <div class="page-header">
+        <div class="agent-card-head" style="gap:14px;">
+          <div class="avatar" id="ag-avatar" style="width:52px;height:52px;font-size:1.1rem;"></div>
+          <div class="agent-card-title">
+            <div class="run-title-row">
+              <h1 id="ag-title" style="margin-bottom:2px;">&nbsp;</h1>
+              <button type="button" class="btn btn-sm btn-icon btn-ghost" id="ag-rename" data-icon="edit" title="Rename this run" aria-label="Rename this run" hidden></button>
+            </div>
+            <form class="run-rename" id="ag-rename-form" hidden>
+              <input type="text" id="ag-rename-input" maxlength="60" autocomplete="off" aria-label="Run name">
+              <button type="submit" class="btn btn-sm btn-primary">Save</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="ag-rename-cancel">Cancel</button>
+            </form>
+            <div class="run-kind" id="ag-kind" hidden></div>
+            <div class="meta" id="ag-meta">&nbsp;</div>
+          </div>
+          <span id="ag-badge" class="badge-slot"></span>
+        </div>
+      </div>
+      <p class="hint" id="ag-awaiting" hidden></p>
+    </div>
+
+    <!-- The console (CLAUDE.md §4 item 25): what the agent says and does, in
+         order, with the composer and the run controls at the bottom — one
+         pane, the way a terminal session reads, instead of an activity list
+         and a separate chat box. -->
+    <div class="panel console-panel">
+      <div class="console-head">
+        <h2 class="ih" data-icon="terminal">Console</h2>
+        <span class="console-status" id="ag-console-status"></span>
+      </div>
+      <div class="banner warn" id="ag-needs-input" hidden></div>
+      <div id="ag-exploit-approvals" hidden></div>
+      <div id="ag-tool-approvals" hidden></div>
+      <div class="console activity" id="ag-feed" role="log" aria-live="polite" aria-label="Agent console"><div class="act-empty">Loading…</div></div>
+      <form class="composer" id="ag-chat-form">
+        <input type="text" id="ag-chat-input" placeholder="Message the agent, or add a note…" aria-label="Message the agent" autocomplete="off">
+        <button type="submit" class="btn btn-primary compact" id="ag-send-btn" data-icon="send" title="Send to the agent"><span class="btn-label">Send</span></button>
+        <button type="button" class="btn compact" id="ag-note-btn" data-icon="note" title="Note — recorded in the ledger and the report; never reaches the model"><span class="btn-label">Note</span></button>
+        <button type="button" class="btn compact" id="ag-attach-btn" data-icon="paperclip" title="Attach a file — a run going now gets it at once; otherwise the next run does"><span class="btn-label">Attach</span></button>
+        <span class="composer-controls" id="ag-controls">
+          <span id="ag-model-switch" hidden style="display:inline-flex; align-items:center; gap:4px;">
+            <select id="ag-model-select" aria-label="Switch model" style="width:auto; min-width:0;"></select>
+            <button type="button" class="icon-btn" id="ag-model-switch-btn" aria-label="Switch model" title="Switch the model at the next turn boundary — never mid-step">
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 8a6 6 0 0 1 10.2-4.2M3.5 3v3.5H7M14 8a6 6 0 0 1-10.2 4.2M12.5 13v-3.5H9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-label">Switch</span>
+            </button>
+          </span>
+          <button type="button" class="icon-btn" data-action="pause" aria-label="Pause the run" title="Pause — freezes the run in place; resume to continue">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/></svg><span class="icon-label">Pause</span>
+          </button>
+          <button type="button" class="icon-btn" data-action="resume" aria-label="Resume the run" title="Resume — continues a paused run, or restarts a stopped one with the same conversation">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg><span class="icon-label">Resume</span>
+          </button>
+          <button type="button" class="icon-btn danger" data-action="interrupt" aria-label="Interrupt the run" title="Interrupt — aborts the step in flight NOW and ends the run; a partial report is still written">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M9.5 1.5 3 9h4l-1 5.5L13 7H9z" fill="currentColor"/></svg><span class="icon-label">Interrupt</span>
+          </button>
+          <button type="button" class="icon-btn danger" data-action="stop" aria-label="Stop the run" title="Stop — ends the run once the step in flight finishes; a partial report is written">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg><span class="icon-label">Stop</span>
+          </button>
+        </span>
+      </form>
+      <p class="hint" id="ag-msg" hidden></p>
+    </div>
+
+    <!-- Files the operator attached to this run (and any waiting for the
+         next one). Shown once there is one; the paperclip adds more. -->
+    <details class="panel tools-panel" id="ag-files-panel" hidden>
+      <summary><h2 class="ih" data-icon="paperclip" style="margin:0;">Files</h2>
+        <span class="hint" id="ag-files-summary"></span></summary>
+      <div id="ag-files-body"></div>
+    </details>
+
+    <div class="panel" id="ag-review-panel" hidden>
+      <h2 class="ih" data-icon="check">Waiting for your review</h2>
+      <p class="lead">Run <code data-run></code> has finished. Mark it complete to move it to Task History.</p>
+      <button type="button" class="btn btn-primary" id="ag-mark-complete" data-icon="check"><span>Mark complete</span></button>
+    </div>
+
+    <div class="panel">
+      <h2 class="ih" data-icon="file">Report</h2>
+      <dl class="kv" id="ag-report-kv"></dl>
+      <div class="chat-actions" id="ag-report-actions" style="margin:8px 0;">
+        <button type="button" class="btn" id="ag-report-toggle" data-icon="eye"><span>Show report here</span></button>
+        <a class="btn" id="ag-report-page" href="#" data-icon="open"><span>Open full page</span></a>
+        <a class="btn" id="ag-report-pdf" href="#" data-icon="print" title="Opens the print dialog on the full-page report — choose “Save as PDF”"><span>Save as PDF</span></a>
+        <a class="btn" id="ag-report-docx" href="#" download data-icon="download"><span>Download .docx</span></a>
+        <button type="button" class="btn" id="ag-send" data-send-agent="" data-icon="send" hidden title="Hand this run's report, saved outputs or files to another agent"><span>Send output to another agent</span></button>
+      </div>
+      <article id="ag-report-body" class="report report-inline" hidden></article>
+    </div>
+
+    <!-- Reference, after the run itself: what this agent may do, the organisation's
+         engagement, and your own preferences for it. Collapsed by default. -->
+    <!-- Tools & permissions (CLAUDE.md §4 item 26): exactly what this agent
+         is able to do — the MCP tools it calls, the command-line programs it
+         may run, its scope kind. Read from the same declarations that enforce
+         the boundary, so it can never overstate. Collapsed by default; it is
+         reference, not the moment-to-moment view. -->
+    <details class="panel tools-panel" id="ag-tools-panel">
+      <summary><h2 class="ih" data-icon="tools" style="margin:0;">Tools &amp; permissions</h2>
+        <span class="hint" id="ag-tools-summary"></span></summary>
+      <div id="ag-tools-body"><p class="muted">Loading…</p></div>
+    </details>
+
+    <!-- Engagement (CLAUDE.md "Current plan", phase 1: engagement moved from
+         a per-agent file to ONE record for the organisation, shared by every agent —
+         it — so this panel is read-only here, always: authoring and
+         approving it live in Settings, where one admin
+         action covers every agent. -->
+    <details class="panel tools-panel" id="ag-engagement-panel" hidden>
+      <summary><h2 class="ih" data-icon="shield" style="margin:0;">Engagement</h2>
+        <span class="hint" id="ag-engagement-summary"></span></summary>
+      <div id="ag-engagement-body"><p class="muted">Loading…</p></div>
+    </details>
+
+    <!-- Operator preferences (memory.md): one per user per agent. Yours to
+         edit; an admin looking at your dashboard sees it read-only. It shapes
+         style and deliverables only — nothing in it widens scope or tools. -->
+    <details class="panel tools-panel" id="ag-memory-panel" hidden>
+      <summary><h2 class="ih" data-icon="star" style="margin:0;"><span id="ag-memory-title">My preferences</span></h2>
+        <span class="hint" id="ag-memory-summary"></span></summary>
+      <div id="ag-memory-proposals"></div>
+      <div id="ag-memory-editor"></div>
+    </details>
+
+  </main>
+
+  <footer class="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/markdown.js" defer></script>
+  <script src="js/activity.js" defer></script>
+  <script src="js/attachments.js" defer></script>
+  <script src="js/context-editor.js" defer></script>
+  <script src="js/send-output.js" defer></script>
+  <script src="js/agent.js" defer></script>
+</body>
+</html>

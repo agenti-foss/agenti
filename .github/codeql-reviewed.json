@@ -1,0 +1,233 @@
+{
+ "_about": "CodeQL findings reviewed as intended (audit run 1, item 9). .github/scripts/codeql_gate.py fails on anything not listed here; an entry matches its rule, file and the exact trimmed source line.",
+ "reviewed": [
+  {
+   "rule": "js/xss",
+   "path": "shared/gui/login.html",
+   "line": "setTimeout(() => { location.href = dest; }, 2500);",
+   "reason": "dest is the ?next= value only if it matches ^[a-z]+\\.html(\\?.*)?$ (login.html line 73): a page of this same site, never a scheme, host or javascript: URL; anything else becomes dashboard.html."
+  },
+  {
+   "rule": "js/xss",
+   "path": "shared/gui/login.html",
+   "line": "location.href = dest;",
+   "reason": "dest is the ?next= value only if it matches ^[a-z]+\\.html(\\?.*)?$ (login.html line 73): a page of this same site, never a scheme, host or javascript: URL; anything else becomes dashboard.html."
+  },
+  {
+   "rule": "js/client-side-unvalidated-url-redirection",
+   "path": "shared/gui/login.html",
+   "line": "setTimeout(() => { location.href = dest; }, 2500);",
+   "reason": "Same restriction as the xss entry: the redirect target is a same-origin page name matched by ^[a-z]+\\.html(\\?.*)?$, else dashboard.html."
+  },
+  {
+   "rule": "js/client-side-unvalidated-url-redirection",
+   "path": "shared/gui/login.html",
+   "line": "location.href = dest;",
+   "reason": "Same restriction as the xss entry: the redirect target is a same-origin page name matched by ^[a-z]+\\.html(\\?.*)?$, else dashboard.html."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/engagement_context.py",
+   "line": "print(build_system_prompt(engagement_from_record(demo, kind)))",
+   "reason": "The module's __main__ demo prints a sample record's digest; it handles no real secret."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(_json.dumps(public_json(obj)))",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(line)",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(_json.dumps(public_json({\"principal\": a.name, \"secret\": secret,",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(f\"     {uri}\")",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(f\"     secret: {secret}\")",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(_json.dumps(public_json({\"principal\": a.principal, \"key\": full,",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/iam.py",
+   "line": "print(f\"   {full}\")",
+   "reason": "Not a log: the CLI's own answer to the person who asked for it on their terminal (or, with --json, the API's reply to that person). A new API key or 2FA secret is shown exactly once, at creation, by design; nothing writes it to a log file or the journal."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/test_api_bridge.py",
+   "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
+   "reason": "Test helper printing a check's label and values; the values are test fixtures, never real secrets."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/test_authd.py",
+   "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
+   "reason": "Test helper printing fixture values (test passwords), never real secrets."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/test_msf_client.py",
+   "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
+   "reason": "Test helper printing fixture values, never real secrets."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/test_iam.py",
+   "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
+   "reason": "Test helper printing fixture values (test passwords), never real secrets."
+  },
+  {
+   "rule": "py/weak-sensitive-data-hashing",
+   "path": "shared/iam.py",
+   "line": "return hashlib.sha256(secret.encode()).hexdigest()",
+   "reason": "hash_key() hashes high-entropy random secrets (API keys, link tokens, recovery-code lookups are scrypt): SHA-256 is the right tool for those; passwords go through scrypt (hash_password)."
+  },
+  {
+   "rule": "py/incomplete-url-substring-sanitization",
+   "path": "shared/test_proxytrust.py",
+   "line": "check(\"hosts: public domain allowed\", \"agenti.example.com\" in ah)",
+   "reason": "A test assertion on a fixed string, not a URL check that guards anything."
+  },
+  {
+   "rule": "py/incomplete-url-substring-sanitization",
+   "path": "shared/test_team_collab.py",
+   "line": "\"research\" in b and \"OSINT research\" in b and \"example.com\" in b, True)",
+   "reason": "A test assertion on a fixed string, not a URL check that guards anything."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/agent_builder.py",
+   "line": "os.chmod(path, 0o644)",
+   "reason": "A built agent is code-like data under the code-owner's rules: root-owned, read-only to every account (0644 files, 0755 folders), the same as /usr/lib/agenti. Nothing secret is in it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/agent_builder.py",
+   "line": "os.chown(p, 0, gid); os.chmod(p, 0o640)",
+   "reason": "A built agent is code-like data under the code-owner's rules: root-owned, read-only to every account (0644 files, 0755 folders), the same as /usr/lib/agenti. Nothing secret is in it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/agent_builder.py",
+   "line": "os.chown(tmp / \"capabilities.json\", 0, 0); os.chmod(tmp / \"capabilities.json\", 0o644)",
+   "reason": "A built agent is code-like data under the code-owner's rules: root-owned, read-only to every account (0644 files, 0755 folders), the same as /usr/lib/agenti. Nothing secret is in it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/agent_builder.py",
+   "line": "os.chown(tmp, 0, gid); os.chmod(tmp, 0o751)",
+   "reason": "A built agent is code-like data under the code-owner's rules: root-owned, read-only to every account (0644 files, 0755 folders), the same as /usr/lib/agenti. Nothing secret is in it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/agent_builder.py",
+   "line": "os.chown(tmp / \"manifest.json\", 0, gid); os.chmod(tmp / \"manifest.json\", 0o640)",
+   "reason": "A built agent is code-like data under the code-owner's rules: root-owned, read-only to every account (0644 files, 0755 folders), the same as /usr/lib/agenti. Nothing secret is in it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/authd.py",
+   "line": "os.chmod(path, 0o660)",
+   "reason": "The authd socket is 0660 agenti-authd:agenti-sock on purpose: the group is how agenti-api reaches it, and authd also checks the peer uid on every connection."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/catalog_admin.py",
+   "line": "os.chmod(tmp, 0o644)",
+   "reason": "The admin's program-catalog additions are root-owned and read by every run (a list of program names and rules, nothing secret); writable by root only."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/catalog_admin.py",
+   "line": "os.chmod(p, 0o644)",
+   "reason": "The admin's program-catalog additions are root-owned and read by every run (a list of program names and rules, nothing secret); writable by root only."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/context_store.py",
+   "line": "os.chmod(out_dir, 0o750)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/context_store.py",
+   "line": "os.chmod(tmp, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/context_store.py",
+   "line": "os.chmod(vtmp, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/engagement_store.py",
+   "line": "os.chmod(path, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/iam.py",
+   "line": "os.chmod(PRINCIPAL_HISTORY_PATH, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/iam.py",
+   "line": "os.chmod(path, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/outputs.py",
+   "line": "fd = os.open(dest, flags, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/run_files.py",
+   "line": "os.chmod(path, mode)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/tool_approvals.py",
+   "line": "os.chmod(tmp, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/tool_settings_store.py",
+   "line": "os.chmod(path, 0o640)",
+   "reason": "Root-owned and readable by the service account's group on purpose (0640 root:agenti-run or the API's group): the account that must read it can, nobody else can, and only root can change it."
+  },
+  {
+   "rule": "py/weak-sensitive-data-hashing",
+   "path": "shared/iam.py",
+   "line": "json.dumps(material, sort_keys=True, separators=(\",\", \":\")).encode()).hexdigest()",
+   "reason": "action_hash(): any password in the action is first replaced by its scrypt derivation (n=2^14), then the action is SHA-256'd for the grant binding; the binding is wiped once the grant is spent. CodeQL cannot see through the scrypt step."
+  }
+ ]
+}

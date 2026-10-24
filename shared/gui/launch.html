@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch an agent — Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div id="topnav-mount"></div>
+
+  <main>
+    <a class="back-link" href="dashboard.html"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>Dashboard</a>
+    <h1>Launch an agent</h1>
+
+    <!-- Shown instead of the forms when there is nothing this account may
+         launch, rather than forms that could only be refused. -->
+    <div class="empty-state panel" id="launch-view-only" hidden>
+      <div class="empty-icon"></div>
+      <h3>Nothing to launch yet</h3>
+      <p>Ask an admin for the operator role.</p>
+      <a class="btn" href="dashboard.html">Back to the dashboard</a>
+    </div>
+
+    <section id="launch-main">
+      <div class="panel-head" style="display:flex; flex-wrap:wrap; gap:var(--space-3); align-items:center; margin-bottom:var(--gap);">
+        <div class="segmented" id="launch-switch" role="tablist">
+          <button type="button" class="active" data-mode="single" data-icon="bolt" role="tab" aria-selected="true"><span>Single agent</span></button>
+          <button type="button" data-mode="team" data-icon="team" role="tab" aria-selected="false"><span>Team of agents</span></button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 id="grid-heading">Which agent would you like to deploy?</h2>
+        <div id="agent-grid" class="card-grid"></div>
+        <details class="disclosure" style="margin-top:var(--space-5);">
+          <summary>How this stays bounded</summary>
+          <p class="hint">Every agent uses reviewed tools. Scope and the tool allow-list are enforced outside the conversation.</p>
+        </details>
+      </div>
+
+      <div class="panel" id="run-panel" hidden>
+        <h2 id="run-title"></h2>
+        <p class="hint" id="run-via"></p>
+        <form id="run-form" class="stack">
+
+          <!-- Team mode: one row per selected card, each with its own role
+               and target — single mode never shows this and uses the single
+               target field below instead. -->
+          <div id="team-roster" class="stack" style="gap:10px;" hidden></div>
+
+          <!-- Single mode only -->
+          <div class="field" id="target-field" hidden>
+            <label for="run-target">Target</label>
+            <p class="hint" id="target-bank-hint">Pick one or more from the organisation's authorized scope:</p>
+            <div id="target-bank" class="target-bank"></div>
+            <input type="text" id="run-target" placeholder="or type one, e.g. 192.168.1.50">
+            <div id="ceiling-info" class="hint"></div>
+            <div id="ceiling-banner" class="banner warn" hidden></div>
+          </div>
+
+          <div class="field" id="run-name-field" hidden>
+            <label for="run-name">Name this run <span class="hint">(optional)</span></label>
+            <input type="text" id="run-name" maxlength="60" autocomplete="off" placeholder="Left blank, it gets two words, like amber-falcon">
+          </div>
+
+          <div class="field" id="team-name-field" hidden>
+            <label for="team-name">Project name <span class="hint">(optional)</span></label>
+            <input type="text" id="team-name" placeholder="auto-generated if left blank">
+          </div>
+
+          <div class="field" id="files-field">
+            <label><span id="files-label">Files for the agent</span> <span class="hint" id="files-need">(optional)</span></label>
+            <div id="run-files"></div>
+            <div id="run-files-waiting" hidden></div>
+            <p class="hint" id="run-files-status" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="run-instructions">Anything specific you want? <span class="hint">(optional)</span></label>
+            <textarea id="run-instructions" rows="2" placeholder="e.g. summarize the key totals"></textarea>
+            <p class="hint" id="run-instructions-hint">Steers what it tries — never what it may touch.</p>
+          </div>
+
+          <div class="field">
+            <label for="run-model">Model</label>
+            <select id="run-model" required>
+              <option value="" disabled selected>Choose a model&hellip;</option>
+            </select>
+            <p class="hint" id="run-model-hint">From the organisation's allowed list.</p>
+          </div>
+
+          <details class="disclosure" id="run-caps-disclosure">
+            <summary>Advanced: turns / budget / timeout</summary>
+            <div class="field-row">
+              <div class="field">
+                <label for="run-turns">Max turns</label>
+                <input type="number" id="run-turns" min="1" placeholder="ceiling">
+              </div>
+              <div class="field">
+                <label for="run-budget">Max budget (USD)</label>
+                <input type="number" id="run-budget" min="0" step="0.01" placeholder="ceiling">
+              </div>
+              <div class="field">
+                <label for="run-timeout">Timeout (seconds)</label>
+                <input type="number" id="run-timeout" min="1" placeholder="ceiling">
+              </div>
+            </div>
+            <p class="hint">Blank = the organisation's ceiling. You can only go lower.</p>
+          </details>
+
+          <div id="run-banner" class="banner err"></div>
+          <button type="submit" class="btn btn-primary" id="run-btn" data-icon="play"><span>Run</span></button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2 class="ih" data-icon="wrench">Don't see what you need?</h2>
+        <p class="hint">A person reviews every request before it appears here.</p>
+        <form id="tool-request-form" class="stack">
+          <div class="field-row">
+            <div class="field">
+              <label for="tr-kind">What do you need?</label>
+              <select id="tr-kind">
+                <option value="tool">A tool or capability</option>
+                <option value="program">A command-line program installed on the server</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tr-category" id="tr-category-label">Roughly which agent</label>
+              <input type="text" id="tr-category" placeholder="e.g. a mobile-app scanner">
+            </div>
+          </div>
+          <div class="field">
+            <label for="tr-text" id="tr-text-label">What's missing</label>
+            <textarea id="tr-text" rows="2" placeholder="describe the tool or capability you need" required></textarea>
+          </div>
+          <div id="tr-banner" class="banner err"></div>
+          <button type="submit" class="btn" data-icon="wrench"><span>Request a tool</span></button>
+        </form>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="page-footer">Agenti</footer>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/attachments.js" defer></script>
+  <script src="js/launch.js" defer></script>
+</body>
+</html>

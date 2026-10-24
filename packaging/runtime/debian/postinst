@@ -1,0 +1,13 @@
+#!/bin/sh
+# agenti-runtime postinst — fetch Anthropic's Claude Code program, which this
+# package does not redistribute (fetch-claude-code). No network is not fatal:
+# the install completes and the message names the command to run later.
+set -e
+
+case "$1" in
+    configure)
+        /usr/lib/agenti-runtime/fetch-claude-code || \
+            echo "agenti-runtime: Claude Code is not installed yet; agent runs will refuse to start until: sudo /usr/lib/agenti-runtime/fetch-claude-code" >&2
+        ;;
+esac
+exit 0

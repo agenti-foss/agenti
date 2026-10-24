@@ -1,0 +1,151 @@
+# Package: build the .debs and prove them on clean machines (docs/packaging.md).
+#
+#   agenti-runtime  built on a PC runner and an ARM runner (its own Python and
+#                   libraries are CPU-specific)
+#   agenti          built once (architecture "all")
+#   lintian         Debian's own package checker; an error fails the run
+#   install test    install, upgrade, remove, purge-keeping-data and
+#                   purge-deleting-data in fresh Kali, Debian 13 and Ubuntu
+#                   24.04 containers (packaging/test-install.sh)
+#
+# release.yml calls this for a tag (with the version) and then attests and,
+# only if switched on, publishes. On its own it runs for pushes and pull
+# requests that touch what ships; it publishes nothing.
+name: Package
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "X.Y.Z (a release) or dev"
+        type: string
+        required: true
+    # Each package's name and SHA-256, from the job that built it. release.yml
+    # signs these digests, never whatever files happen to be in the run's
+    # artifacts: any job, including the container jobs below, can upload an
+    # artifact (audit run 2).
+    outputs:
+      agenti_deb: { value: "${{ jobs.deb.outputs.name }}" }
+      agenti_sha256: { value: "${{ jobs.deb.outputs.sha256 }}" }
+      runtime_amd64_deb: { value: "${{ jobs.runtime-amd64.outputs.name }}" }
+      runtime_amd64_sha256: { value: "${{ jobs.runtime-amd64.outputs.sha256 }}" }
+      runtime_arm64_deb: { value: "${{ jobs.runtime-arm64.outputs.name }}" }
+      runtime_arm64_sha256: { value: "${{ jobs.runtime-arm64.outputs.sha256 }}" }
+  push:
+    branches: [master]
+    paths: ["packaging/**", "shared/**", "*-agent/**", "docs/help/**", ".github/workflows/package.yml"]
+  pull_request:
+    paths: ["packaging/**", "shared/**", "*-agent/**", "docs/help/**", ".github/workflows/package.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # One job per CPU (not a matrix) so each reports its own package digest.
+  runtime-amd64:
+    name: agenti-runtime (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      name: ${{ steps.digest.outputs.name }}
+      sha256: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Every download is pinned by SHA-256 (runtime/python.pin, runtime/*.lock).
+      - run: packaging/build-runtime.sh dist/
+      - id: digest
+        run: packaging/deb-digest.sh dist/ >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-amd64
+          path: dist/
+          if-no-files-found: error
+
+  runtime-arm64:
+    name: agenti-runtime (arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    outputs:
+      name: ${{ steps.digest.outputs.name }}
+      sha256: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: packaging/build-runtime.sh dist/
+      - id: digest
+        run: packaging/deb-digest.sh dist/ >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-arm64
+          path: dist/
+          if-no-files-found: error
+
+  deb:
+    name: agenti
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      name: ${{ steps.digest.outputs.name }}
+      sha256: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # A tag is vX.Y.Z; the package version is X.Y.Z.
+      - env:
+          VERSION: ${{ inputs.version || 'dev' }}
+        run: packaging/build-deb.sh "${VERSION#v}" dist/
+      - id: digest
+        run: packaging/deb-digest.sh dist/ >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agenti-deb
+          path: dist/
+          if-no-files-found: error
+
+  lintian:
+    name: lintian
+    needs: [runtime-amd64, runtime-arm64, deb]
+    runs-on: ubuntu-24.04
+    # Images pinned by digest, never a moving tag: code in the image runs in the
+    # job that holds the run's artifact credential (audit run 2). Refresh with
+    # packaging/image-digests.sh and review the change.
+    container: debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist/
+          merge-multiple: true
+      - run: apt-get update -qq && apt-get install -y -qq lintian >/dev/null
+      # Warnings are printed for review; an error fails the run.
+      - run: lintian --fail-on error --info --no-tag-display-limit dist/agenti_*_all.deb dist/agenti-runtime_*_amd64.deb
+
+  install-test:
+    name: install test (${{ matrix.label }}, ${{ matrix.arch }})
+    needs: [runtime-amd64, runtime-arm64, deb]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: kali-rolling, image: "kalilinux/kali-rolling@sha256:4be87f78671419c13dcf4f207ead1cfc0de178ea281b3f69c0f49b69ba4e79b1", runner: ubuntu-24.04, arch: amd64 }
+          - { label: debian-trixie, image: "debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308", runner: ubuntu-24.04, arch: amd64 }
+          - { label: ubuntu-24.04, image: "ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac", runner: ubuntu-24.04, arch: amd64 }
+          - { label: debian-trixie, image: "debian:trixie@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308", runner: ubuntu-24.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist/
+          merge-multiple: true
+      # http.kali.org redirects to third-party mirrors, one of which was down for
+      # whole runs (2026-10-24); kali.download is Kali's own CDN (plain http: the
+      # image has no CA certificates yet, and apt checks Kali's signatures). Retries for all.
+      - run: |
+          echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+            if [ -f "$f" ]; then sed -i 's#http://http.kali.org/kali#http://kali.download/kali#' "$f"; fi
+          done
+          apt-get update -qq && apt-get install -y -qq bash >/dev/null
+      - run: bash packaging/test-install.sh dist/

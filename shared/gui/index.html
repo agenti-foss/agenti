@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenti</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="login-wrap"><p class="muted">Loading…</p></div>
+  <script>
+    // The entry point: already logged in -> dashboard, otherwise -> login.
+    // /auth/me needs only a valid session (no permission), so it is the
+    // cheapest "am I logged in" question the API answers.
+    fetch("auth/me", { credentials: "same-origin" })
+      .then((r) => { location.replace(r.ok ? "dashboard.html" : "login.html"); })
+      .catch(() => { location.replace("login.html"); });
+  </script>
+</body>
+</html>

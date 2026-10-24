@@ -1,0 +1,14 @@
+# Python lint rules, used by shared/ci.sh and by anyone running `ruff check`.
+#
+# Deliberately NARROW: only rules that find real bugs, so a failure always
+# means "this is broken", never "this is ugly". A first pass with these found
+# an undefined name in new_agent.py. Widen later (for example F401 unused
+# imports, or the E/W style rules) only when you are ready to fix what they
+# report, one rule at a time.
+[lint]
+select = [
+    "E9",    # syntax errors and unreadable files
+    "F63",   # invalid comparisons / assert on a tuple
+    "F7",    # break/continue/return outside where they belong
+    "F82",   # undefined names, in __all__ or otherwise
+]

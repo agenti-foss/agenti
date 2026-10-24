@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# pre-commit — stop a secret or a lab-specific value before it enters history.
+# Enable once per clone:  git config core.hooksPath .githooks
+# (or run: shared/install-hooks.sh). Bypassing with --no-verify is possible;
+# CI's whole-history secrets scan is the backstop that cannot be bypassed.
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 2
+
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --staged --no-banner --redact . || {
+        echo "pre-commit: gitleaks found a possible secret in what you staged." >&2
+        echo "  Remove it (a committed secret is a leaked secret). If it is a known-fake" >&2
+        echo "  test value, add its fingerprint to .gitleaksignore with a comment." >&2
+        exit 1
+    }
+else
+    echo "pre-commit: gitleaks is not installed, so staged changes were NOT scanned for secrets." >&2
+    echo "  Install it: https://github.com/gitleaks/gitleaks/releases (CI will still scan)." >&2
+fi
+
+# Files that must never be committed, whatever .gitignore says.
+bad=$(git diff --cached --name-only --diff-filter=ACM \
+      | grep -E '(^|/)(secrets\.env|engagement_config.*\.py|\.mcp\.json|.*\.img)$|(^|/)org/engagement\.json$' || true)
+if [[ -n "$bad" ]]; then
+    echo "pre-commit: refusing to commit files that hold secrets or real engagement data:" >&2
+    printf '  %s\n' $bad >&2
+    echo "  Unstage them: git restore --staged <file>" >&2
+    exit 1
+fi

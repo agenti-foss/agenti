@@ -1,0 +1,38 @@
+#!/bin/sh
+# postinst — after the files are unpacked: configure the system. All of it is
+# configure.sh (the same script a developer's deploy runs), so a package
+# install and a deploy from a checkout can never set a machine up differently.
+set -e
+
+case "$1" in
+    configure)
+        if [ -z "$2" ]; then
+            # A first install: also start the GUI (on this machine only) and
+            # the retention timer, and enable them on boot.
+            /usr/lib/agenti/configure.sh install --first
+            cat <<'MSG'
+
+  Agenti is installed. The GUI is running at http://127.0.0.1:8420 (this
+  machine only). Nobody can sign in yet; finish setting it up with:
+
+      sudo agenti setup
+
+  (the first admin, the Anthropic API key, and the optional vault and
+  remote access). Check the installation any time: sudo agenti verify
+
+MSG
+        else
+            # An upgrade: the same steps (all idempotent), then a restart of
+            # what was already running. Runs in progress keep going; the next
+            # run uses the new code.
+            /usr/lib/agenti/configure.sh install
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+exit 0

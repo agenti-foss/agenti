@@ -1,0 +1,7 @@
+# Known false positives for the secrets scan (gitleaks). Each line is a
+# finding's fingerprint. Both are the deliberate FAKE tokens an old
+# deploy-api.sh --verify sent to prove the API answers 401 to a wrong key
+# ("agk_deadbeef_notarealkey" and "wrong-token"). No real credential is
+# involved. Do not add a line here without checking the secret is fake.
+a6b02ab7012045fc74ceb510d1978daad29a849b:shared/deploy-api.sh:curl-auth-header:169
+46beec9be0e04d8ca17b0f402d34c8fd16adc361:shared/deploy-api.sh:curl-auth-header:115

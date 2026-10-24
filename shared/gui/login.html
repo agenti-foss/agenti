@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenti — Log in</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+<script src="js/api.js" defer></script>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="panel login-card">
+      <h1>Agenti</h1>
+      <p class="sub muted">auditable, bounded, isolated agent runs</p>
+
+      <div id="banner" class="banner err"></div>
+
+      <button type="button" id="passkey-btn" class="btn btn-ghost" hidden
+              style="width:100%; justify-content:center; margin-bottom:4px;">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="8" cy="5.5" r="2.75"/><path d="M3.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4"/>
+        </svg>
+        Sign in with a passkey
+      </button>
+      <div id="passkey-divider" class="divider" hidden>or</div>
+
+      <form id="login-form" autocomplete="on">
+        <div id="step-password">
+          <div class="field">
+            <label for="user">Username</label>
+            <input type="text" id="user" name="user" autocomplete="username" required autofocus>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+          </div>
+        </div>
+        <div id="step-totp" hidden>
+          <div class="field">
+            <label for="totp" id="totp-label">6-digit code</label>
+            <input type="text" id="totp" name="totp" inputmode="numeric" pattern="[0-9]{6}|[0-9a-fA-F]{5}-?[0-9a-fA-F]{5}" maxlength="11" autocomplete="one-time-code" spellcheck="false">
+            <p class="hint" id="totp-hint">Enter the current code from your authenticator app.</p>
+            <button type="button" class="link-btn" id="totp-recovery">Lost your device? Use a recovery code</button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%; justify-content:center;">Log in</button>
+      </form>
+
+      <p class="hint" style="margin-top:16px;">
+        New accounts are created by an admin, who sends you a one-time set-up link.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // Two steps, two endpoints (main.py): POST /auth/login sets a session
+    // cookie and says whether a second factor is needed; if so, POST
+    // /auth/totp promotes it. The CSRF value comes back in the BODY of
+    // whichever call completes the login, and api.js keeps it for every
+    // later write.
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("login-form");
+      const bannerEl = document.getElementById("banner");
+      const btn = document.getElementById("login-btn");
+      const stepPw = document.getElementById("step-password");
+      const stepTotp = document.getElementById("step-totp");
+      let pendingTotp = false;
+
+      const next = new URLSearchParams(location.search).get("next");
+      const dest = next && /^[a-z]+\.html(\?.*)?$/.test(next) ? next : "dashboard.html";
+
+      const passkeyBtn = document.getElementById("passkey-btn");
+      const passkeyDivider = document.getElementById("passkey-divider");
+      let passkeyOriginHint = null;
+
+      // Arriving here right after logging out deserves a word, not a blank form.
+      if (new URLSearchParams(location.search).get("signedout") === "1") {
+        Agenti.banner(bannerEl, "ok", "You've signed out.");
+        history.replaceState(null, "", location.pathname);
+      }
+
+      // The second-factor field accepts a 6-digit code or a recovery code
+      // ("xxxxx-xxxxx"). A recovery code has letters, which the numeric keypad
+      // the field asks for by default cannot type — so this toggle swaps it.
+      const totpInput = document.getElementById("totp");
+      const recoveryBtn = document.getElementById("totp-recovery");
+      let recoveryMode = false;
+      recoveryBtn.addEventListener("click", () => {
+        recoveryMode = !recoveryMode;
+        totpInput.inputMode = recoveryMode ? "text" : "numeric";
+        totpInput.placeholder = recoveryMode ? "xxxxx-xxxxx" : "";
+        totpInput.value = "";
+        document.getElementById("totp-label").textContent = recoveryMode ? "Recovery code" : "6-digit code";
+        document.getElementById("totp-hint").textContent = recoveryMode
+          ? "One of the recovery codes you saved when you set up 2FA. Each works once."
+          : "Enter the current code from your authenticator app.";
+        recoveryBtn.textContent = recoveryMode ? "Use the authenticator app instead" : "Lost your device? Use a recovery code";
+        totpInput.focus();
+      });
+
+      // Unauthenticated, cheap: is passkey sign-in even configured on this
+      // deployment? Shown only if so — a button that always fails (no
+      // domain configured, or the admin has it off) is worse than no button.
+      // Still shown, not hidden, when this tab is on the wrong host (see
+      // webauthnOriginHint in api.js) — someone mid-setup is exactly who
+      // needs to see the "open the real address" message, not a missing
+      // button with no explanation.
+      // A fresh install: nobody can sign in until the first admin exists.
+      Agenti.get("auth/setup-status", { noRedirect: true }).then((st) => {
+        if (st && st.setup_needed) {
+          Agenti.banner(bannerEl, "warn",
+            "Nobody can sign in yet. On the Agenti host, run:  sudo agenti setup  — it creates the first admin.");
+        }
+      }).catch(() => { /* an older server, or authd down: the form explains itself */ });
+
+      Agenti.get("auth/webauthn/config", { noRedirect: true }).then((cfg) => {
+        if (cfg && cfg.enabled) {
+          passkeyBtn.hidden = false;
+          passkeyDivider.hidden = false;
+          passkeyOriginHint = Agenti.webauthnOriginHint(cfg.rpId, cfg.origin);
+        }
+      }).catch(() => { /* stay hidden — the password form still works */ });
+
+      passkeyBtn.addEventListener("click", async () => {
+        bannerEl.className = "banner err";
+        if (passkeyOriginHint) {
+          Agenti.banner(bannerEl, "err", passkeyOriginHint);
+          return;
+        }
+        passkeyBtn.disabled = true;
+        try {
+          const options = await Agenti.post("auth/webauthn/login/start", {}, { noRedirect: true });
+          const credential = await Agenti.webauthnGet(options);
+          const resp = await Agenti.post("auth/webauthn/login/finish",
+            { credential }, { noRedirect: true });
+          done(resp);
+        } catch (err) {
+          // A cancelled/timed-out ceremony (the person backed out of the
+          // OS picker, or has no passkey for this site) is not an error
+          // worth alarming over — the password form is right there.
+          const name = err && err.name;
+          if (name === "NotAllowedError" || name === "AbortError") {
+            Agenti.banner(bannerEl, "err", "Passkey sign-in was cancelled — use your password instead.");
+          } else {
+            Agenti.banner(bannerEl, "err", Agenti.errorText(err));
+          }
+        } finally {
+          passkeyBtn.disabled = false;
+        }
+      });
+
+      function done(resp) {
+        Agenti.setCsrf(resp.csrf || "");
+        if (resp.mfa_setup_required) {
+          // The require-2fa policy: the session is real, but the API refuses
+          // it everything except the enrolment routes until an authenticator
+          // app is set up. Say so here, then go straight to that form.
+          Agenti.banner(bannerEl, "ok",
+            "Logged in. Two-factor authentication is required for this account " +
+            "and is not set up yet — taking you to set it up now.");
+          setTimeout(() => { location.href = "settings.html?mfa=required"; }, 1400);
+          return;
+        }
+        if (resp.must_change_password) {
+          Agenti.banner(bannerEl, "ok",
+            "Logged in. Your password must be changed on the host before long: " +
+            "sudo agenti admin user set-password " + resp.user);
+          setTimeout(() => { location.href = dest; }, 2500);
+          return;
+        }
+        location.href = dest;
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        bannerEl.className = "banner err";
+        try {
+          if (!pendingTotp) {
+            // Names are lowercase by rule, so a capital typed on a phone is
+            // never a different account — accept it rather than refuse it.
+            const resp = await Agenti.post("auth/login", {
+              user: document.getElementById("user").value.trim().toLowerCase(),
+              password: document.getElementById("password").value,
+            }, { noRedirect: true });
+            if (resp.totp_required) {
+              pendingTotp = true;
+              stepPw.hidden = true;
+              stepTotp.hidden = false;
+              btn.textContent = "Verify code";
+              document.getElementById("totp").focus();
+            } else {
+              done(resp);
+            }
+          } else {
+            const code = Agenti.normaliseSecondFactor(totpInput.value);
+            if (!code) {
+              Agenti.banner(bannerEl, "err", recoveryMode
+                ? "Enter one of your recovery codes (xxxxx-xxxxx)."
+                : "Enter the 6-digit code from your authenticator app, or use a recovery code.");
+              totpInput.focus();
+              return;
+            }
+            const resp = await Agenti.post("auth/totp", { code }, { noRedirect: true });
+            done(resp);
+          }
+        } catch (err) {
+          const msg = err.status === 429
+            ? "Too many attempts — this account is temporarily locked. Try again later."
+            : Agenti.errorText(err);
+          Agenti.banner(bannerEl, "err", msg);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
