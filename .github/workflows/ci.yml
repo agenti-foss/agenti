@@ -1,4 +1,4 @@
-# CI: runs on every push to master and on every pull request.
+# CI: runs on every push to main (master in the private repo) and on every pull request.
 #
 # The checks themselves live in shared/ci.sh, not here, so you can run the
 # same thing at your desk (`shared/ci.sh`). This file only provides the
@@ -9,7 +9,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   pull_request:
 
 # The checks only read the repo.

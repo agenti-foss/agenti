@@ -32,7 +32,7 @@ on:
       runtime_arm64_deb: { value: "${{ jobs.runtime-arm64.outputs.name }}" }
       runtime_arm64_sha256: { value: "${{ jobs.runtime-arm64.outputs.sha256 }}" }
   push:
-    branches: [master]
+    branches: [main, master]
     paths: ["packaging/**", "shared/**", "*-agent/**", "docs/help/**", ".github/workflows/package.yml"]
   pull_request:
     paths: ["packaging/**", "shared/**", "*-agent/**", "docs/help/**", ".github/workflows/package.yml"]

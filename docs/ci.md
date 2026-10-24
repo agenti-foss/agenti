@@ -1,6 +1,6 @@
 # Automated checks (CI)
 
-Every push to `master`, and every pull request, is checked automatically on
+Every push to `main` (the public repo; `master` in the private one), and every pull request, is checked automatically on
 GitHub before anyone has to remember to. This page says what is checked, how to
 run the same checks yourself, and what to do when one fails.
 
@@ -85,4 +85,4 @@ its fingerprint to `.gitleaksignore` with a comment saying why it is fake.
 - The lint rules are narrow on purpose (`ruff.toml`): they find real bugs, not
   style. Widen them one rule at a time when you want to.
 - To make a red result actually block a merge, turn on **branch protection** for
-  `master` in the repository settings and require the three jobs.
+  `main` in the repository settings and require the three jobs.
