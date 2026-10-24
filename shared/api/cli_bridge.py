@@ -33,6 +33,7 @@ assuming both cases behave the same way.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import re
@@ -182,9 +183,13 @@ def _run_bytes(*args: str, timeout: float) -> subprocess.CompletedProcess:
 def _unexpected(what: str, raw: str, status: int) -> "AgentiError":
     """Root's raw output never goes back to the browser: it can carry bytes a
     run planted (a link to a root-only file once came back in a 502, audit
-    run 2). It goes to this service's journal under a reference instead."""
+    run 2). Nor does it go to the journal, where an enrolment link or a run's
+    data would outlive the request (CodeQL, 2026-10-24): only its size and
+    SHA-256 are logged, under a reference; the admin re-runs the verb at the
+    console to see the output itself."""
     ref = secrets.token_hex(4)
-    print(f"[agenti-api] {what} ref={ref}: {raw[:4000]!r}", file=sys.stderr)
+    digest = hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
+    print(f"[agenti-api] {what} ref={ref}: {len(raw)} chars, sha256 {digest}", file=sys.stderr)
     return AgentiError(f"{what} (ref {ref}) — an admin can see it in: journalctl -u agenti-api", status)
 
 

@@ -87,12 +87,6 @@
   },
   {
    "rule": "py/clear-text-logging-sensitive-data",
-   "path": "shared/test_msf_client.py",
-   "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
-   "reason": "Test helper printing fixture values, never real secrets."
-  },
-  {
-   "rule": "py/clear-text-logging-sensitive-data",
    "path": "shared/test_iam.py",
    "line": "FAIL += 1; print(f\"  [FAIL] {label}\\n         got  {got!r}\\n         want {want!r}\")",
    "reason": "Test helper printing fixture values (test passwords), never real secrets."
@@ -228,6 +222,24 @@
    "path": "shared/iam.py",
    "line": "json.dumps(material, sort_keys=True, separators=(\",\", \":\")).encode()).hexdigest()",
    "reason": "action_hash(): any password in the action is first replaced by its scrypt derivation (n=2^14), then the action is SHA-256'd for the grant binding; the binding is wiped once the grant is spent. CodeQL cannot see through the scrypt step."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/test_api_bridge.py",
+   "line": "PASS += 1; print(f\"  [ OK ] {label}\")",
+   "reason": "A test's pass line prints the check's label, a fixed description written in the test; no credential reaches it."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/tool_registry.py",
+   "line": "fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o640)",
+   "reason": "A sandboxed program's output in the run's own slot (agenti-run:agenti-run). Group read is what the slot's other files have, so root's link-safe reader and the run can use it; it replaced open('w'), which made it 0644."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/hash_extract.py",
+   "line": "fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o640, dir_fd=dfd)",
+   "reason": "The cracker's extracted hash files in the run's own analysis folder (agenti-run:agenti-run), the same mode as the slot's other files; it replaced a default-mode write (0644)."
   }
  ]
 }
