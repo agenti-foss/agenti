@@ -31,7 +31,7 @@ def main() -> int:
     pid, fd = pty.fork()
     if pid == 0:
         os.execvp("agenti", ["agenti", "setup"])
-    out, step, deadline = b"", 0, time.time() + 120
+    out, step, deadline = b"", 0, time.time() + float(os.environ.get("SETUP_TIMEOUT", "120"))
     while time.time() < deadline:
         r, _, _ = select.select([fd], [], [], 1)
         if r:
@@ -48,6 +48,8 @@ def main() -> int:
             os.write(fd, (ANSWERS[step][1] + "\n").encode())
             print(f"  answered {ANSWERS[step][0]!r}")
             step += 1
+    if time.time() >= deadline:
+        os.kill(pid, 9)                  # setup is stuck on a question we do not answer
     _, status = os.waitpid(pid, 0)
     text = out.decode(errors="replace")
     sys.stdout.write(text[-1500:] if os.environ.get("SHOW") else "")
