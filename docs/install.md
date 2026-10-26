@@ -6,6 +6,7 @@ Ubuntu 24.04).*
 ## The short version
 
 ```
+sudo apt update          # a fresh Kali's package lists are often out of date
 sudo apt install ./agenti-runtime_<version>_<cpu>.deb ./agenti_<version>_all.deb
 sudo agenti setup
 ```
