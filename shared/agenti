@@ -3926,18 +3926,47 @@ cmd_setup() {
     printf '\n%sAgenti setup%s\n' "$c_b" "$c_0"
 
     printf '\n%s1. The first admin%s\n' "$c_b" "$c_0"
-    n=$(python3 "$IAM_PY" --json user list 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
-    if [[ "$n" -gt 0 ]]; then
-        ok "$n user(s) already exist — skipped (add people in the GUI: Settings → Users)"
+    # Who can sign in already, and is there an admin an earlier setup left
+    # half-made (created, then the password was refused)? Found on a fresh
+    # Kali install 2026-10-26: 'kali' (4 characters) was refused after the
+    # account existed, and the next setup skipped it as "already exists".
+    local users ready half pw pw2
+    users=$(python3 "$IAM_PY" --json user list 2>/dev/null || echo '[]')
+    read -r ready half < <(python3 -c '
+import json, sys
+u = [x for x in json.load(sys.stdin) if x.get("active") and x.get("role") == "admin"]
+ready = sum(1 for x in u if x.get("has_password") or x.get("has_passkey"))
+half = next((x["name"] for x in u if not x.get("has_password") and not x.get("has_passkey")), "-")
+print(ready, half)' <<<"$users" 2>/dev/null || echo "0 -")
+    if [[ "${ready:-0}" -gt 0 ]]; then
+        ok "an admin who can sign in already exists — skipped (add people in the GUI: Settings → Users)"
     else
-        local def="${SUDO_USER:-admin}"; [[ "$def" == root ]] && def=admin
-        read -r -p "  name to sign in with [$def]: " name; name="${name:-$def}"
-        "$self" admin user add "$name"
-        "$self" admin bind user "$name" --role admin
-        echo "  choose a password (typed twice, not shown):"
-        "$self" admin user set-password "$name"
+        if [[ -n "$half" && "$half" != "-" ]]; then
+            name="$half"
+            echo "  '$name' was created by an earlier setup but has no password yet — finishing it."
+        else
+            local def="${SUDO_USER:-admin}"; [[ "$def" == root ]] && def=admin
+            read -r -p "  name to sign in with [$def]: " name; name="${name:-$def}"
+        fi
+        # The password is checked BEFORE anything is created, and asked again
+        # if it is refused, so a refusal never leaves a half-made account.
+        while true; do
+            read -rs -p "  choose a password (at least 8 characters, not shown): " pw; echo
+            if [[ ${#pw} -lt 8 ]]; then warn "that is ${#pw} characters; it needs at least 8 — try again"; continue; fi
+            read -rs -p "  type it again: " pw2; echo
+            [[ "$pw" == "$pw2" ]] && break
+            warn "the two did not match — try again"
+        done
+        if [[ "$name" != "$half" ]]; then
+            "$self" admin user add "$name" || { unset pw pw2; die "'$name' was not created (see above); nothing was changed. Run setup again:  sudo agenti setup"; }
+            "$self" admin bind user "$name" --role admin
+        fi
+        printf '%s\n' "$pw" | "$self" admin user set-password "$name" --password-stdin \
+            || { unset pw pw2; die "the password was not set. Finish it:  sudo agenti admin user set-password $name"; }
+        unset pw pw2
         echo "  now scan this with an authenticator app (Google Authenticator, 1Password, ...):"
-        "$self" admin user enroll-2fa "$name"
+        "$self" admin user enroll-2fa "$name" \
+            || warn "2FA was not set up yet. Do it now:  sudo agenti admin user enroll-2fa $name"
         ok "'$name' is an admin. If the code does not work, re-run:  sudo agenti admin user enroll-2fa $name"
     fi
 
@@ -3972,7 +4001,12 @@ EOF
         ok "a key is already set — skipped (replace it:  sudo $SET_SECRET_SH)"
     else
         echo "  Every agent run uses it. Get one at https://console.anthropic.com/ (it starts sk-ant-)."
-        "$SET_SECRET_SH" || warn "no key was saved; set it later:  sudo agenti setup"
+        read -r -p "  set it now? [Y/n] " reply
+        if [[ "$reply" =~ ^[Nn] ]]; then
+            ok "skipped — agent runs will refuse to start until a key is set. Later:  sudo agenti setup"
+        else
+            "$SET_SECRET_SH" || warn "no key was saved; set it later:  sudo agenti setup"
+        fi
     fi
 
     printf '\n%s4. Opening the GUI%s\n' "$c_b" "$c_0"
@@ -3998,6 +4032,7 @@ EOF
     esac
 
     printf '\n%sDone.%s\n' "$c_b" "$c_0"
+    echo "  To remove Agenti later:  sudo apt purge agenti agenti-runtime  (it asks before deleting any data)"
     "$self" gui status 2>/dev/null | sed -n '1,4p' || true
     cat <<'EOF'
 

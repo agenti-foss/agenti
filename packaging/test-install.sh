@@ -46,6 +46,13 @@ expect "authd's Python has cryptography and NOT FastAPI" sh -c \
 expect "the help pages work without root" su -s /bin/sh nobody -c "agenti docs search passkey >/dev/null"
 expect "the shipped agents are listed without root" sh -c "su -s /bin/sh nobody -c 'agenti agents --json' | grep -q '\"enum\"'"
 for u in agenti-run agenti-api agenti-authd; do expect "account $u exists" id "$u"; done
+echo "== setup, as a person would answer it (packaging/test-setup.py)"
+# The 2026-10-26 report: an admin created, then its password refused.
+agenti admin user add kali >/dev/null && agenti admin bind user kali --role admin >/dev/null
+expect "setup finishes a half-made admin, re-asks a short password and lets the key be skipped" \
+    python3 "$(dirname "$0")/test-setup.py"
+expect "kali is now an admin with a password" sh -c \
+    "agenti admin user list --json | python3 -c 'import json,sys; u={x[\"name\"]:x for x in json.load(sys.stdin)}; sys.exit(0 if u[\"kali\"][\"role\"]==\"admin\" and u[\"kali\"][\"has_password\"] else 1)'"
 expect "the user database is 0640 root:agenti-authd" test "$(mode /var/lib/agenti/iam.db)" = "640 root:agenti-authd"
 expect "authd's session folder is 0700 agenti-authd" test "$(mode /var/lib/agenti/authd)" = "700 agenti-authd:agenti-authd"
 expect "the data root is 0751 root:root" test "$(mode /var/lib/agenti/data)" = "751 root:root"

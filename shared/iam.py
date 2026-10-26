@@ -3249,6 +3249,11 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     for verb in ("disable", "enable", "set-password", "enroll-2fa", "reset-2fa",
                  "reset-passkeys"):
         q = ps.add_parser(verb, allow_abbrev=False); q.add_argument("name")
+        if verb == "set-password":
+            # setup checks the password first, then hands it over here: on
+            # stdin, never in argv (sudo logs argv; /proc shows it).
+            q.add_argument("--password-stdin", action="store_true",
+                           help="read the password (one line) from standard input")
 
     q = add("bind", "set a user's role (operator or admin)")
     q.add_argument("subject_kind", choices=("user", "principal"),
@@ -3717,11 +3722,16 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                                 (a.name,)).fetchone() is None:
                     raise IAMError(f"no user named {a.name!r}. "
                                    f"Create it first: sudo agenti admin user add {a.name}")
-                pw = getpass.getpass(f"password for '{a.name}': ")
-                if not pw:
-                    raise IAMError("empty password — nothing changed")
-                if pw != getpass.getpass("confirm: "):
-                    raise IAMError("passwords did not match — nothing changed")
+                if a.password_stdin:
+                    pw = sys.stdin.readline().rstrip("\n")
+                    if not pw:
+                        raise IAMError("empty password on standard input — nothing changed")
+                else:
+                    pw = getpass.getpass(f"password for '{a.name}': ")
+                    if not pw:
+                        raise IAMError("empty password — nothing changed")
+                    if pw != getpass.getpass("confirm: "):
+                        raise IAMError("passwords did not match — nothing changed")
                 try:
                     _rt = open_runtime()
                 except Exception:
@@ -3738,7 +3748,9 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             rows = list(conn.execute(
                 "SELECT name, kind, active, created_at, created_by,"
                 " password_hash IS NOT NULL AS has_password,"
-                " totp_secret IS NOT NULL AS has_totp FROM principals ORDER BY name"))
+                " totp_secret IS NOT NULL AS has_totp, role,"
+                " EXISTS (SELECT 1 FROM passkeys k WHERE k.principal = principals.name) AS has_passkey"
+                " FROM principals ORDER BY name"))
             return emit([dict(r) for r in rows],
                         ["users:"] + [
                             f"  {r['name']:<20} {r['kind']:<8} "
