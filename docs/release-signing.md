@@ -26,23 +26,36 @@ YubiKey. Users notice nothing, because they trust the main key.
 - A **YubiKey 5** series key (the blue "Security Key" models have no OpenPGP
   and cannot do this). Firmware 5.2.3 or later for ed25519 keys:
   `ykman info` shows it.
-- A computer you can start from a **live USB** (Debian live, or Tails), with
-  networking off for the whole ceremony.
-- **One USB stick for the backup** (it will be encrypted). Copy it to a second
-  stick later and keep the two in different places.
-- **One more USB stick** to carry the *public* key and the revocation
-  certificate back to an online computer. Nothing secret goes on this one.
+- A computer you can start from a USB stick, and **three USB sticks**:
+  1. the **live USB** (Kali Live) the ceremony runs on;
+  2. **BACKUP**: the encrypted backup of the main key. Copy it to a second
+     stick later and keep the two in different places;
+  3. **PUBLIC**: carries the public key and the revocation certificate back to
+     an online computer. Nothing secret goes on this one.
 - Decided in advance (written on paper, never typed into an online machine):
   - the key's name and email, e.g. `Agenti releases <releases@agenti-foss.org>`;
   - a long passphrase for the main key (six or more random words);
   - a new YubiKey **PIN** (6–8 digits) and **Admin PIN** (8 digits).
 
-## 1. Start offline
+## 0. Make the live USB (on any computer, before the ceremony)
 
-Boot the live USB. Turn networking off (unplug the cable, switch Wi-Fi off) and
-keep it off until step 8. Open a terminal. If `gpg`, `ykman` and `cryptsetup`
-are missing, the live image needs them added beforehand (Tails and Debian live
-have `gpg` and `cryptsetup`; `ykman` is the `yubikey-manager` package).
+Stick 1 becomes a Kali Live USB. Download the "Live" image from
+https://www.kali.org/get-kali/#kali-live, check its SHA256SUMS, and write it to
+the stick (`sudo dd if=kali-linux-*-live-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync`,
+or balenaEtcher/Rufus). Label the other two sticks **BACKUP** and **PUBLIC**.
+
+## 1. Start the live system, add the tools, then go offline
+
+Boot the computer from stick 1 (choose "Live system", no persistence). While it
+is still online, add the tools, because the live image may lack them:
+
+```
+sudo apt update && sudo apt install -y yubikey-manager scdaemon pcscd cryptsetup
+```
+
+**Now disconnect the network** (unplug the cable, switch Wi-Fi off in the menu)
+and keep it off until step 8. The key is only ever made after this point, in
+this RAM-only session.
 
 ```
 export GNUPGHOME=$(mktemp -d)        # a throwaway keyring in RAM, gone at shutdown
@@ -122,8 +135,8 @@ On the second (non-secret) stick:
 
 ```
 gpg --armor --export "$FPR" > agenti-release-key.asc     # the PUBLIC key only
-cp agenti-release-key.asc revoke.asc /media/<stick>/
-echo "$FPR" > /media/<stick>/fingerprint.txt
+cp agenti-release-key.asc revoke.asc /media/$USER/PUBLIC/     # the PUBLIC stick's mount point
+echo "$FPR" > /media/$USER/PUBLIC/fingerprint.txt
 ```
 
 Then shut the computer down. The RAM keyring is gone; the main key now exists
