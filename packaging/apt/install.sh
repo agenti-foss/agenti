@@ -39,8 +39,17 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -m 0700 "$tmp/gnupg"; GNUPGHOME="$tmp/gnupg"; export GNUPGHOME
-curl -fsSL "$BASE/agenti-release-key.asc" -o "$tmp/key.asc" \
-    || die "could not download $BASE/agenti-release-key.asc. Check the network and try again."
+# A wrong clock is the usual cause of both a "certificate is not yet valid"
+# download and a "not live until" package list (a restored VM, a dual-boot PC).
+clock_die() {
+    grep -q -i -e "not live until" -e "not yet valid" -e "not valid yet" -e "certificate has expired" "$1" \
+        && die "this machine's clock is wrong (it reads $(date -u '+%Y-%m-%d %H:%M UTC')). Fix it: sudo timedatectl set-ntp true  (check: date -u), then run this again."
+    return 0
+}
+if ! curl -fsSL "$BASE/agenti-release-key.asc" -o "$tmp/key.asc" 2>"$tmp/curl.log"; then
+    cat "$tmp/curl.log" >&2; clock_die "$tmp/curl.log"
+    die "could not download $BASE/agenti-release-key.asc. Check the network and try again."
+fi
 got=$(gpg --show-keys --with-colons "$tmp/key.asc" 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')
 [ "$got" = "$FPR" ] || die "the downloaded key's fingerprint is '${got:-unreadable}', not $FPR. Not trusting it; nothing was changed."
 
@@ -55,7 +64,11 @@ EOF
 echo "Added Agenti's apt repository ($SOURCES), trusted only with key $FPR."
 
 [ "${AGENTI_NO_INSTALL:-0}" = 1 ] && { echo "AGENTI_NO_INSTALL=1: stopping here. Install with: sudo apt install agenti"; exit 0; }
-apt-get update -q || die "apt-get update failed; see the messages above. The repository stays configured: fix the cause, then: sudo apt update && sudo apt install agenti"
+if ! apt-get update -q >"$tmp/update.log" 2>&1; then
+    cat "$tmp/update.log" >&2; clock_die "$tmp/update.log"
+    die "apt-get update failed; see the messages above. The repository stays configured: fix the cause, then: sudo apt update && sudo apt install agenti"
+fi
+cat "$tmp/update.log"
 apt-get install -y agenti || die "installing agenti failed; see the messages above. Try again with: sudo apt install agenti"
 echo
 echo "Agenti is installed. Updates arrive with the usual: sudo apt update && sudo apt upgrade"

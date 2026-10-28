@@ -302,6 +302,10 @@ NMAP = Program(
         ("--version-intensity", _f("0-9", "choice", choices=tuple("0123456789"))),
     ),
     positional="targets",
+    # -n always: targets are literal IPs, and the run's kernel fence (scope.conf)
+    # blocks the DNS server, so nmap's reverse lookups hang until run_scan's own
+    # time limit (15 minutes) instead of failing. Found live on 2026-10-28.
+    prepend=("-n",),
     examples=("nmap -sT -sV -p 22,80,443 10.0.0.5", "nmap -sn 10.0.0.0/24", "nmap -sV --script=http-title,ssl-cert -p 443 10.0.0.5"),
 )
 
@@ -573,7 +577,8 @@ def check(command: str) -> Checked:
             if not flag.takes_value:
                 if eq:
                     raise ArgError(f"{name} takes no value")
-                out.argv.append(tok)
+                if tok not in prog.prepend:       # already there (nmap -n)
+                    out.argv.append(tok)
                 i += 1
                 continue
             if not eq:

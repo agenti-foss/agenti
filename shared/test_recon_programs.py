@@ -116,7 +116,7 @@ check("prepended safety switches are in the argv",
 check("a quoted option is the same token as an unquoted one, and both are refused",
       [verdict(c)[0] for c in ("netexec smb 10.0.0.5 -x whoami", 'netexec smb 10.0.0.5 "-x" whoami')], [False, False])
 check("values are passed as separate tokens", verdict("nmap -sV -p 22 10.0.0.5")[2],
-      ["nmap", "-sV", "-p", "22", "10.0.0.5"])
+      ["nmap", "-n", "-sV", "-p", "22", "10.0.0.5"])
 
 section("audit run 2: every host value checked, each option once, argv as given")
 for cmd in ("nikto -h 10.0.0.5 -h 10.0.0.6", "nikto -h 10.0.0.5 -host 10.0.0.6", "nikto -h 10.0.0.6",
@@ -142,9 +142,13 @@ check("a bracketed IPv6 address is the checked target", rp.check("sslyze [fd00::
 for cmd in ("sslscan --sni-name=www.example 10.0.0.5:443", "sslscan --timeout=5 10.0.0.5:443",
             "netexec smb 10.0.0.5 -u admin -p 'Summer2026!'", "nikto -host http://10.0.0.5/"):
     check(f"accepted: {cmd}", verdict(cmd)[:2], (True, "ok"))
-check("an attached value runs as typed", verdict("nmap -sV -p80 10.0.0.5")[2], ["nmap", "-sV", "-p80", "10.0.0.5"])
+check("nmap always gets -n (the run's fence blocks DNS; a lookup would hang)",
+      verdict("nmap -sT -p 22 10.0.0.5")[2], ["nmap", "-n", "-sT", "-p", "22", "10.0.0.5"])
+check("...and once only when the model also gives -n",
+      verdict("nmap -n -sT -p 22 10.0.0.5")[2], ["nmap", "-n", "-sT", "-p", "22", "10.0.0.5"])
+check("an attached value runs as typed", verdict("nmap -sV -p80 10.0.0.5")[2], ["nmap", "-n", "-sV", "-p80", "10.0.0.5"])
 check("an --opt=value runs as typed", verdict("nmap --script=http-title 10.0.0.5")[2],
-      ["nmap", "--script=http-title", "10.0.0.5"])
+      ["nmap", "-n", "--script=http-title", "10.0.0.5"])
 check("netexec --shares never write-checks", verdict("netexec smb 10.0.0.5 -u '' -p '' --shares")[2][-1],
       "--no-write-check")
 check("smbmap never write-checks", "--no-write-check" in verdict("smbmap -H 10.0.0.5 -u '' -p ''")[2], True)

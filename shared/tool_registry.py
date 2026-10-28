@@ -445,7 +445,11 @@ def _build_run_scan(ctx: ToolContext, *, allowed_binaries: set, denied_patterns:
             ctx.actions.append({"command": command, "verdict": f"DENIED: {reason}", "output": None})
             return {"content": [{"type": "text", "text": f"DENIED: {reason}"}], "is_error": True}
 
-        ctx.log.info("EXECUTING | %s", command)
+        # What actually runs: the checked argv, which may carry flags the
+        # program's rules always add (nmap -n, netexec --no-write-check ...). The
+        # journal and the report record THIS, not the model's spelling.
+        ran = shlex.join(argv)
+        ctx.log.info("EXECUTING | %s", ran)
         # An empty folder of its own, as working folder AND home: a bare
         # option value such as -p users.txt must never name a file of this
         # run's slot (netexec reads such values as credential lists), and a
@@ -462,14 +466,14 @@ def _build_run_scan(ctx: ToolContext, *, allowed_binaries: set, denied_patterns:
             proc = await _run_program(_installed(argv), timeout=limit, cwd=run_cwd,
                                       env={**os.environ, "HOME": run_cwd})
         except subprocess.TimeoutExpired:
-            ctx.actions.append({"command": command, "verdict": "timed out", "output": None})
+            ctx.actions.append({"command": ran, "verdict": "timed out", "output": None})
             why = ("the run's own time limit is reached" if left and left < timeout_s
                    else f"it ran longer than {timeout_s}s")
             return {"content": [{"type": "text", "text": f"Command timed out: {why}."}], "is_error": True}
         except FileNotFoundError:
             # An admin may allow a program this host does not have installed.
             binary = argv[0]
-            ctx.actions.append({"command": command, "verdict": f"not installed: {binary}", "output": None})
+            ctx.actions.append({"command": ran, "verdict": f"not installed: {binary}", "output": None})
             return {"content": [{"type": "text", "text":
                 f"'{binary}' is allowed but is not installed on this host, so it cannot run. "
                 f"Use another tool, or ask the operator to have it installed."}], "is_error": True}
@@ -482,7 +486,7 @@ def _build_run_scan(ctx: ToolContext, *, allowed_binaries: set, denied_patterns:
         full = full or "(no output)"
         filename = _scan_filename(command)
         (ctx.workdir / filename).write_text(full)
-        ctx.actions.append({"command": command, "verdict": "ok", "output": filename})
+        ctx.actions.append({"command": ran, "verdict": "ok", "output": filename})
         n_lines = len(full.splitlines())
         body = summarize_text(full, ctx.trim_bytes)
         index = "\n".join(_build_scan_index(full))
