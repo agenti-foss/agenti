@@ -178,6 +178,14 @@ only on the encrypted backup stick.
   download page and in the repository, so users can check what apt trusts.
 - On the computer that signs releases, import the public key and let gpg find
   the YubiKey: `gpg --import agenti-release-key.asc && gpg --card-status`.
+  If it says "No such device": `echo disable-ccid > ~/.gnupg/scdaemon.conf`,
+  `gpgconf --kill scdaemon`. If pcscd's log says the user "is NOT authorized
+  for action: access_pcsc" (signing over SSH), add a polkit rule in
+  `/etc/polkit-1/rules.d/` granting that one user
+  `org.debian.pcsc-lite.access_pcsc` and `access_card`, then restart pcscd.
+- Check `gpg --card-status` shows `UIF setting ......: Sign=on`. If it says
+  `Sign=off`, run `ykman openpgp keys set-touch sig on` (Admin PIN). A test
+  signature must then wait, blinking, until the key is touched.
 
 ## Opening the BACKUP stick later
 
