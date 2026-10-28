@@ -179,15 +179,90 @@ only on the encrypted backup stick.
 - On the computer that signs releases, import the public key and let gpg find
   the YubiKey: `gpg --import agenti-release-key.asc && gpg --card-status`.
 
-## Later
+## Opening the BACKUP stick later
 
-- **Second backup:** copy the encrypted stick to another stick
-  (`sudo dd if=/dev/sdX of=/dev/sdY bs=4M status=progress`, then check it opens).
-- **Before the signing subkey expires (2 years):** offline again, load the
-  backup's `gnupg-home`, `gpg --quick-set-expire "$FPR" 2y '*'`, export the
-  public key again and publish it.
-- **YubiKey lost:** offline, load the backup, add a new signing subkey
-  (`gpg --quick-add-key "$FPR" ed25519 sign 2y`), move it to the new YubiKey,
-  publish the updated public key. Revoke the old subkey the same way.
+Every job below starts the same way. The BACKUP stick holds the secret main
+key, so it is only ever opened on the **offline live system**, never on an
+everyday computer.
+
+1. Boot the Kali live USB, choose "Live system", **turn the network off**, and
+   check the clock: `date -u` (fix it while still online with
+   `sudo timedatectl set-ntp true` if it is wrong).
+2. Plug in BACKUP and open it:
+   ```
+   lsblk -o NAME,SIZE,MODEL              # BACKUP is the entry that appeared
+   sudo cryptsetup open /dev/sdX backup1  # sdX = the whole BACKUP device
+   sudo mkdir -p /mnt/b1 && sudo mount /dev/mapper/backup1 /mnt/b1
+   ls /mnt/b1                            # gnupg-home  main-and-subkeys.asc  revoke.asc
+   ```
+3. When finished: `sync && sudo umount /mnt/b1 && sudo cryptsetup close backup1`.
+
+## Making a second backup copy
+
+Keep two BACKUP sticks in two different places. This copies the files onto a
+newly encrypted stick, so the new stick may be any size.
+
+1. Open BACKUP as above, but mount it **read-only**:
+   `sudo mount -o ro /dev/mapper/backup1 /mnt/b1`.
+2. Plug in the new stick and find it with `lsblk -o NAME,SIZE,MODEL,MOUNTPOINT`.
+   It is the newest entry: **not the live USB, not BACKUP**. Call it `sdY`.
+3. Encrypt it and copy everything (this erases the new stick; type `YES`):
+   ```
+   sudo umount /dev/sdY* 2>/dev/null
+   sudo cryptsetup luksFormat /dev/sdY
+   sudo cryptsetup open /dev/sdY backup2
+   sudo mkfs.ext4 -q /dev/mapper/backup2
+   sudo mkdir -p /mnt/b2 && sudo mount /dev/mapper/backup2 /mnt/b2
+   sudo cp -a /mnt/b1/. /mnt/b2/
+   sudo diff -r /mnt/b1 /mnt/b2 && echo "COPY OK"
+   ```
+4. Close both: `sync && sudo umount /mnt/b1 /mnt/b2 && sudo cryptsetup close backup1 && sudo cryptsetup close backup2`.
+5. Label it **BACKUP 2** and store it away from the first one and from the YubiKey.
+
+## Renewing the key before it expires
+
+| Key | Lives on | Expires (UTC) | Renew by |
+|---|---|---|---|
+| Signing subkey `03F1787567F9906B` | YubiKey | **27 October 2028** | August 2028 |
+| Main key `811166F51B2DAE49` | BACKUP sticks | **27 October 2031** | August 2031 |
+
+A key is **extended**, not replaced: the fingerprint stays the same, the
+YubiKey is not touched, and users only need the updated public key. If a key
+is allowed to expire, every user's `apt update` refuses Agenti until it is
+extended, so renew about two months early.
+
+1. Open BACKUP as above (read-write), and use its keyring:
+   ```
+   export GNUPGHOME=/mnt/b1/gnupg-home
+   FPR=2D6F55F9385B8C760C2E95BD811166F51B2DAE49
+   ```
+2. Extend (gpg asks for the main key's passphrase):
+   ```
+   gpg --quick-set-expire "$FPR" 2y '*'    # the signing subkey: two more years
+   gpg --quick-set-expire "$FPR" 5y        # the main key (in 2031): five more years
+   gpg --list-keys --keyid-format long     # check the new dates
+   ```
+3. Refresh the full export on the stick:
+   ```
+   gpg --armor --export-secret-keys "$FPR" | sudo tee /mnt/b1/main-and-subkeys.asc >/dev/null
+   ```
+4. Plug in the PUBLIC stick and export the updated public key
+   (`P=/run/media/kali/<name>`, from `lsblk`):
+   ```
+   gpg --armor --export "$FPR" > "$P/agenti-release-key.asc"
+   ```
+5. Close BACKUP, then bring BACKUP 2 up to date: open both and copy, as in
+   "Making a second backup copy" step 3 but skip the `luksFormat`/`mkfs` lines
+   and use `sudo rsync -a --delete /mnt/b1/ /mnt/b2/` (or `cp -a`) instead.
+6. Back online: replace `packaging/apt/agenti-release-key.asc` with the new
+   file and update the dates in "The current key" above. Publishing it on
+   the apt host and the website lets users' apt pick up the new dates.
+
+## Other events
+
+- **YubiKey lost:** open BACKUP, add a new signing subkey
+  (`gpg --quick-add-key "$FPR" ed25519 sign 2y`), move it to a new YubiKey as
+  in step 6, update both BACKUP sticks, and publish the updated public key.
+  Revoke the old subkey (`gpg --edit-key "$FPR"`, `key 1`, `revkey`, `save`).
 - **Main key compromised:** publish `revoke.asc` (from the password manager)
   and make a new key with this guide; users must be told to trust the new one.
