@@ -4,6 +4,17 @@
 the computer's network off. Nobody else — no CI job, no assistant — ever sees
 the key, its passphrase or the YubiKey's PINs.*
 
+## The current key
+
+```
+pub   ed25519/811166F51B2DAE49 2026-10-28 [C] [expires: 2031-10-27]
+      2D6F55F9385B8C760C2E95BD811166F51B2DAE49
+uid   Agenti releases <releases@agenti-foss.org>
+sub   ed25519/03F1787567F9906B 2026-10-28 [S] [expires: 2028-10-27]
+```
+
+The public key is `packaging/apt/agenti-release-key.asc`.
+
 ## What this key is for
 
 apt checks that the package list it downloads (`InRelease`) was signed by the
@@ -50,8 +61,14 @@ Boot the computer from stick 1 (choose "Live system", no persistence). While it
 is still online, add the tools, because the live image may lack them:
 
 ```
+date -u                                    # must be the real UTC time, within a minute
+sudo timedatectl set-ntp true              # if it is not (a dual-boot PC's clock is often hours off)
 sudo apt update && sudo apt install -y yubikey-manager scdaemon pcscd cryptsetup
 ```
+
+The clock matters twice: apt refuses package lists "not live until" a future
+time, and the key is stamped with this clock. A key made in the future is
+refused by every other computer until that time comes.
 
 **Now disconnect the network** (unplug the cable, switch Wi-Fi off in the menu)
 and keep it off until step 8. The key is only ever made after this point, in
@@ -88,7 +105,9 @@ cp "$GNUPGHOME/openpgp-revocs.d/$FPR.rev" revoke.asc
 ## 4. The backup (before anything goes onto the YubiKey)
 
 Moving the subkey to the YubiKey deletes it from this keyring, so this is the
-only moment a complete backup can be made.
+only moment a complete backup can be made. **Plug in the BACKUP stick now**
+(only the live USB and BACKUP; `/dev/sdX` is the whole BACKUP device, never the
+live USB). If Kali opened it, `sudo umount /dev/sdX*` first. Unplug it after.
 
 ```
 lsblk                                  # find the backup stick, e.g. /dev/sdb — check twice
@@ -103,6 +122,8 @@ sync && sudo umount /mnt/keybackup && sudo cryptsetup close keybackup
 ```
 
 ## 5. Set the YubiKey's PINs
+
+**Plug in the YubiKey now.** If `ykman` cannot find it: `sudo systemctl start pcscd`.
 
 A new YubiKey's OpenPGP PIN is `123456` and its Admin PIN is `12345678`.
 
@@ -123,6 +144,9 @@ gpg --edit-key "$FPR"
 gpg --card-status                         # "Signature key" shows the subkey's fingerprint
 ```
 
+If `gpg --card-status` cannot find the card:
+`echo disable-ccid > "$GNUPGHOME/scdaemon.conf"; gpgconf --kill scdaemon`.
+
 Check that it signs (you will be asked for the PIN and to touch the key):
 
 ```
@@ -131,12 +155,15 @@ echo test | gpg --clearsign --default-key "$FPR" | gpg --verify
 
 ## 7. What leaves the offline computer
 
-On the second (non-secret) stick:
+**Plug in the PUBLIC stick now** (exFAT or FAT32). Kali opens it under
+`/run/media/kali/<name>`; `lsblk -o NAME,SIZE,MOUNTPOINT` shows the path.
 
 ```
-gpg --armor --export "$FPR" > agenti-release-key.asc     # the PUBLIC key only
-cp agenti-release-key.asc revoke.asc /media/$USER/PUBLIC/     # the PUBLIC stick's mount point
-echo "$FPR" > /media/$USER/PUBLIC/fingerprint.txt
+P=/run/media/kali/<name>
+gpg --armor --export "$FPR" > "$P/agenti-release-key.asc"   # the PUBLIC key only
+echo "$FPR" > "$P/fingerprint.txt"
+cp ~/revoke.asc "$P/"
+ls -l "$P"; sync
 ```
 
 Then shut the computer down. The RAM keyring is gone; the main key now exists
