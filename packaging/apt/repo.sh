@@ -88,7 +88,8 @@ cmd_add() {
 
 build_lists() {
     local repo=$1 arch dir
-    rm -f "$repo/dists/$SUITE/InRelease" "$repo/dists/$SUITE/Release.gpg"
+    # Release too: apt-ftparchive would list an old one inside the new one.
+    rm -f "$repo/dists/$SUITE/InRelease" "$repo/dists/$SUITE/Release.gpg" "$repo/dists/$SUITE/Release"
     for arch in "${ARCHES[@]}"; do
         dir="$repo/dists/$SUITE/main/binary-$arch"
         mkdir -p "$dir"
@@ -137,6 +138,10 @@ cmd_check() {
     local sum size path n=0
     while read -r sum size path; do
         [[ -f "$dists/$path" ]] || continue
+        # An entry for Release itself (an older Release was in the folder when
+        # the lists were built, before build_lists removed it first): apt
+        # never fetches Release by its index, so it is not a file to check.
+        [[ "$path" != Release ]] || continue
         [[ $(sha256sum "$dists/$path" | cut -d' ' -f1) == "$sum" ]] \
             || die "dists/$SUITE/$path does not match its SHA256 in Release; rebuild with add and sign again"
         n=$((n + 1))
