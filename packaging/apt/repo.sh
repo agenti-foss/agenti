@@ -72,9 +72,12 @@ cmd_add() {
     mkdir -p "$repo/pool/main"
     for deb in "$dl"/*.deb; do
         name=$(basename "$deb")
-        if [[ -e "$repo/pool/main/$name" ]]; then
-            cmp -s "$deb" "$repo/pool/main/$name" \
+        if [[ -e "$repo/pool/main/$name" ]] && ! cmp -s "$deb" "$repo/pool/main/$name"; then
+            # Every release rebuilds the runtime; one whose version did not
+            # change is the same package, so the copy users already have stays.
+            [[ "$name" == agenti-runtime_* ]] \
                 || die "pool/main/$name already exists with DIFFERENT content. A published version is never replaced; release a new version instead."
+            echo "  [keep] $name: this version is already published; keeping that build"
         else
             install -m 0644 "$deb" "$repo/pool/main/$name"
         fi
