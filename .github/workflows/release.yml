@@ -24,6 +24,9 @@ permissions:
 jobs:
   checks:
     name: Full checks on the tagged commit
+    # Releases come only from the public repo: a tag in the private dev twin
+    # would fail at attestation (unavailable on private repos) and publish nothing.
+    if: github.repository == 'agenti-foss/agenti'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
