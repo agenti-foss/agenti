@@ -21,6 +21,9 @@ const AgentiActivity = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const baseTool = (t) => String(t || "?").replace(/^mcp__[a-z0-9_]+__/, "");
   const nice = (t) => baseTool(t).replace(/_/g, " ");
+  // "2 refused · 1 failed": refusals are named apart from errors.
+  const stepsMeta = (failed, refused) => [refused ? `${refused} refused` : "",
+                                          failed ? `${failed} failed` : ""].filter(Boolean).join(" · ");
 
   // Rows recorded before the ledger kept line breaks are one flattened line
   // ("## Findings - **Host** ... | a | b |"). Rendering that as Markdown shows
@@ -139,7 +142,7 @@ const AgentiActivity = (() => {
         <summary><span class="steps-title"></span><span class="steps-meta"></span></summary>
         <div class="steps-body"></div></details>`);
       this._append(node);
-      this.group = { el: node, n: 0, failed: 0, last: "" };
+      this.group = { el: node, n: 0, failed: 0, refused: 0, last: "" };
       return this.group;
     }
     _closeGroup() {
@@ -155,7 +158,7 @@ const AgentiActivity = (() => {
       const meta = g.el.querySelector(".steps-meta");
       g.el.classList.toggle("working", !!running);
       title.textContent = running ? `Working · ${g.last}` : `Ran ${g.n} step${g.n === 1 ? "" : "s"}`;
-      meta.textContent = g.failed ? `${g.failed} failed` : "";
+      meta.textContent = stepsMeta(g.failed, g.refused);
       meta.classList.toggle("bad", g.failed > 0);
     }
     _step(f, tool, live) {
@@ -185,10 +188,15 @@ const AgentiActivity = (() => {
       }
       step.classList.remove("run");
       step.classList.add("done");
-      const bad = f.verdict === "error" || f.verdict === "denied";
+      // "denied" is the scope or allow-list refusing a step: the boundary
+      // holding, counted apart from a step that went wrong.
+      const bad = f.verdict === "error";
+      const refused = f.verdict === "denied";
       step.classList.toggle("bad", bad);
+      step.classList.toggle("refused", refused);
       step.querySelector(".step-out").textContent = f.summary || "";
       if (bad && this.group) this.group.failed += 1;
+      if (refused && this.group) this.group.refused += 1;
       // A result can land on a group that has since been closed by narration.
       const grp = step.closest(".steps");
       if (grp && (!this.group || grp !== this.group.el)) this._repaintClosed(grp);
@@ -197,11 +205,12 @@ const AgentiActivity = (() => {
     _repaintClosed(grp) {
       const steps = grp.querySelectorAll(".step");
       const failed = grp.querySelectorAll(".step.bad").length;
+      const refused = grp.querySelectorAll(".step.refused").length;
       grp.classList.toggle("working", !!grp.querySelector(".step.run"));
       grp.querySelector(".steps-title").textContent = grp.querySelector(".step.run")
         ? "Working…" : `Ran ${steps.length} step${steps.length === 1 ? "" : "s"}`;
       const meta = grp.querySelector(".steps-meta");
-      meta.textContent = failed ? `${failed} failed` : "";
+      meta.textContent = stepsMeta(failed, refused);
       meta.classList.toggle("bad", failed > 0);
     }
 

@@ -231,6 +231,14 @@ CREATE INDEX IF NOT EXISTS idx_passkeys_principal ON passkeys(principal);
 """
 
 _RUNTIME_SCHEMA = """
+-- The first-run setup code (first_run_setup below): its hash only, and how
+-- many wrong tries it has had. One row at most; gone once an admin can sign in.
+CREATE TABLE IF NOT EXISTS setup_code (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    code_hash    TEXT NOT NULL,
+    created_at   REAL NOT NULL,
+    failures     INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS sessions (
     id           TEXT PRIMARY KEY,
     principal    TEXT NOT NULL,
@@ -798,6 +806,135 @@ def web_approve_vault_enable(conn, runtime, size: str, grant_id: str) -> str:
         raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
                        f"Nothing was changed.")
     return approver
+
+
+def web_approve_api_key(conn, runtime, sha256: str, grant_id: str) -> str:
+    """Consumes a 'set-api-key' grant for exactly this key (its SHA-256: the
+    key itself never reaches authd) and re-checks, fresh, that the approver is
+    an admin. Returns the approver; set-secret.sh writes the key."""
+    action = {"op": "set-api-key", "sha256": sha256, "resource": ORG_RESOURCE}
+    approver = consume_action_grant(runtime, grant_id, action)
+    if not check(conn, approver, "iam:manage", ORG_RESOURCE).allowed:
+        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
+                       f"No key was saved.")
+    return approver
+
+
+# ---------------------------------------------------------------------------
+# First-run setup from the browser (operator decision 2026-10-26: a one-time
+# setup code). Until an admin can sign in, whoever opens the GUI could claim
+# the organisation, so the setup page asks for a code only someone at the
+# host's terminal can read (sudo agenti setup-code). agenti-authd checks the
+# code against its hash in runtime.db and mints an ordinary single-use grant
+# for exactly one name; the root CLI spends it to create that admin, with an
+# enrolment link the page then uses for the password and 2FA. The plaintext
+# stays in a root-only file so the terminal can show it again; it is deleted,
+# with the hash, the moment an admin can sign in.
+# ---------------------------------------------------------------------------
+SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O, 1/I: read off a screen
+SETUP_CODE_GROUPS = 4                                       # XXXX-XXXX-XXXX-XXXX, 80 bits
+SETUP_CODE_MAX_FAILURES = 20                                # then it is burned
+SETUP_ACTOR = "setup-code"                                  # the "approver" of the first admin
+
+
+def setup_code_file() -> Path:
+    return paths.state() / "setup-code"
+
+
+def setup_needed(conn) -> bool:
+    """True until some active admin can sign in (has a password or a
+    passkey). An admin an earlier attempt left without a credential does not
+    count, so a setup abandoned halfway can be finished."""
+    row = conn.execute(
+        "SELECT 1 FROM principals p WHERE p.kind='user' AND p.active=1 AND p.role='admin'"
+        " AND (p.password_hash IS NOT NULL"
+        "      OR EXISTS (SELECT 1 FROM passkeys k WHERE k.principal = p.name)) LIMIT 1").fetchone()
+    return row is None
+
+
+def setup_action(principal: str) -> dict:
+    return {"op": "setup-first-admin", "principal": principal, "resource": ORG_RESOURCE}
+
+
+def normalize_setup_code(code: str) -> str:
+    return re.sub(r"[\s-]", "", code or "").upper()
+
+
+def _hash_setup_code(code: str) -> str:
+    return hashlib.sha256(f"agenti-setup:{normalize_setup_code(code)}".encode()).hexdigest()
+
+
+def read_setup_code() -> str | None:
+    """Root only: the code as last issued, or None."""
+    try:
+        return setup_code_file().read_text().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def issue_setup_code(runtime, *, renew: bool = False) -> str:
+    """Root only. Returns the current code, making one if there is none (or
+    always, with renew). The plaintext goes to a 0600 root file; runtime.db
+    keeps only its hash, which is all agenti-authd ever sees."""
+    code = None if renew else read_setup_code()
+    row = runtime.execute("SELECT code_hash FROM setup_code WHERE id=1").fetchone()
+    if code and row is not None and secrets.compare_digest(row["code_hash"], _hash_setup_code(code)):
+        return code
+    raw = "".join(secrets.choice(SETUP_CODE_ALPHABET) for _ in range(4 * SETUP_CODE_GROUPS))
+    code = "-".join(raw[i:i + 4] for i in range(0, len(raw), 4))
+    f = setup_code_file()
+    tmp = f.with_name(f".setup-code.{os.getpid()}")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(code + "\n")
+    os.replace(tmp, f)
+    runtime.execute("INSERT OR REPLACE INTO setup_code(id, code_hash, created_at, failures)"
+                    " VALUES (1,?,?,0)", (_hash_setup_code(code), time.time()))
+    runtime.commit()
+    return code
+
+
+def clear_setup_code(runtime) -> None:
+    runtime.execute("DELETE FROM setup_code")
+    runtime.commit()
+    with contextlib.suppress(FileNotFoundError):
+        setup_code_file().unlink()
+
+
+def check_setup_code(runtime, code: str) -> bool:
+    """agenti-authd: is this the current setup code? A wrong one counts
+    against it; after SETUP_CODE_MAX_FAILURES the code is burned and the
+    terminal must issue a new one. Raises IAMError when there is no code."""
+    row = runtime.execute("SELECT code_hash, failures FROM setup_code WHERE id=1").fetchone()
+    if row is None:
+        raise IAMError("there is no setup code right now (too many wrong tries, or it was never "
+                       "made). On the Agenti machine run:  sudo agenti setup-code --new")
+    if secrets.compare_digest(row["code_hash"], _hash_setup_code(code)):
+        return True
+    if row["failures"] + 1 >= SETUP_CODE_MAX_FAILURES:
+        runtime.execute("DELETE FROM setup_code")
+    else:
+        runtime.execute("UPDATE setup_code SET failures = failures + 1 WHERE id=1")
+    runtime.commit()
+    return False
+
+
+def setup_first_admin(conn, runtime, name: str, grant_id: str) -> str:
+    """Root CLI: spend a 'setup-first-admin' grant for exactly `name`, make
+    that admin (or finish the same one an abandoned attempt left without a
+    credential) and return its one-time enrolment token."""
+    consume_action_grant(runtime, grant_id, setup_action(name))
+    if not setup_needed(conn):
+        raise IAMError("setup is already done: an admin can sign in. Nothing was created. "
+                       "New accounts are made by an admin in Settings → Users.")
+    row = conn.execute("SELECT role, kind, active FROM principals WHERE name=?", (name,)).fetchone()
+    if row is None:
+        add_principal(conn, name, "user", SETUP_ACTOR, role="admin")
+    elif not (row["role"] == "admin" and row["kind"] == "user" and row["active"]):
+        raise IAMError(f"{name!r} already exists and is not an unfinished admin. Pick another name.")
+    runtime.execute("DELETE FROM enrolment_tokens WHERE principal=? AND used_at IS NULL", (name,))
+    runtime.commit()
+    return mint_enrolment_token(runtime, conn, name, SETUP_ACTOR)
 
 
 def web_approve_exploit_action(conn, runtime, action: dict, grant_id: str) -> str:
@@ -3522,6 +3659,22 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("--size", required=True)
     q.add_argument("--grant", required=True)
 
+    q = add("approve-api-key", "consume a set-api-key approval grant for exactly this key "
+            "(its SHA-256) and return who approved it — agenti admin set-api-key does the work")
+    q.add_argument("--sha256", required=True)
+    q.add_argument("--grant", required=True)
+
+    q = add("setup-code", "show the first-run setup code the GUI's setup page asks for "
+            "(made if there is none); refused once an admin can sign in")
+    q.add_argument("--new", action="store_true", help="replace it with a fresh code")
+    q.add_argument("--clear", action="store_true",
+                   help="delete it (done by itself once an admin can sign in)")
+
+    q = add("setup-first-admin", "from the GUI's setup page: spend a setup-code grant to "
+            "create the first admin and return its one-time enrolment link")
+    q.add_argument("name")
+    q.add_argument("--grant", required=True)
+
     q = add("approve-exploit-action", "consume an action-approve/action-reject (or legacy "
             "exploit-approve/reject) approval grant for exactly this pending request "
             "and return who approved it — agenti <agent> action-approve / action-reject do the work")
@@ -4101,6 +4254,43 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                 rt.close()
             return emit({"approved_by": approver}, [f"  ✓ approved by {approver}"])
 
+        if a.cmd == "approve-api-key":
+            try:
+                rt = open_runtime()
+            except Exception as e:
+                raise IAMError(f"cannot open the runtime store ({e}).")
+            try:
+                approver = web_approve_api_key(conn, rt, a.sha256, a.grant)
+            finally:
+                rt.close()
+            return emit({"approved_by": approver}, [f"  ✓ approved by {approver}"])
+
+        if a.cmd == "setup-code":
+            rt = open_runtime()
+            try:
+                if a.clear or not setup_needed(conn):
+                    clear_setup_code(rt)
+                    if a.clear:
+                        return emit({"cleared": True}, ["  ✓ the setup code is gone"])
+                    raise IAMError("setup is already done: an admin can sign in, so there is no "
+                                   "setup code. Add people in the GUI: Settings → Users.")
+                code = issue_setup_code(rt, renew=a.new)
+            finally:
+                rt.close()
+            return emit({"setup_code": code}, [f"  setup code: {code}"])
+
+        if a.cmd == "setup-first-admin":
+            try:
+                rt = open_runtime()
+            except Exception as e:
+                raise IAMError(f"cannot open the runtime store ({e}).")
+            try:
+                link = setup_first_admin(conn, rt, a.name, a.grant)
+            finally:
+                rt.close()
+            return emit({"principal": a.name, "role": "admin", "enrolment_token": link},
+                        [f"  ✓ '{a.name}' is the first admin; finish with the enrolment link"])
+
         if a.cmd == "approve-exploit-action":
             action = {"op": f"action-{a.decision}", "agent": a.agent, "request_id": a.request_id,
                       "options_hash": a.options_hash, "owner": a.owner, "resource": ORG_RESOURCE}
@@ -4177,6 +4367,8 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             try:
                 principal, codes = consume_enrolment_token(conn, rt, a.token, a.new,
                                                            a.totp_secret, a.totp_code)
+                if not setup_needed(conn):
+                    clear_setup_code(rt)
             finally:
                 rt.close()
             return emit({"principal": principal, "enrolled": True,

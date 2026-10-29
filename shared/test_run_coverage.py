@@ -117,5 +117,34 @@ check("the CLI: covered with the start-time marker",
 check("...and stopped with no marker (fails closed)",
       subprocess.run(cli + ["--excluded-file", str(org / "missing")], capture_output=True).returncode, 3)
 
+section("precheck: a start that would be refused is refused before a run slot exists")
+pre = lambda kind, target, model: run_coverage.why_refused(org, "enum" if kind == "cidr" else "research",
+                                                           kind, target, model)
+save(record(policy={"require_approval": False}))
+check("in scope, an allowed model: nothing to say", pre("cidr", "10.0.0.5", "sonnet"), [])
+check("a domain run in scope: nothing to say", pre("domain", "www.acme.example", "sonnet"), [])
+check("out of scope: one reason, phrased for a start",
+      [r.split(":")[0] for r in pre("cidr", "192.0.2.1", "sonnet")], ["the target is not in scope"])
+check("a wider range than the engagement: refused",
+      len(pre("cidr", "10.0.0.0/16", "sonnet")), 1)
+check("a model off the list: refused, naming the allowed ones",
+      "Allowed:" in " ".join(pre("cidr", "10.0.0.5", "gpt-4")), True)
+check("both wrong: both reasons", len(pre("cidr", "192.0.2.1", "gpt-4")), 2)
+check("a file-analysis agent: only the model is checked", run_coverage.why_refused(org, "cracker", "files", "", "sonnet"), [])
+save(record(valid_until="2021-01-01", policy={"require_approval": False}))
+check("outside the engagement's dates: refused", len(pre("cidr", "10.0.0.5", "sonnet")), 1)
+save(record())
+check("approval required and missing: refused, naming the command",
+      "sudo agenti engagement approve" in " ".join(pre("cidr", "10.0.0.5", "sonnet")), True)
+save(record(policy={"require_approval": False}))
+r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "--org-dir", str(org),
+                    "--agent", "enum", "--kind", "cidr", "--target", "192.0.2.1", "--model", "gpt-4"],
+                   capture_output=True, text=True)
+check("the CLI: exit 3 and one reason per line", (r.returncode, len(r.stdout.strip().splitlines())), (3, 2))
+r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "--org-dir", str(org),
+                    "--agent", "enum", "--kind", "cidr", "--target", "10.0.0.5", "--model", "sonnet"],
+                   capture_output=True, text=True)
+check("...exit 0 and 'ok'", (r.returncode, r.stdout.strip()), (0, "ok"))
+
 print(f"\n{'=' * 52}\n  {PASS} passed, {FAIL} failed\n{'=' * 52}")
 sys.exit(1 if FAIL else 0)

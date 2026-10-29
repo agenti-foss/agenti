@@ -203,6 +203,20 @@ def one_line(text) -> str:
     return str(text).translate(_CONTROL)
 
 
+_LONG_QUERY = r"(https?://[^\s'\"<>?#]+)\?([^\s'\"<>#]{%d,})"
+REPORT_QUERY_MAX = 80
+
+
+def shorten_urls(text, limit: int = REPORT_QUERY_MAX) -> str:
+    """`text` with every URL query string longer than `limit` cut to a note of
+    its length. For reports only: a sign-in redirect (Cloudflare Access, an
+    OAuth flow) carries kilobytes of signed tokens nobody reads in a report,
+    and the run's journal and saved pages keep the full text."""
+    import re
+    pattern = re.compile(_LONG_QUERY % (limit + 1))
+    return pattern.sub(lambda m: f"{m.group(1)}?…[{len(m.group(2))} characters of query left out]", str(text))
+
+
 class _OneLineFormatter(logging.Formatter):
     """One audit record per physical line, whatever the message contains."""
     def formatMessage(self, record):
@@ -558,9 +572,15 @@ class StateTracker:
                         tool_use_id = getattr(block, "tool_use_id", "")
                         turn, tool_name = self._pending.pop(tool_use_id, (self.turn, "?"))
                         is_error = bool(getattr(block, "is_error", False))
+                        summary = self._summarize_result(getattr(block, "content", ""))
+                        # A refusal by the scope or an allow-list is the boundary
+                        # holding: "denied", shown apart from a step that broke.
+                        verdict = "ok"
+                        if is_error:
+                            verdict = ("denied" if str(summary).lstrip().startswith(("DENIED", "REFUSING"))
+                                       else "error")
                         self._record("record_finding", turn=turn, tool=tool_name,
-                                     verdict="error" if is_error else "ok",
-                                     summary=self._summarize_result(getattr(block, "content", "")))
+                                     verdict=verdict, summary=summary)
         except Exception as e:
             self._warn(f"[warn] state tracking: could not process message: {e}")
 

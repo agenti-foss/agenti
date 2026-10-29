@@ -478,7 +478,7 @@ class Service:
     GRANT_OPS = ("create-user", "engagement-set", "engagement-approve", "bind", "rename-principal", "delete-principal", "enable-principal",
                  "reset-password", "reset-mfa",
                  "edit-context", "build-agent", "remove-agent", "update-agent", "edit-catalog",
-                 "action-approve", "action-reject", "vault-enable",
+                 "action-approve", "action-reject", "vault-enable", "set-api-key",
                  "exploit-approve", "exploit-reject")  # kept as aliases
 
     @staticmethod
@@ -593,6 +593,14 @@ class Service:
             if not re.fullmatch(r"[1-9][0-9]{0,3}G", size):
                 raise AuthError(400, "action.size must be whole gigabytes, like 8G")
             return {"op": op, "size": size, "resource": resource}
+
+        if op == "set-api-key":
+            # Saving the Anthropic API key from Settings → Platform. Bound to
+            # the key's SHA-256; the key itself never comes here.
+            sha = cls._grant_field(action, "sha256", kind="raw", max_len=64)
+            if not re.fullmatch(r"[0-9a-f]{64}", sha):
+                raise AuthError(400, "action.sha256 must be a SHA-256 hex digest")
+            return {"op": op, "sha256": sha, "resource": resource}
 
         if op in ("build-agent", "remove-agent", "update-agent"):
             # Building or removing a whole agent (Settings -> Agents). A build
@@ -842,16 +850,43 @@ class Service:
     # own dedicated venv rather than anywhere else.
 
     def op_setup_status(self, req: dict) -> dict:
-        """Unauthenticated: can anyone sign in yet? Before `agenti setup` makes
-        the first admin, the login page says how to start instead of refusing
-        every attempt with no explanation. Once any person's account exists
+        """Unauthenticated: can anyone sign in yet? Before the first admin
+        exists the login page sends people to the setup page instead of
+        refusing every attempt with no explanation. Once an admin can sign in
         this answers false and reveals nothing more."""
         conn = self._iam()
         try:
-            n = conn.execute("SELECT count(*) FROM principals WHERE kind='user'").fetchone()[0]
-            return {"setup_needed": n == 0}
+            return {"setup_needed": iam.setup_needed(conn)}
         finally:
             conn.close()
+
+    def op_setup_begin(self, req: dict) -> dict:
+        """Unauthenticated, setup only: the setup code someone read off the
+        host's terminal, and the name of the first admin. A right code mints a
+        single-use grant for exactly that name (iam.setup_action), which the
+        root CLI spends to create the account; a wrong one counts against the
+        code, which is burned after iam.SETUP_CODE_MAX_FAILURES."""
+        code = _str(req, "code", MAX_NAME)
+        name = _str(req, "principal", MAX_NAME)
+        try:
+            iam.validate_name(name, "user")
+        except iam.IAMError as e:
+            raise AuthError(400, str(e))
+        conn, rt = self._iam(), self._runtime()
+        try:
+            if not iam.setup_needed(conn):
+                raise AuthError(409, "setup is already done: an admin can sign in. Sign in instead.")
+            try:
+                good = iam.check_setup_code(rt, code)
+            except iam.IAMError as e:
+                raise AuthError(403, str(e))
+            if not good:
+                raise AuthError(403, "that setup code is not right. See it again on the Agenti "
+                                     "machine:  sudo agenti setup-code")
+            gid = iam.mint_action_grant(rt, iam.SETUP_ACTOR, iam.setup_action(name))
+            return {"grant": gid, "expires_in": iam.ACTION_GRANT_TTL_S}
+        finally:
+            conn.close(); rt.close()
 
     def op_webauthn_config(self, req: dict) -> dict:
         """Unauthenticated: the login page needs to know whether to even

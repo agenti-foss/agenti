@@ -24,6 +24,13 @@ Exit 0 and print "covered", or exit 3 and print why not.
     run_coverage.py exclusions --org-dir DIR --agent NAME
 Prints a domain agent's effective exclusions now, one per line (root writes
 them to run-excluded at every start and resume).
+
+    run_coverage.py precheck --org-dir DIR --agent NAME --kind cidr|domain|files
+                             [--target TEXT] [--model NAME]
+Before a start (and for --dry-run): would preflight and the harness accept
+this target and model? Exit 0 and print "ok", or exit 3 and print each reason
+on its own line. Saying no here only saves making a run slot that would be
+refused a moment later; preflight and the harness still decide.
 """
 from __future__ import annotations
 
@@ -39,8 +46,11 @@ CAPABILITY_GATED = {"exploit": "exploit"}
 
 
 def why_uncovered(org_dir: Path, agent: str, kind: str, target_text: str,
-                  started_excluded: frozenset[str] = frozenset()) -> str:
-    """'' while the run is covered, else a one-line reason."""
+                  started_excluded: frozenset[str] = frozenset(), *, starting: bool = False) -> str:
+    """'' while the run is covered, else a one-line reason. `starting`: a run
+    about to start, so the reasons say "not" rather than "no longer", and an
+    exclusion under the target is simply applied (it goes in run-excluded)."""
+    longer = "not" if starting else "no longer"
     if kind == "cidr":
         from scope_cidr import CIDRScope as Scope
     elif kind == "domain":
@@ -51,18 +61,20 @@ def why_uncovered(org_dir: Path, agent: str, kind: str, target_text: str,
     try:
         eng = ec.load_engagement(kind, org_dir=org_dir, agent=agent)
     except ec.EngagementError as e:
-        return f"the engagement no longer authorizes it: {str(e).splitlines()[0]}"
+        # A start shows the whole message: its last line is the command that fixes it.
+        text = " ".join(ln.strip() for ln in str(e).splitlines() if ln.strip()) if starting else str(e).splitlines()[0]
+        return f"the engagement {'does not authorize' if starting else 'no longer authorizes'} it: {text}"
     try:
         ec.assert_in_window(eng)
     except RuntimeError as e:
         return str(e).replace(" Refusing to run.", "")
     cap = CAPABILITY_GATED.get(agent)
     if cap and cap not in eng.enabled_capabilities:
-        return f"the engagement no longer enables '{cap}'"
+        return f"the engagement {'does not enable' if starting else 'no longer enables'} '{cap}'"
     try:
         ceiling = scope.ceiling_from_engagement(eng)
         scope.narrow(ceiling, target_text, required=False)
-        if kind == "domain":
+        if kind == "domain" and not starting:
             from scope_domain import domain_in
             for ex in getattr(ceiling, "excluded", ()):
                 if ex in started_excluded:
@@ -72,10 +84,36 @@ def why_uncovered(org_dir: Path, agent: str, kind: str, target_text: str,
                         return f"{ex} is now excluded, and it is part of its target {t}"
     except SystemExit as e:
         first = str(e.code).splitlines()[0].replace("REFUSING: ", "")
-        return f"its target is no longer in scope: {first}"
+        return f"its target is {longer} in scope: {first}"
     except Exception as e:
-        return f"its target is no longer in scope: {e}"
+        return f"its target is {longer} in scope: {e}"
     return ""
+
+
+def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: str) -> list[str]:
+    """Every reason a start of `agent` against `target_text` with `model`
+    would be refused by preflight or the harness, in plain words."""
+    reasons: list[str] = []
+    try:
+        record = ec.read_record(org_dir / ec.ORG_ENGAGEMENT_FILENAME)
+    except Exception:
+        record = None
+    policy = ec.resolve_policy(record)
+    if model and not ec.model_allowed(ec.canonical_model(model), policy):
+        reasons.append(f"model '{model}' is not allowed here. Allowed: "
+                       f"{', '.join(policy['allowed_models']) or '(none configured)'} "
+                       f"(an admin changes this in Settings → Engagement)")
+    if kind not in ("cidr", "domain"):
+        return reasons
+    why = why_uncovered(org_dir, agent, kind, target_text, starting=True)
+    if why:
+        reasons.append(why.replace("its target is", "the target is", 1))
+    if record is not None and policy["require_approval"]:
+        status = ec.approval_status(record, ec.read_approval(org_dir / ec.APPROVAL_FILENAME))
+        if not status["current"]:
+            reasons.append(f"the engagement is not approved as it stands ({status['reason']}). "
+                           f"An admin approves it in Settings → Engagement, or: sudo agenti engagement approve")
+    return reasons
 
 
 def main(argv=None) -> int:
@@ -91,7 +129,17 @@ def main(argv=None) -> int:
     x = sub.add_parser("exclusions", allow_abbrev=False, help="a domain agent's effective exclusions now, one per line")
     x.add_argument("--org-dir", required=True)
     x.add_argument("--agent", required=True)
+    pc = sub.add_parser("precheck", allow_abbrev=False, help="would a start with this target and model be accepted?")
+    pc.add_argument("--org-dir", required=True)
+    pc.add_argument("--agent", required=True)
+    pc.add_argument("--kind", required=True)
+    pc.add_argument("--target", default="")
+    pc.add_argument("--model", default="")
     a = ap.parse_args(argv)
+    if a.cmd == "precheck":
+        reasons = why_refused(Path(a.org_dir), a.agent, a.kind, a.target, a.model)
+        print("\n".join(reasons) if reasons else "ok")
+        return 3 if reasons else 0
     if a.cmd == "exclusions":
         from scope_domain import DomainScope
         try:

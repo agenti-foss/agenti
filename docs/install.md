@@ -6,12 +6,11 @@ Ubuntu 24.04).*
 ## The short version
 
 ```
-sudo apt update          # a fresh Kali's package lists are often out of date
-sudo apt install ./agenti-runtime_<version>_<cpu>.deb ./agenti_<version>_all.deb
-sudo agenti setup
+curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 ```
 
-Then open **http://127.0.0.1:8420** on that machine and sign in.
+It prints a one-time **setup code**. Open **http://127.0.0.1:8420** on that
+machine, enter the code and create the first admin.
 
 ## What you need
 
@@ -26,13 +25,18 @@ Then open **http://127.0.0.1:8420** on that machine and sign in.
 
 ## Installing
 
-Download the two packages for your CPU type from the release page and install
-them with apt (it fetches what they depend on):
+The installer adds Agenti's signed apt repository, `https://apt.agenti-foss.org`,
+trusting it only with the release key whose fingerprint is
+`2D6F 55F9 385B 8C76 0C2E 95BD 8111 66F5 1B2D AE49`, then installs Agenti. apt
+picks the package for your CPU and fetches what it depends on. The same steps by
+hand are in `docs/help/installing.md`; the key itself is in
+`packaging/apt/agenti-release-key.asc`, and how it is kept is in
+`docs/release-signing.md`.
 
 | Package | What it is |
 |---|---|
-| `agenti-runtime_<version>_amd64.deb` or `_arm64.deb` | Agenti's own Python and the libraries it needs, bundled and pinned. Nothing is downloaded after installation. Updated only when a library changes. |
-| `agenti_<version>_all.deb` | Agenti itself: the CLI, the agents, the web GUI. |
+| `agenti-runtime` | Agenti's own Python and the libraries it needs, bundled and pinned. Installing fetches Anthropic's Claude Code from PyPI, checked against its pinned SHA-256. Updated only when a library changes. |
+| `agenti` | Agenti itself: the CLI, the agents, the web GUI. |
 
 apt also installs the agents' tools (nmap, tshark, suricata and others) as
 *recommended* packages. A tool your distribution does not have, such as netexec
@@ -42,6 +46,16 @@ When the install finishes, the web GUI is already running, **on this machine
 only** (`http://127.0.0.1:8420`), but nobody can sign in yet.
 
 ## First-run setup
+
+**In the browser.** Open `http://127.0.0.1:8420` on the machine itself (or
+forward the port first: `ssh -L 8420:127.0.0.1:8420 <the machine>`). Enter the
+setup code (`sudo agenti setup-code` shows it again), choose the admin's name, a
+password and an authenticator app. After you sign in, setup offers the API key
+and the vault; both are optional and also in Settings → Platform. The setup page
+answers only the machine itself, never a tunnel or proxy, and the code stops
+working once an admin can sign in.
+
+**Or in a terminal:**
 
 ```
 sudo agenti setup
@@ -54,8 +68,8 @@ It asks one question at a time, and you can run it again whenever you like:
    passkey in the GUI afterwards (Settings → Security).
 2. **The vault (optional).** See below. The default is no. It comes before
    the key so a key is stored inside it from the start.
-3. **The Anthropic API key.** Typed at a hidden prompt; it never appears on
-   the command line or in a log.
+3. **The Anthropic API key (optional).** Typed at a hidden prompt; it never
+   appears on the command line or in a log.
 4. **Opening the GUI from other computers (optional).** Only this machine; or
    your local network with a self-signed certificate; or anywhere through a
    tunnel or proxy on this machine (recommended, see `docs/remote-access.md`).
@@ -102,7 +116,7 @@ is lost. `sudo agenti vault disable` moves the data back out.
 ## Updating
 
 ```
-sudo apt update && sudo apt install --only-upgrade agenti agenti-runtime
+sudo apt update && sudo apt upgrade
 ```
 
 Your settings, users and data are kept. The GUI restarts on the new version. A
@@ -139,7 +153,8 @@ yourself.
 
 | Symptom | What to do |
 |---|---|
-| The login page says *Nobody can sign in yet* | `sudo agenti setup` |
+| The login page says *Agenti isn't set up yet* | Open `http://127.0.0.1:8420` on the machine itself with the setup code (`sudo agenti setup-code`), or `sudo agenti setup` |
+| The installer says *this machine's clock is wrong* | `sudo timedatectl set-ntp true`, then run it again |
 | The GUI does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |
 | *the vault is locked* | `sudo agenti vault unlock` |
 | Anything else | `sudo agenti verify`: its FAIL lines name the fix |

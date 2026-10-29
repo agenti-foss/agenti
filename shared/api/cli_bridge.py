@@ -78,7 +78,7 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 # these names could never be addressed. Keep in sync with the CLI's own
 # top-level dispatch in shared/agenti.
 RESERVED_NAMES = frozenset({
-    "new", "admin", "vault", "gui", "help", "docs", "agents", "setup", "verify",
+    "new", "admin", "vault", "gui", "help", "docs", "agents", "setup", "setup-code", "verify",
     "team", "engagement", "dashboard", "outputs", "tool-requests",
 })
 # Report/scan filenames, which also reach argv. Uppercase is allowed here

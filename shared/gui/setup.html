@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenti — Set up</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/arcade.css">
+<script src="js/theme.js"></script>
+<script src="js/api.js" defer></script>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="panel login-card setup-card">
+      <h1>Set up Agenti</h1>
+      <ol class="setup-progress" aria-label="Setup steps">
+        <li data-step="1">Setup code</li>
+        <li data-step="2">Your account</li>
+        <li data-step="3">Finish</li>
+      </ol>
+
+      <div id="setup-banner" class="banner err" role="alert"></div>
+      <p class="muted" id="setup-checking">Checking…</p>
+
+      <!-- Step 1: the code from the terminal, and the first admin's name. -->
+      <form id="setup-form" hidden autocomplete="off">
+        <p class="hint" style="margin-top:0;">The installer printed a setup code. To see it again, run this in a terminal on this machine:</p>
+        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">sudo agenti setup-code</code></div>
+        <div class="field">
+          <label for="setup-code">Setup code</label>
+          <input type="text" id="setup-code" required autocapitalize="characters" spellcheck="false"
+                 placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="40" autofocus>
+        </div>
+        <div class="field">
+          <label for="setup-name">Admin username</label>
+          <input type="text" id="setup-name" required autocomplete="username" spellcheck="false"
+                 autocapitalize="none" pattern="[a-z0-9][a-z0-9_\-]{0,63}" maxlength="64">
+          <p class="hint">Lowercase letters, digits, - or _. You'll use it to sign in.</p>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Continue</button>
+      </form>
+
+      <!-- Opened from another computer, or through a proxy. -->
+      <div id="setup-remote" hidden>
+        <p>Setup works only in a browser on the Agenti machine itself, so nobody else on the network can claim it first.</p>
+        <p class="hint">On that machine, open:</p>
+        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">http://127.0.0.1:8420</code></div>
+        <p class="hint">From another computer, forward the port over SSH first, then open the same address here:</p>
+        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">ssh -L 8420:127.0.0.1:8420 &lt;the Agenti machine&gt;</code></div>
+        <p class="hint">Or set up in the machine's terminal instead:</p>
+        <div class="copyable"><code class="cmd-block">sudo agenti setup</code></div>
+      </div>
+
+      <!-- Step 3: signed in as the new admin. Both optional. -->
+      <div id="setup-finish" hidden>
+        <p class="sub muted" style="text-align:left; margin-bottom:12px;">Your account is ready. Two optional steps; both can be done later in Settings → Platform.</p>
+
+        <div class="setup-item">
+          <div class="ti-title" id="finish-key-title">Anthropic API key</div>
+          <p class="hint" id="finish-key-hint">Agents need one to run. Add it now, or skip it and add it later in Settings → Platform. Get one at console.anthropic.com (it starts <code>sk-ant-</code>).</p>
+          <div id="finish-key-banner" class="banner"></div>
+          <form id="finish-key-form" class="row" style="gap:8px; flex-wrap:wrap;" autocomplete="off">
+            <label for="finish-key-input" class="sr-only">API key</label>
+            <input type="password" id="finish-key-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 200px; min-width:0;">
+            <button type="submit" class="btn btn-primary" id="finish-key-btn">Save key</button>
+          </form>
+        </div>
+
+        <div class="setup-item">
+          <div class="ti-title">Encrypt the data (vault)</div>
+          <p class="hint" id="finish-vault-hint">Reports, scans and the API key are kept in an encrypted container. Skip it if this machine already has full-disk encryption.</p>
+          <a class="btn" href="settings.html#platform" id="finish-vault-link">Open the vault settings</a>
+        </div>
+
+        <a class="btn btn-primary" href="dashboard.html" style="width:100%; justify-content:center; margin-top:16px;">Go to the dashboard</a>
+        <p class="hint" style="margin-top:12px;">Next: Settings → Engagement sets the scope (addresses or domains) and dates, then Launch starts an agent.</p>
+      </div>
+
+      <!-- Setup is done and nobody is signed in here. -->
+      <div id="setup-done" hidden>
+        <p>Agenti is already set up.</p>
+        <a class="btn btn-primary" href="login.html" style="width:100%; justify-content:center;">Sign in</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // First-run setup (operator decision 2026-10-26). Step 1 sends the setup
+    // code and a name to POST /setup/admin (no sign-in: nobody can sign in
+    // yet; the code, checked by agenti-authd, stands in for it) and gets back
+    // a one-time enrolment token. Step 2 is the ordinary enrolment page
+    // (password + 2FA). Step 3 is this page again, signed in.
+    document.addEventListener("DOMContentLoaded", async () => {
+      const banner = document.getElementById("setup-banner");
+      const checking = document.getElementById("setup-checking");
+      const show = (id) => { checking.hidden = true; document.getElementById(id).hidden = false; };
+      const step = (n) => document.querySelectorAll(".setup-progress li").forEach((li) => {
+        const k = Number(li.dataset.step);
+        li.classList.toggle("done", k < n);
+        if (k === n) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+      });
+
+      let st;
+      try {
+        st = await Agenti.get("auth/setup-status", { noRedirect: true });
+      } catch (err) {
+        checking.hidden = true;
+        Agenti.banner(banner, "err", Agenti.errorText(err));
+        return;
+      }
+
+      if (!st.setup_needed) {
+        let me = null;
+        try { me = await Agenti.get("auth/me", { noRedirect: true }); } catch (e) { /* not signed in */ }
+        if (me && me.role === "admin") {
+          step(3); show("setup-finish"); finish();
+        } else {
+          step(3); show("setup-done");
+        }
+        return;
+      }
+      step(1);
+      if (!st.local) { show("setup-remote"); return; }
+
+      const form = document.getElementById("setup-form");
+      const nameInput = document.getElementById("setup-name");
+      show("setup-form");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        banner.className = "banner err";
+        const code = document.getElementById("setup-code").value.trim();
+        const name = nameInput.value.trim();
+        if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) {
+          Agenti.banner(banner, "err", "The username may use lowercase letters, digits, - or _, and must start with a letter or digit.");
+          return;
+        }
+        const btn = form.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const r = await Agenti.post("setup/admin", { code, name }, { noRedirect: true });
+          location.href = `enrol.html?setup=1&token=${encodeURIComponent(r.enrolment_token)}`;
+        } catch (err) {
+          Agenti.banner(banner, "err", Agenti.errorText(err));
+          btn.disabled = false;
+        }
+      });
+
+      // Step 3 helpers: the key inline (same route and approval as
+      // Settings → Platform), the vault by link (it has its own dialog there).
+      async function finish() {
+        const kBanner = document.getElementById("finish-key-banner");
+        const kForm = document.getElementById("finish-key-form");
+        const kInput = document.getElementById("finish-key-input");
+        const kBtn = document.getElementById("finish-key-btn");
+        const paint = (d) => {
+          if (d.api_key === "set") {
+            document.getElementById("finish-key-title").textContent = "Anthropic API key ✓";
+            document.getElementById("finish-key-hint").textContent = "A key is saved. You can replace it any time in Settings → Platform.";
+            kForm.hidden = true;
+          }
+          if (d.vault !== "off" || (d.storage && d.storage.encrypted)) {
+            document.getElementById("finish-vault-hint").textContent = d.vault !== "off"
+              ? "The vault is on." : "This machine's disk is already encrypted, so the data is encrypted at rest.";
+          }
+        };
+        try { paint(await Agenti.get("dashboard")); } catch (e) { /* the steps still work */ }
+        kForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const key = kInput.value.trim();
+          if (!/^sk-ant-[A-Za-z0-9_-]{8,}$/.test(key)) {
+            Agenti.banner(kBanner, "err", "That doesn't look like an Anthropic API key: it should start with sk-ant- and have no spaces.");
+            return;
+          }
+          kBtn.disabled = true;
+          try {
+            const r = await Agenti.requireApproval({
+              title: "Save the API key",
+              description: "Confirm it's you to save this Anthropic API key for every agent run.",
+              submit: (creds) => Agenti.post("admin/api-key", { key,
+                password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            });
+            if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was saved."); return; }
+            kForm.reset();
+            Agenti.banner(kBanner, "ok", "API key saved.");
+            paint({ api_key: "set", vault: "off" });
+          } catch (err) {
+            Agenti.banner(kBanner, "err", Agenti.errorText(err));
+          } finally {
+            kBtn.disabled = false;
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

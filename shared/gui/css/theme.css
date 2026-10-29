@@ -956,6 +956,22 @@ td.actions { text-align: right; white-space: nowrap; }
 .login-card h1 { text-align: center; margin-bottom: 4px; }
 .login-card .sub { text-align: center; margin-bottom: 20px; }
 
+/* first-run setup (setup.html, enrol.html?setup=1): a three-step progress row */
+.setup-card { max-width: 480px; }
+.setup-progress {
+  display: flex; gap: 6px; list-style: none; padding: 0; margin: 12px 0 20px;
+  counter-reset: setup;
+}
+.setup-progress li {
+  flex: 1; counter-increment: setup; text-align: center; font-size: 0.8rem;
+  color: var(--text-faint); padding-top: 8px; border-top: 3px solid var(--border);
+}
+.setup-progress li::before { content: counter(setup) ". "; }
+.setup-progress li.done { color: var(--text-dim); border-top-color: var(--ok); }
+.setup-progress li[aria-current="step"] { color: var(--text); font-weight: 600; border-top-color: var(--accent); }
+.setup-item { padding: 14px 0; border-top: 1px solid var(--border); }
+.setup-item .hint { margin: 4px 0 10px; }
+
 /* a plain "or" rule between two alternative actions (e.g. passkey vs
    password sign-in) — generic enough to reuse anywhere two paths need
    separating, not login-specific despite living here first. */
@@ -977,6 +993,14 @@ td.actions { text-align: right; white-space: nowrap; }
   overflow-wrap: anywhere;
 }
 .banner.show { display: block; }
+/* a banner the reader may close: room on the right for the close button */
+.banner-dismissable { position: relative; padding-right: 40px; }
+.banner-close {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; cursor: pointer;
+}
+.banner-close:hover { background: var(--bg-hover); }
 .banner.err {
   background: color-mix(in srgb, var(--err) 10%, transparent);
   border-color: color-mix(in srgb, var(--err) 28%, transparent);
@@ -1551,6 +1575,8 @@ img.qr {
 .step.run .mark::before { content: "●"; color: var(--ok); animation: agenti-pulse 1.2s ease-in-out infinite; }
 .step.done .mark::before { content: "✓"; color: var(--ok); opacity: 0.75; }
 .step.bad .mark::before { content: "✕"; color: var(--err); }
+/* refused by the scope or allow-list: the boundary holding, not a fault */
+.step.refused .mark::before { content: "⊘"; color: var(--warn); }
 .step .name { color: var(--text); flex: 0 0 auto; text-transform: capitalize; }
 .step .arg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-family: var(--mono); font-size: 0.74rem; }
 .step.bad .name { color: var(--err); }

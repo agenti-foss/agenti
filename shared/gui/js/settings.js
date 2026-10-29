@@ -1342,6 +1342,59 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
 
+    // The Anthropic API key (the shared tier): whether one is set, and saving
+    // a new one behind a fresh re-authentication. The key goes to the server
+    // in the request body and reaches root on stdin; it is never sent back.
+    const kPanel = document.getElementById("apikey-panel");
+    kPanel.hidden = false;
+    const kState = document.getElementById("apikey-state");
+    const kBanner = document.getElementById("apikey-banner");
+    const kForm = document.getElementById("apikey-form");
+    const kInput = document.getElementById("apikey-input");
+    const kBtn = document.getElementById("apikey-btn");
+    async function paintKey() {
+      try {
+        const d = await Agenti.get("dashboard");
+        if (d.api_key === "set") {
+          kState.innerHTML = `<p><strong>A key is set.</strong> Saving a new one replaces it for every run that starts after.</p>`;
+          kBtn.lastChild.textContent = " Replace key";
+        } else if (d.api_key === "unknown") {
+          kState.innerHTML = `<p>The vault is locked, so the key can't be checked or changed. Unlock it at the server: <code>sudo agenti vault unlock</code></p>`;
+        } else {
+          kState.innerHTML = "";
+          Agenti.banner(kBanner, "warn", "No API key yet: agent runs can't start until one is saved here.");
+        }
+      } catch (err) {
+        Agenti.banner(kBanner, "err", Agenti.errorText(err));
+      }
+    }
+    tasks.push(paintKey());
+    kForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const key = kInput.value.trim();
+      if (!/^sk-ant-[A-Za-z0-9_-]{8,}$/.test(key)) {
+        Agenti.banner(kBanner, "err", "That doesn't look like an Anthropic API key: it should start with sk-ant- and have no spaces.");
+        return;
+      }
+      kBtn.disabled = true;
+      try {
+        const r = await Agenti.requireApproval({
+          title: "Save the API key",
+          description: "Confirm it's you to save this Anthropic API key for every agent run.",
+          submit: (creds) => Agenti.post("admin/api-key", { key,
+            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+        });
+        if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was changed."); return; }
+        kForm.reset();
+        Agenti.banner(kBanner, "ok", "API key saved. Runs that start from now on use it.");
+        await paintKey();
+      } catch (err) {
+        Agenti.banner(kBanner, "err", Agenti.errorText(err));
+      } finally {
+        kBtn.disabled = false;
+      }
+    });
+
     // Updates: report-only. The button calls GET admin/update-check, which asks GitHub
     // only if root switched the policy on; otherwise it answers with the command to enable it.
     const upPanel = document.getElementById("updates-panel");

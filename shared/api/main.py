@@ -599,10 +599,75 @@ def reauth_webauthn_finish(body: ReauthFinishRequest, request: Request,
 
 
 @app.get("/auth/setup-status")
-def setup_status() -> dict:
-    """Unauthenticated: true until the first person's account exists, so the
-    login page can say `sudo agenti setup` instead of refusing silently."""
-    return _authd("setup_status")
+def setup_status(request: Request) -> dict:
+    """Unauthenticated: true until an admin can sign in, so the login page
+    sends people to the setup page instead of refusing silently. `local`
+    says whether this browser may use the setup page (it works only on the
+    Agenti machine itself)."""
+    r = _authd("setup_status")
+    return {"setup_needed": bool(r.get("setup_needed")), "local": _setup_is_local(request)}
+
+
+# ---------------------------------------------------------------------------
+# First-run setup from the browser (operator decision 2026-10-26). Like the
+# link routes below, no sign-in: nobody can sign in yet. What stands in for
+# it is the setup code, which only someone at the host's terminal can read
+# (sudo agenti setup-code), checked by agenti-authd; a right code buys a
+# single-use grant for exactly one admin name, spent by the root CLI. On top
+# of that the page works only from the machine itself: a loopback peer with
+# no proxy in between, addressed by a loopback name. A tunnel or proxy on the
+# box (--behind-proxy) connects from loopback too, but always says so in a
+# forwarding header, and is refused.
+# ---------------------------------------------------------------------------
+_FORWARDING_HEADERS = ("forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip",
+                       "cf-connecting-ip", "true-client-ip")
+_LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
+
+
+def _loopback_host(value: str) -> bool:
+    host = value.strip().lower()
+    if host.startswith("["):
+        host = host[1:host.find("]")] if "]" in host else host
+    elif host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    return host in _LOOPBACK_NAMES or host.startswith("127.")
+
+
+def _setup_is_local(request: Request) -> bool:
+    peer = request.client.host if request.client else ""
+    if not (peer == "::1" or peer.startswith("127.")):
+        return False
+    if any(request.headers.get(h) for h in (*_FORWARDING_HEADERS, CLIENT_IP_HEADER or "")):
+        return False
+    if not _loopback_host(request.headers.get("host", "")):
+        return False
+    origin = request.headers.get("origin")
+    if origin:
+        rest = origin.split("://", 1)[-1]
+        if not _loopback_host(rest.split("/", 1)[0]):
+            return False
+    return True
+
+
+class SetupAdminRequest(BaseModel):
+    code: Annotated[str, Field(min_length=1, max_length=64)]
+    name: PrincipalName
+
+
+@app.post("/setup/admin")
+def setup_first_admin(body: SetupAdminRequest, request: Request) -> dict:
+    """Step 1 of the setup page: the setup code and the first admin's name.
+    Returns the admin's one-time enrolment token; the page goes on to the
+    enrolment page with it for the password and 2FA."""
+    if not _setup_is_local(request):
+        raise HTTPException(status_code=403, detail=(
+            "setup works only in a browser on the Agenti machine itself: open "
+            "http://127.0.0.1:8420 there (from another computer, first: "
+            "ssh -L 8420:127.0.0.1:8420 <the machine>). Or, at its terminal: sudo agenti setup"))
+    with _LinkGate(request):
+        g = _authd("setup_begin", code=body.code, principal=body.name)
+        r = _call("admin", "setup-first-admin", body.name, f"--grant={g['grant']}")
+    return {"user": body.name, "enrolment_token": r.get("enrolment_token")}
 
 
 @app.get("/auth/webauthn/config")
@@ -1542,6 +1607,32 @@ def _session_for_approval(request: Request, caller: "Caller", what: str) -> str:
                             "the approving admin re-authenticates. From a terminal use "
                             "sudo agenti admin agent-build ... instead.")
     return sid
+
+
+class ApiKeyRequest(BaseModel):
+    key: Annotated[str, Field(pattern=r"^sk-ant-[A-Za-z0-9_-]{8,500}$")]
+    password: Optional[ArgValue] = None
+    totp: Optional[ArgValue] = None
+    reauth: Optional[ReauthToken] = None
+
+
+@app.post("/admin/api-key")
+def set_api_key(body: ApiKeyRequest, request: Request,
+                caller: Caller = Depends(require("iam:manage"))) -> dict:
+    """Settings → Platform → API key: the organisation's Anthropic key (the
+    shared tier). Behind a fresh admin re-authentication bound to the key's
+    SHA-256; the key goes to root as the request BODY on stdin, never an
+    argument, and is never sent back."""
+    sid = _session_for_approval(request, caller, "Saving the API key")
+    sha = hashlib.sha256(body.key.encode()).hexdigest()
+    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
+               totp=body.totp or "", action={"op": "set-api-key", "sha256": sha,
+                                             "resource": iam.ORG_RESOURCE},
+               addr=_client_addr(request))
+    try:
+        return run_agenti("admin", "set-api-key", f"--grant={g['grant']}", stdin_text=body.key + "\n")
+    except AgentiError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
 class VaultEnableRequest(BaseModel):

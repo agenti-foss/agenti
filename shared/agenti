@@ -56,6 +56,7 @@ IAM_PY="$LIBDIR/iam.py"
 
 DRY_RUN=0
 JSON=0
+HELP=0          # --help anywhere: help_for prints that verb's part of usage()
 # Runs are private to the user who launched them (CLAUDE.md §4 item 71):
 # every run lives in its OWNER's own slot, org/<agent>/instances/<slot>,
 # where <slot> is "<owner>.<copy>": EVERY start gets a fresh slot (a generated
@@ -808,14 +809,48 @@ approved, UNLESS the policy has approval turned off
 (agenti engagement set --no-require-approval; default is on).
 
 'agenti new --help' has its own, more detailed help (it's a separate tool,
-new_agent.py, under the hood). Every other verb's full documentation is
-above — there is no per-verb --help beyond this page.
+new_agent.py, under the hood). For one part of this page only:
+    agenti enum --help          agenti enum start --help
+    agenti engagement set --help
 
 Environment: AGENTI_ROOT (data, default /var/lib/agenti/data), AGENTI_LIBDIR
 (code, default /usr/lib/agenti); the full table is $AGENTI_LIBDIR/paths.sh.
 EOF
 }
 
+
+# `agenti <agent> --help`, `agenti <agent> <verb> --help`, `agenti engagement
+# [<verb>] --help`, `agenti dashboard --help`: only that part of usage(), with
+# the agent's own name in it. usage() stays the one place the text lives.
+help_for() {
+    local first="${1:-}" verb="${2:-}" pattern name=""
+    case "$first" in
+        ""|help) usage; return ;;
+        engagement|dashboard) pattern="agenti $first${verb:+ $verb}" ;;
+        *)  valid_name "$first" || { usage; return; }
+            pattern="agenti <agent>${verb:+ $verb}"; name="$first"
+            list_agents 2>/dev/null | grep -qx -- "$first" \
+                || printf "note: '%s' is not an installed agent here (see: agenti agents)\n\n" "$first" ;;
+    esac
+    local out
+    # An entry is a "  agenti ..." line and the deeper-indented lines under it;
+    # "start options" is the one titled block an agent's help also needs.
+    out=$(usage | awk -v p="$pattern" -v agent="$name" -v verb="$verb" '
+        function starts(line,   t) {
+            t = line; sub(/^  (sudo )?/, "", t)
+            return index(t, p) == 1 && (length(t) == length(p) || substr(t, length(p) + 1, 1) ~ /[ |\[]/)
+        }
+        /^  (sudo )?agenti / { keep = starts($0); if (keep) print; opts = 0; next }
+        /^[^ ]/ { keep = 0; opts = (agent != "" && $0 == "start options" && (verb == "" || verb == "start")); if (opts) print ""; if (opts) print; next }
+        /^$/ { if (opts) { opts = 0 } ; keep = 0; next }
+        { if (keep || opts) print }')
+    if [[ -z "$out" ]]; then
+        printf 'no help for "%s". Everything:  agenti --help\n' "$*"
+        return
+    fi
+    [[ -z "$name" ]] || out=${out//<agent>/$name}
+    printf '%s\n\nEverything:  agenti --help\n' "$out"
+}
 
 # ---------------------------------------------------------------------------
 # A run that never got past its own setup: put its attempt's files back and
@@ -981,6 +1016,19 @@ default, and it may only NARROW what the engagement authorizes."
     [[ -n "$model" ]] || die "start needs a model:
   sudo agenti $agent start ... --model sonnet
 Allowed models: $(allowed_models)"
+
+    # Would preflight and the harness refuse this target or model? Asked here,
+    # before a run slot exists, so a refused start leaves nothing behind and
+    # --dry-run means something. They still decide; this only refuses sooner.
+    local pre prc=0
+    pre=$(python3 "$LIBDIR/run_coverage.py" precheck --org-dir "$(org_dir)" --agent "$agent" \
+            --kind "$scope_kind" --target "$target" --model "$model" 2>&1) || prc=$?
+    if [[ $prc -eq 3 ]]; then
+        die "REFUSING to start '$agent'${target:+ against '$target'}; nothing was created or run:
+$(printf '%s\n' "$pre" | sed 's/^/  - /')"
+    elif [[ $prc -ne 0 ]]; then
+        warn "could not check the target and model before starting ($pre); the run's own checks still apply"
+    fi
 
     # A team's members run in the owner's "team-<team>" copies, started only
     # by `team <name> start` (which sets _TEAM_START_IN_PROGRESS).
@@ -3902,6 +3950,103 @@ compromised web tier could lock or unwrap the vault, or expose the GUI.
 Run it as yourself:  sudo agenti $what"
 }
 
+# `agenti setup-code`: the one-time code the GUI's setup page asks for
+# (operator decision 2026-10-26). Shown by the package's first install too.
+setup_code_usage() {
+    cat <<'EOF'
+usage: sudo agenti setup-code [--new] [--if-needed]
+
+Shows the one-time setup code. Until the first admin exists, the GUI's setup
+page asks for it, so only someone at this machine can claim the organisation.
+The page works only on this machine itself:  http://127.0.0.1:8420
+(from another computer, tunnel the port first:  ssh -L 8420:127.0.0.1:8420 <this machine>)
+
+  --new        replace the code with a fresh one (the old one stops working)
+  --if-needed  print nothing, and succeed, when setup is already done
+
+Twenty wrong tries burn the code; make another with --new. It is deleted by
+itself once an admin can sign in. Prefer the terminal?  sudo agenti setup
+EOF
+}
+
+_json_field() {   # _json_field <key>: one string field of the JSON on stdin, or nothing
+    python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get(sys.argv[1],""))
+except Exception: print("")' "$1" 2>/dev/null
+}
+
+cmd_setup_code() {
+    local -a args=()
+    local if_needed=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --new) args+=(--new); shift ;;
+            --if-needed) if_needed=1; shift ;;
+            -h|--help) setup_code_usage; return 0 ;;
+            *) die "unknown option for setup-code: $1
+$(setup_code_usage)" ;;
+        esac
+    done
+    [[ -f "$IAM_PY" ]] || die "$IAM_PY is missing. reinstall it:  $REINSTALL"
+    local out rc=0 code
+    out=$(python3 "$IAM_PY" --json --actor "$(invoking_user)" setup-code "${args[@]}" 2>&1) || rc=$?
+    code=$(printf '%s' "$out" | _json_field setup_code)
+    if [[ $rc -ne 0 || -z "$code" ]]; then
+        [[ $if_needed -eq 1 ]] && return 0
+        local e; e=$(printf '%s' "$out" | _json_field error)
+        die "${e:-$out}"
+    fi
+    if [[ $JSON -eq 1 ]]; then printf '%s\n' "$out"; return 0; fi
+    local port; port=$(sed -n 's/^BIND_PORT=//p' "$AGENTI_API_CONF" 2>/dev/null | head -n1)
+    cat <<EOF
+
+  Finish setting up Agenti in a browser on this machine:
+
+      http://127.0.0.1:${port:-8420}
+
+  Setup code:  $c_b$code$c_0
+
+  (Show it again: sudo agenti setup-code.  Set up in this terminal instead: sudo agenti setup)
+
+EOF
+}
+
+# `admin set-api-key`, from Settings → Platform only: the key arrives on stdin,
+# behind an admin's fresh re-authentication bound to the key's SHA-256. At a
+# terminal, use sudo agenti setup (or set-secret.sh), which prompts silently.
+cmd_set_api_key_web() {
+    local grant=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --grant=*) grant="${1#*=}"; shift ;;
+            *) die "REFUSING: 'admin set-api-key' takes only --grant=<id>, with the key on stdin." ;;
+        esac
+    done
+    [[ -n "$grant" ]] || die "REFUSING: saving the API key from the web needs a fresh re-authentication (an approval grant).
+At the terminal instead:  sudo agenti setup"
+    local key; IFS= read -r key || true
+    [[ -n "$key" ]] || die "no key was given"
+    local sha; sha=$(printf '%s' "$key" | sha256sum | cut -d' ' -f1)
+    local aout arc=0
+    aout=$(python3 "$IAM_PY" --json approve-api-key "--sha256=$sha" "--grant=$grant" 2>&1) || arc=$?
+    if [[ $arc -ne 0 ]]; then
+        local e; e=$(printf '%s' "$aout" | _json_field error)
+        unset key
+        die "${e:-$aout}"
+    fi
+    local by; by=$(printf '%s' "$aout" | _json_field approved_by)
+    local out rc=0
+    out=$(printf '%s\n' "$key" | "$SET_SECRET_SH" --stdin 2>&1) || rc=$?
+    unset key
+    logger -t agenti "API_KEY_SET | by=$by | via=api | sha256=${sha:0:12} | rc=$rc" 2>/dev/null || true
+    [[ $rc -eq 0 ]] || die "the key was not saved: $(printf '%s' "$out" | grep -i 'error' | tail -n 2 | tr '\n' ' ')"
+    if [[ $JSON -eq 1 ]]; then
+        python3 -c 'import json,sys; print(json.dumps({"ok": True, "api_key": "set", "approved_by": sys.argv[1]}))' "$by"
+    else
+        ok "API key saved (approved by $by)"
+    fi
+}
+
 # `agenti setup`: first run, one question at a time. Re-runnable: every step
 # says when it is already done and skips. Each step is an existing verb, run
 # through this same CLI, so setup holds no logic of its own.
@@ -3969,6 +4114,8 @@ print(ready, half)' <<<"$users" 2>/dev/null || echo "0 -")
             || warn "2FA was not set up yet. Do it now:  sudo agenti admin user enroll-2fa $name"
         ok "'$name' is an admin. If the code does not work, re-run:  sudo agenti admin user enroll-2fa $name"
     fi
+    # An admin can sign in now: the browser's setup code has no more use.
+    python3 "$IAM_PY" --actor "$(invoking_user)" setup-code --clear >/dev/null 2>&1 || true
 
     # Before the key, so a key is written straight into the vault, never to the bare disk.
     printf '\n%s2. The vault (optional)%s\n' "$c_b" "$c_0"
@@ -4207,7 +4354,7 @@ details:   agenti gui help" ;;
 # "user" is the current spelling of "principal" (2026-10-19); the old one stays
 # in the list for as long as iam.py accepts it -- a refusal list that forgot an
 # alias would be a hole, not a typo.
-IAM_WRITE_VERBS="user principal bind unbind issue-key bootstrap set-policy"
+IAM_WRITE_VERBS="user principal bind unbind issue-key bootstrap set-policy setup-code"
 
 refuse_iam_writes_from_api() {
     local verb="$1" api_user="${AGENTI_API_USER:-agenti-api}"
@@ -4350,6 +4497,7 @@ reinstall it:  $REINSTALL"
     fi
     case "${1:-}" in
         set-user-key) shift; cmd_set_user_key "$@"; return ;;
+        set-api-key) shift; cmd_set_api_key_web "$@"; return ;;
         context)
             # The instruction files (shared/context_store.py). Root terminal
             # only for now: the GUI path (phase 4) adds its own re-auth.
@@ -4879,6 +5027,7 @@ except Exception: print("")' 2>/dev/null)
         password-reset-check|password-reset-consume|\
         user-exists|dashboard-access|\
         mint-enrolment-link|enrol-check|enrol-consume|list-users|\
+        setup-code|setup-first-admin|\
         set-limit|\
         outputs-usage|outputs-list|outputs-delete|outputs-path|\
         tool-request-file|tool-request-list|\
@@ -5895,7 +6044,29 @@ import disk_encryption
 storage = disk_encryption.status(root)
 if storage["encrypted"] is False:
     storage["warning"] = disk_encryption.WARNING
-result = {"owner": owner, "vault": vault, "storage": storage, "slots": out_slots, "teams": teams}
+# Is there an Anthropic key any of this user's runs would use (the four tiers,
+# agent_runtime.load_secrets)? Only yes/no; the GUI offers Settings → Platform.
+# A per-agent file belongs to the run account: never follow a link or block on a pipe.
+def _has_key(f):
+    import stat as _stat
+    try:
+        fd = os.open(f, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return False
+    try:
+        if not _stat.S_ISREG(os.fstat(fd).st_mode):
+            return False
+        text = os.read(fd, 1 << 16).decode("utf-8", "replace")
+    finally:
+        os.close(fd)
+    return any(l.startswith("ANTHROPIC_API_KEY=") and len(l.strip()) > 18 for l in text.splitlines())
+_tiers = [Path(root) / "shared" / "secrets.env", Path(root) / "org" / "secrets.env",
+          Path(root) / "org" / "users" / owner / "secrets.env"]
+_tiers += list((Path(root) / "org").glob("*/secrets.env"))
+api_key = "set" if vault != "locked" and any(_has_key(f) for f in _tiers) else (
+    "unknown" if vault == "locked" else "missing")
+result = {"owner": owner, "vault": vault, "storage": storage, "api_key": api_key,
+          "slots": out_slots, "teams": teams}
 if as_json == "1":
     print(json.dumps(result))
 else:
@@ -6012,11 +6183,12 @@ A copy is a SECOND run of the same agent, side by side with your main one —
 its own target, state, reports and systemd unit."
                    COPY="$2"; shift 2 ;;
         --copy=*)  COPY="${1#*=}"; shift ;;
-        --help|-h) usage; exit 0 ;;
+        --help|-h) HELP=1; shift ;;
         *)         ARGS+=("$1"); shift ;;
     esac
 done
 set -- "${ARGS[@]}"
+[[ ${HELP:-0} -eq 0 ]] || { help_for "$@"; exit 0; }
 
 # ---------------------------------------------------------------------------
 # Generic action-approval verbs — action-pending / action-approve / action-reject
@@ -6339,6 +6511,7 @@ case "${1:-}" in
            fi
            console_only "vault ${2:-status}"; shift; cmd_vault "$@"; exit 0 ;;
     setup) need_root; console_only setup; cmd_setup; exit 0 ;;
+    setup-code) need_root; console_only setup-code; shift; cmd_setup_code "$@"; exit 0 ;;
     verify)
         need_root; console_only verify; shift
         [[ -x "$LIBDIR/verify.sh" ]] || die "verify.sh is missing.

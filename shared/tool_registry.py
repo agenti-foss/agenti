@@ -607,6 +607,11 @@ def _build_fetch_page(ctx: ToolContext, *, http_get: Callable, extract_html: Cal
 
         ctx.log.info("FETCHING | %s", url)
         result, err = http_get(url)
+        if result is None and str(err).startswith("redirect ("):
+            # Information, not a failure: the page answered with where to go,
+            # and redirects are never followed on their own.
+            ctx.actions.append({"action": f"fetch_page {url}", "verdict": err})
+            return {"content": [{"type": "text", "text": err}]}
         if result is None:
             ctx.actions.append({"action": f"fetch_page {url}", "verdict": f"error: {err}"})
             return {"content": [{"type": "text", "text": f"Fetch failed: {err}"}], "is_error": True}
@@ -807,7 +812,7 @@ def _build_web_search(ctx: ToolContext, *, search_backend: Callable, api_key_env
             ctx.actions.append({"action": f"web_search {query!r}",
                                 "verdict": "DENIED: no search API key configured"})
             return {"content": [{"type": "text", "text":
-                f"web_search is not configured for this deployment: no {api_key_env} is "
+                f"DENIED: web_search is not configured for this deployment: no {api_key_env} is "
                 f"set. The operator can add one via the same mechanism as "
                 f"ANTHROPIC_API_KEY (a line in secrets.env, or an exported env var for a "
                 f"hand-run). Until then, use fetch_page directly on known in-scope URLs."}],

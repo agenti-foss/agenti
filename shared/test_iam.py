@@ -1757,7 +1757,7 @@ _cli_text = (Path(__file__).resolve().parent / "agenti").read_text()
 _wv = _re.search(r'^IAM_WRITE_VERBS="([^"]*)"', _cli_text, _re.M)
 check("IAM_WRITE_VERBS is exactly the identity-WRITING verbs, under both spellings of the user verb",
       sorted(_wv.group(1).split()) if _wv else None,
-      sorted("user principal bind unbind issue-key bootstrap set-policy".split()))
+      sorted("user principal bind unbind issue-key bootstrap set-policy setup-code".split()))
 _case = _re.search(r'^        user\|principal\|bind\|.*?\)\n', _cli_text, _re.M | _re.S)
 _forwarded = set(_re.split(r'[|\\\s)]+', _case.group(0))) if _case else set()
 missing = sorted(v for v in list(iam.OLD_VERBS) + list(iam.OLD_VERBS.values()) if v not in _forwarded)

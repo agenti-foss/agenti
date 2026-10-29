@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "api"))
 import authd  # noqa: E402
 import authd_client  # noqa: E402
 import iam  # noqa: E402
+import re  # noqa: E402
 
 PASS = FAIL = 0
 
@@ -71,8 +72,78 @@ check("wrong type named", "must be a string" in H({"op": "login", "principal": 1
 check("oversized field refused", H({"op": "login", "principal": "a" * 65, "password": "x"})["status"], 400)
 check("ping answers", H({"op": "ping"})["service"], "agenti-authd")
 
-section("setup status: the login page's 'run sudo agenti setup' hint")
-check("people exist: no setup needed", H({"op": "setup_status"}), {"setup_needed": False, "ok": True})
+section("setup status: the login page sends people to setup.html until an admin can sign in")
+check("operators but no admin: setup needed", H({"op": "setup_status"}), {"setup_needed": True, "ok": True})
+
+_s_iam, _s_rt = tmp / "setup-iam.db", tmp / "setup-runtime.db"
+_c = iam.open_iam(readonly=False, path=_s_iam)
+_r = iam.open_runtime(_s_rt)
+iam.add_principal(_c, "halfmade", "user", "test", role="admin")
+S = authd.Service(_s_iam, _s_rt).handle
+check("an admin with no credential yet does not count: setup needed",
+      S({"op": "setup_status"})["setup_needed"], True)
+
+section("setup_begin: the setup code buys one grant for one name")
+_ofile = iam.setup_code_file
+
+
+def _code_file():
+    return tmp / "setup-code"
+
+
+iam.setup_code_file = _code_file
+code = iam.issue_setup_code(_r)
+check("the code is four groups of four from the readable alphabet",
+      bool(re.fullmatch(r"([A-HJ-NP-Z2-9]{4}-){3}[A-HJ-NP-Z2-9]{4}", code)), True)
+check("...its plaintext file is root-only (0600)", oct(_code_file().stat().st_mode & 0o777), "0o600")
+check("...runtime.db holds only its hash", code not in str(list(_r.execute("SELECT * FROM setup_code"))), True)
+check("asking again shows the same code", iam.issue_setup_code(_r), code)
+bad = S({"op": "setup_begin", "code": "AAAA-AAAA-AAAA-AAAA", "principal": "boss"})
+check("a wrong code -> 403", bad.get("status"), 403)
+check("...says where to see it", "sudo agenti setup-code" in bad.get("error", ""), True)
+check("a bad name -> 400 before the code is tried",
+      S({"op": "setup_begin", "code": code, "principal": "Boss!"}).get("status"), 400)
+ok = S({"op": "setup_begin", "code": code.lower().replace("-", " "), "principal": "boss"})
+check("the right code (any case, spaces for dashes) -> a grant", bool(ok.get("grant")), True)
+check("...bound to that name only", _r.execute("SELECT principal FROM action_grants WHERE id=?",
+                                              (ok["grant"],)).fetchone()[0], iam.SETUP_ACTOR)
+try:
+    iam.setup_first_admin(_c, _r, "someone-else", ok["grant"])
+    check("...spent on another name: refused", "accepted", "refused")
+except iam.IAMError:
+    check("...spent on another name: refused", "refused", "refused")
+ok = S({"op": "setup_begin", "code": code, "principal": "boss"})
+tok = iam.setup_first_admin(_c, _r, "boss", ok["grant"])
+check("setup_first_admin makes the admin", _c.execute("SELECT role FROM principals WHERE name='boss'").fetchone()[0], "admin")
+check("...and returns its enrolment link", iam.enrolment_token_principal(_r, tok), "boss")
+try:
+    iam.setup_first_admin(_c, _r, "boss", ok["grant"])
+    check("the grant works once", "twice", "once")
+except iam.IAMError:
+    check("the grant works once", "once", "once")
+iam.set_principal_password(_c, "boss", "a-good-password")
+check("once the admin has a password: setup done", S({"op": "setup_status"})["setup_needed"], False)
+check("...and setup_begin refuses (409), even with the right code",
+      S({"op": "setup_begin", "code": code, "principal": "boss2"}).get("status"), 409)
+iam.clear_setup_code(_r)
+check("clear_setup_code removes the file", _code_file().exists(), False)
+
+_c2_iam, _c2_rt = tmp / "burn-iam.db", tmp / "burn-runtime.db"
+iam.open_iam(readonly=False, path=_c2_iam).close()
+_r2 = iam.open_runtime(_c2_rt)
+code2 = iam.issue_setup_code(_r2)
+S2 = authd.Service(_c2_iam, _c2_rt).handle
+for _ in range(iam.SETUP_CODE_MAX_FAILURES):
+    S2({"op": "setup_begin", "code": "WRONG", "principal": "boss"})
+burned = S2({"op": "setup_begin", "code": code2, "principal": "boss"})
+check(f"{iam.SETUP_CODE_MAX_FAILURES} wrong tries burn the code: the right one is refused now",
+      burned.get("status"), 403)
+check("...and the message names --new", "setup-code --new" in burned.get("error", ""), True)
+check("--new issues a working code again",
+      bool(S2({"op": "setup_begin", "code": iam.issue_setup_code(_r2, renew=True),
+               "principal": "boss"}).get("grant")), True)
+iam.setup_code_file = _ofile
+_c.close(); _r.close(); _r2.close()
 _fresh = tmp / "fresh-iam.db"
 _c = iam.open_iam(readonly=False, path=_fresh)
 iam.add_principal(_c, "robot", "service", "test", role="operator")

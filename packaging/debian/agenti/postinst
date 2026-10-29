@@ -12,13 +12,12 @@ case "$1" in
             /usr/lib/agenti/configure.sh install --first
             cat <<'MSG'
 
-  Agenti is installed. The GUI is running at http://127.0.0.1:8420 (this
-  machine only). Nobody can sign in yet; finish setting it up with:
-
-      sudo agenti setup
-
-  (the first admin, the Anthropic API key, and the optional vault and
-  remote access). Check the installation any time: sudo agenti verify
+  Agenti is installed. The GUI is running on this machine only.
+MSG
+            # The one-time code the GUI's setup page asks for (and where to go).
+            /usr/bin/agenti setup-code --if-needed || true
+            cat <<'MSG'
+  Check the installation any time:  sudo agenti verify
 
 MSG
         else
@@ -26,6 +25,8 @@ MSG
             # what was already running. Runs in progress keep going; the next
             # run uses the new code.
             /usr/lib/agenti/configure.sh install
+            # Upgraded before anyone finished setup: say how, again.
+            /usr/bin/agenti setup-code --if-needed || true
         fi
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)

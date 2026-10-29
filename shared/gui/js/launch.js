@@ -27,6 +27,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   const runVia = document.getElementById("run-via");
   const runForm = document.getElementById("run-form");
   const runBanner = document.getElementById("run-banner");
+  // No Anthropic API key at any level: every start would be refused, so say so first.
+  Agenti.get("dashboard").then(async (d) => {
+    if (!d || d.api_key !== "missing") return;
+    const me = await Agenti.me().catch(() => ({}));
+    const admin = (me.permissions || []).includes("iam:manage");
+    const kb = document.getElementById("key-banner");
+    kb.innerHTML = `<strong>No Anthropic API key yet: agents can't start.</strong> `
+      + (admin ? `Add one in <a href="settings.html#platform">Settings → Platform</a>.`
+               : `Ask an admin to add one (Settings → Platform).`);
+    kb.classList.add("show");
+  }).catch(() => { /* the start itself still says why */ });
   const runBtn = document.getElementById("run-btn");
   const teamRoster = document.getElementById("team-roster");
   const targetField = document.getElementById("target-field");

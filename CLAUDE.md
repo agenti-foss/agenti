@@ -192,9 +192,9 @@ from `/proc/<pid>/mountinfo`.
   outside the digest. `require-separate-approver` policy refuses a start by
   the approver. A domain run's start-time exclusions are root's `run-excluded`; a new one
   under its target stops it. fetch_external/web_search refuse every engagement host.
-- **Launch:** `start -t <target> --model <m>`; model mandatory; a 2 s post-start
-  recheck turns a preflight/scope refusal into a real error instead of a false
-  "started". Files attached before start are handed to the run; a file-analysis
+- **Launch:** `start -t <target> --model <m>`; model mandatory; `run_coverage.py
+  precheck` (model, scope, window, approval) refuses BEFORE a slot exists (and makes
+  `--dry-run` honest); a 2 s post-start recheck catches the rest. Files attached before start are handed to the run; a file-analysis
   agent takes no target and refuses to start with no file. Every start is its
   own isolated run (fresh slot, see Current state).
 - **Operator input:** `say` reaches the model after its current step (PostToolUse
@@ -217,6 +217,10 @@ from `/proc/<pid>/mountinfo`.
   actions (grants, rename/delete user, build/remove/edit agent, catalog edits,
   instruction edits) need a fresh re-auth → single-use grant bound to the
   action's SHA-256, consumed by the root CLI; every action asks again (no grace).
+  **First run (0.1.1):** `setup.html`, loopback-only (`_setup_is_local`: no proxy
+  header, loopback Host/Origin) + the setup code (`agenti setup-code`; hash in
+  runtime.db, 20 tries) → authd `setup_begin` grant → `admin setup-first-admin` →
+  enrolment link. Org API key from the web: `admin/api-key`, grant on its SHA-256.
 - **Agent controls (Settings → Agents):** system prompt / skills / org
   instructions / per-user memory with history and revert; per-agent scope that
   can only narrow; a reviewed **program catalog** (`tool-catalog.json` +
@@ -311,8 +315,7 @@ needs the real origin (your deployment URL); plain-loopback
 - **Package layout** (`docs/packaging.md`): FHS paths, bundled `agenti-runtime`, optional
   vault, `configure.sh`/`verify.sh`, `agenti setup`, `agenti gui configure`; console-only
   verbs refuse agenti-api. `tool_settings_store.catalog_for` is the one catalog reader.
-- `principal` → `user` (2026-10-19): users see "user", iam.db/Python keep "principal",
-  both refusal lists carry both.
+- `principal` → `user`: iam.db/Python keep "principal"; refusal lists carry both.
 - **Docs page:** `shared/help_docs.py` serves `docs/help/*.md` to `agenti docs`, `/docs…`
   and `gui/docs.html`. FastAPI's explorer and `/openapi.json` are OFF.
 - **IAM:** two hardcoded roles (see Recurring traps). API keys resolve per-user (the
@@ -339,11 +342,8 @@ needs the real origin (your deployment URL); plain-loopback
    `docs/ci.md`. `website/` is untracked here and deploys by hand to Cloudflare
    (`python3 website/build.py --sync docs/help --check`). Still to build: a visual GUI CI
    job. Update check (report-only, off by default) not yet live-checked in the GUI.
-   **CI/CD decisions (2026-10-20):** public repo is the open core's source of truth,
-   each pro agent's repo pins it; pro .debs on a managed private apt host, per-customer
-   tokens; open-core apt key on a hardware token, signed by hand (never in CI);
-   download gate only, no licence check in code; pro live tests by manual checklist.
-   Details and build list: `docs/open-core-split.md` § CI/CD.
+   **CI/CD decisions (2026-10-20):** see `docs/open-core-split.md` § CI/CD; apt repo
+   tool: `packaging/apt/repo.sh`, signing: `docs/release-signing.md`.
 2. Notifications/escalation on an acknowledged channel; request rate limiting
    beyond the login throttle; aggregate spend caps; MCP access for Claude Code
    over the existing API with a per-user key (`GET /dashboard` is the shape);

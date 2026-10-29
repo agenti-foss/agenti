@@ -383,7 +383,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const out = [];
     const flushSteps = () => {
       if (!steps) return;
-      const bad = steps.failed ? ` · ${steps.failed} failed` : "";
+      const bad = (steps.refused ? ` · ${steps.refused} refused` : "") + (steps.failed ? ` · ${steps.failed} failed` : "");
       out.push(`<div class="chat-steps${steps.failed ? " bad" : ""}" style="--hue:${hue(steps.agent)}"><span class="dot"></span>${esc(steps.agent)} ran ${steps.n} step${steps.n === 1 ? "" : "s"}${bad}</div>`);
       steps = null;
     };
@@ -426,9 +426,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         out.push(bubble({ side: "agent", h: hue(it.agent), name: it.agent, initials: it.agent, ts: r.ts, body: r.summary, ask: true }));
         return;
       }
-      if (!steps || steps.agent !== it.agent) { flushSteps(); steps = { agent: it.agent, n: 0, failed: 0 }; }
+      if (!steps || steps.agent !== it.agent) { flushSteps(); steps = { agent: it.agent, n: 0, failed: 0, refused: 0 }; }
       if (r.verdict === "call") steps.n += 1;
-      else if (r.verdict === "error" || r.verdict === "denied") steps.failed += 1;
+      else if (r.verdict === "error") steps.failed += 1;
+      else if (r.verdict === "denied") steps.refused += 1;
     });
     flushSteps();
     els.feed.innerHTML = out.join("") || `<p class="muted" style="margin:auto;">Nothing posted yet.</p>`;

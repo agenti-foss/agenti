@@ -115,6 +115,25 @@ document.addEventListener("DOMContentLoaded", async function () {
   const teamHref = (name) => `team.html?team=${enc(name)}` + viewQS;
   const userQ = viewUser ? `?user=${enc(viewUser)}` : "";
 
+  // No Anthropic API key at any level: say so until one is saved. Closing it
+  // hides it for this sign-in only (sessionStorage), so it comes back.
+  const keyBanner = document.getElementById("key-banner");
+  let keyHidden = false;
+  try { keyHidden = sessionStorage.getItem("agenti-key-banner") === "closed"; } catch (e) { /* no storage */ }
+  if (dash.api_key === "missing" && !viewUser && !keyHidden) {
+    const me = await Agenti.me().catch(() => ({}));
+    const admin = (me.permissions || []).includes("iam:manage");
+    keyBanner.innerHTML = `<strong>No Anthropic API key yet: agents can't start.</strong> `
+      + (admin ? `Add one in <a href="settings.html#platform">Settings → Platform</a>.`
+               : `Ask an admin to add one (Settings → Platform).`)
+      + `<button type="button" class="banner-close" aria-label="Dismiss">${Agenti.icon("close", 14) || "×"}</button>`;
+    keyBanner.classList.add("show");
+    keyBanner.querySelector(".banner-close").addEventListener("click", () => {
+      keyBanner.classList.remove("show");
+      try { sessionStorage.setItem("agenti-key-banner", "closed"); } catch (e) { /* still closes */ }
+    });
+  }
+
   if (dash.vault === "locked") {
     Agenti.banner(pageBanner, "err",
       "The vault is locked — no agent can run, and reports can't be read, until someone unlocks it on the host: sudo agenti vault unlock");

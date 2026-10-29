@@ -39,14 +39,17 @@ Hash cracking (`agenti-cracker`) and approval-gated exploitation
 
 ## Install
 
-Download the packages for your CPU from
-[Releases](https://github.com/agenti-foss/agenti/releases), check them, and:
+On Kali, Debian or Ubuntu (`amd64` or `arm64`):
 
 ```
-sudo apt update          # a fresh Kali's package lists are often out of date
-sudo apt install ./agenti-runtime_<version>_<cpu>.deb ./agenti_<version>_all.deb
-sudo agenti setup
+curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 ```
+
+It adds Agenti's signed apt repository (key fingerprint
+`2D6F 55F9 385B 8C76 0C2E 95BD 8111 66F5 1B2D AE49`), installs Agenti and
+prints a one-time setup code. Open `http://127.0.0.1:8420` on the same machine,
+enter the code and create the first admin. Updates then come with
+`sudo apt upgrade`.
 
 Installing downloads one more file, Anthropic's Claude Code program, from PyPI,
 checked against its pinned SHA-256. You need an Anthropic API key. Full guide:

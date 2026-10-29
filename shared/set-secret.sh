@@ -22,7 +22,7 @@
 #   org / agent / user:   0600 agenti-run:agenti-run — owned by the one account
 #                         that runs the agents.
 #
-# Usage:  sudo ./set-secret.sh [--org | --agent <a> | --user <u>] [--show]
+# Usage:  sudo ./set-secret.sh [--org | --agent <a> | --user <u>] [--show | --stdin]
 #
 set -euo pipefail
 
@@ -37,6 +37,7 @@ SVC_USER="agenti-run"
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 ORG=0
+STDIN=0        # --stdin: the key is the first line of stdin, no questions (Settings → Platform)
 AGENT=""
 USER_NAME=""
 while [[ $# -gt 0 ]]; do
@@ -51,6 +52,7 @@ while [[ $# -gt 0 ]]; do
             [[ -n "$USER_NAME" ]] || die "--user needs a name, e.g. --user alice"
             shift 2 ;;
         --show) break ;;
+        --stdin) STDIN=1; shift ;;
         *) break ;;
     esac
 done
@@ -111,16 +113,19 @@ if [[ "${1:-}" == "--show" ]]; then
 fi
 
 # --- write mode -------------------------------------------------------------
-if [[ -f "$SECRETS" ]]; then
-    echo "$SECRETS ($TIER) already exists; this will REPLACE the stored key."
-    read -r -p "continue? [y/N] " reply
-    [[ "$reply" =~ ^[Yy]$ ]] || { echo "aborted."; exit 0; }
+if [[ $STDIN -eq 1 ]]; then
+    IFS= read -r API_KEY || true
+else
+    if [[ -f "$SECRETS" ]]; then
+        echo "$SECRETS ($TIER) already exists; this will REPLACE the stored key."
+        read -r -p "continue? [y/N] " reply
+        [[ "$reply" =~ ^[Yy]$ ]] || { echo "aborted."; exit 0; }
+    fi
+    echo "Paste the Anthropic API key, then press Enter."
+    echo "(input is hidden — nothing will appear as you type)"
+    read -rs API_KEY
+    echo
 fi
-
-echo "Paste the Anthropic API key, then press Enter."
-echo "(input is hidden — nothing will appear as you type)"
-read -rs API_KEY
-echo
 
 [[ -n "$API_KEY" ]] || die "no key entered"
 # Cheap sanity check — catches a mis-paste before you discover it at runtime.

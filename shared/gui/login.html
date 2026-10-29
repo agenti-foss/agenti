@@ -111,8 +111,9 @@
       // A fresh install: nobody can sign in until the first admin exists.
       Agenti.get("auth/setup-status", { noRedirect: true }).then((st) => {
         if (st && st.setup_needed) {
+          if (st.local) { location.replace("setup.html"); return; }
           Agenti.banner(bannerEl, "warn",
-            "Nobody can sign in yet. On the Agenti host, run:  sudo agenti setup  — it creates the first admin.");
+            "Agenti isn't set up yet. Open http://127.0.0.1:8420 in a browser on the Agenti machine itself and enter the setup code (sudo agenti setup-code shows it), or run sudo agenti setup there.");
         }
       }).catch(() => { /* an older server, or authd down: the form explains itself */ });
 

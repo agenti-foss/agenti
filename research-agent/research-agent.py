@@ -628,8 +628,8 @@ def write_report(profile: Profile, result, started: float, status: str,
     if EXECUTED_ACTIONS:
         for a in EXECUTED_ACTIONS:
             out = f" ({a['output']})" if a.get("output") else ""
-            action = agent_runtime.one_line(a["action"]).replace("`", "'")
-            L.append(f"- `{action}` — {agent_runtime.one_line(a['verdict'])}{out}")
+            action = agent_runtime.shorten_urls(agent_runtime.one_line(a["action"])).replace("`", "'")
+            L.append(f"- `{action}` — {agent_runtime.shorten_urls(agent_runtime.one_line(a['verdict']))}{out}")
         denied = [a for a in EXECUTED_ACTIONS if a["verdict"].startswith("DENIED")]
         if denied:
             L += ["", f"_{len(denied)} action(s) denied by the scope/rate-limit "
@@ -644,8 +644,9 @@ def write_report(profile: Profile, result, started: float, status: str,
                  "nothing submitted. Content is untrusted third-party text._")
         L.append("")
         for a in ext:
-            site = agent_runtime.one_line(a["action"].replace("fetch_external ", "", 1)).replace("`", "'")
-            L.append(f"- `{site}` — {agent_runtime.one_line(str(a['verdict']))}")
+            site = agent_runtime.shorten_urls(
+                agent_runtime.one_line(a["action"].replace("fetch_external ", "", 1))).replace("`", "'")
+            L.append(f"- `{site}` — {agent_runtime.shorten_urls(agent_runtime.one_line(str(a['verdict'])))}")
     else:
         L.append("_No outside sites were read._")
 

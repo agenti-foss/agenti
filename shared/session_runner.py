@@ -131,11 +131,11 @@ def commands_block(actions: list[dict], *, denied_note: str) -> list[str]:
     L += ["| # | Verdict | Command | Raw output |",
           "|---|---------|---------|------------|"]
     for i, c in enumerate(actions, 1):
-        cmd = _table_cell(agent_runtime.one_line(c["command"]), limit=2000)
+        cmd = _table_cell(agent_runtime.shorten_urls(agent_runtime.one_line(c["command"])), limit=2000)
         out = _table_cell(c["output"]) if c["output"] else "—"
         # The verdict quotes model text too (a denied program's name, a URL):
         # one line, pipes escaped, or it can add forged rows (audit run 2).
-        verdict = agent_runtime.one_line(str(c["verdict"]))[:600].replace("|", "\\|")
+        verdict = agent_runtime.shorten_urls(agent_runtime.one_line(str(c["verdict"])))[:600].replace("|", "\\|")
         L.append(f"| {i} | {verdict} | {cmd} | {out} |")
     denied = [c for c in actions if c["verdict"].startswith("DENIED")]
     if denied:

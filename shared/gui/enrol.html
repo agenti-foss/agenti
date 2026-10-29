@@ -13,7 +13,12 @@
 <body>
   <div class="login-wrap">
     <div class="panel login-card" style="max-width:520px;">
-      <h1>Set up your account</h1>
+      <h1 id="enrol-title">Set up your account</h1>
+      <ol class="setup-progress" id="enrol-progress" aria-label="Setup steps" hidden>
+        <li data-step="1" class="done">Setup code</li>
+        <li data-step="2" aria-current="step">Your account</li>
+        <li data-step="3">Finish</li>
+      </ol>
       <p class="sub muted" id="enrol-sub">Checking your link…</p>
 
       <div id="enrol-banner" class="banner err"></div>
@@ -56,7 +61,7 @@
           <p class="hint"><strong>Recovery codes</strong> — each works once. Save them now; they won't be shown again.</p>
           <div class="copyable"><pre id="enrol-recovery-codes" class="feed" style="font-size:0.85rem; flex:1; margin:0;"></pre></div>
         </div>
-        <a class="btn btn-primary" href="login.html" style="width:100%; justify-content:center; margin-top:12px;">Sign in</a>
+        <a class="btn btn-primary" href="login.html" id="enrol-signin" style="width:100%; justify-content:center; margin-top:12px;">Sign in</a>
       </div>
     </div>
   </div>
@@ -83,6 +88,16 @@
       const skipWrap = document.getElementById("enrol-skip-wrap");
       const skip = document.getElementById("enrol-skip");
       const codeInput = document.getElementById("enrol-totp-code");
+      // Step 2 of first-run setup (setup.html): the same enrolment, then sign
+      // in and come back to setup.html for the optional steps.
+      const setup = new URLSearchParams(location.search).get("setup") === "1";
+      if (setup) {
+        document.getElementById("enrol-title").textContent = "Set up Agenti";
+        document.getElementById("enrol-progress").hidden = false;
+        document.querySelector(".login-card").classList.add("setup-card");
+        document.getElementById("enrol-signin").href = "login.html?next=setup.html";
+        document.getElementById("enrol-signin").textContent = "Sign in to finish";
+      }
 
       if (!token) {
         sub.textContent = "This link is missing its token.";
@@ -99,7 +114,9 @@
         return;
       }
 
-      sub.textContent = `Welcome, ${info.user}. Two short steps and your account is ready.`;
+      sub.textContent = setup
+        ? `Your admin account, ${info.user}: a password and an authenticator app.`
+        : `Welcome, ${info.user}. Two short steps and your account is ready.`;
       form.hidden = false;
 
       // The second factor: mandatory under the policy, offered otherwise.
@@ -146,6 +163,11 @@
           const r = await Agenti.post(`enrol/${encodeURIComponent(token)}`, body, { noRedirect: true });
           form.hidden = true;
           done.hidden = false;
+          if (setup) {
+            const [, two, three] = document.querySelectorAll("#enrol-progress li");
+            two.classList.add("done"); two.removeAttribute("aria-current");
+            three.setAttribute("aria-current", "step");
+          }
           if (r.recovery_codes && r.recovery_codes.length) {
             const pre = document.getElementById("enrol-recovery-codes");
             pre.textContent = r.recovery_codes.join("\n");

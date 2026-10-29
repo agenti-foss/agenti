@@ -236,5 +236,40 @@ for path, want in (("/enrol/AbC-123_xyz", "/enrol/<token>"), ("/password-reset/T
     check(f"access log line for {path}", _rec.getMessage(), f'10.0.0.1:5 - "GET {want} HTTP/1.1" 200')
 check("the filter is installed on uvicorn's access logger", 'logging.getLogger("uvicorn.access").addFilter(_RedactLinkTokens())' in _src, True)
 
+section("first-run setup: the setup page answers only the machine itself")
+_snip = _src[_src.index("_FORWARDING_HEADERS = ("):_src.index("class SetupAdminRequest")]
+
+
+class _Hdrs(dict):
+    def get(self, k, d=None):
+        return super().get(k.lower(), d)
+
+
+class _Req:
+    def __init__(self, peer, headers):
+        self.client = type("C", (), {"host": peer})()
+        self.headers = _Hdrs({k.lower(): v for k, v in headers.items()})
+
+
+for header_cfg in ("", "CF-Connecting-IP"):
+    _ns = {"CLIENT_IP_HEADER": header_cfg, "Request": object}
+    exec(_snip, _ns)
+    local = _ns["_setup_is_local"]
+    for label, peer, hdrs, want in (
+            ("the box's own browser", "127.0.0.1", {"host": "127.0.0.1:8420"}, True),
+            ("...as localhost, with its own Origin", "127.0.0.1",
+             {"host": "localhost:8420", "origin": "http://localhost:8420"}, True),
+            ("...over IPv6", "::1", {"host": "[::1]:8420"}, True),
+            ("an ssh -L tunnel (loopback, no proxy header)", "127.0.0.1", {"host": "127.0.0.1:18420"}, True),
+            ("another computer", "198.51.100.20", {"host": "198.51.100.5:8420"}, False),
+            ("a tunnel or proxy on the box (says so in a header)", "127.0.0.1",
+             {"host": "127.0.0.1:8420", "x-forwarded-for": "203.0.113.9"}, False),
+            ("Cloudflare Tunnel", "127.0.0.1", {"host": "agenti.example.com", "cf-connecting-ip": "203.0.113.9"}, False),
+            ("loopback peer but a public Host (DNS rebinding)", "127.0.0.1", {"host": "evil.example:8420"}, False),
+            ("loopback peer, page posted from another site", "127.0.0.1",
+             {"host": "127.0.0.1:8420", "origin": "https://evil.example"}, False),
+            ("a Forwarded header", "127.0.0.1", {"host": "127.0.0.1", "forwarded": "for=203.0.113.9"}, False)):
+        check(f"[{header_cfg or 'direct'}] {label}", local(_Req(peer, hdrs)), want)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
