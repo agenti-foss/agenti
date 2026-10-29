@@ -339,8 +339,8 @@ needs the real origin (your deployment URL); plain-loopback
    **Licensing decision (2026-10-19):** open core under AGPL-3.0 (shell + harness + enum/research/trafficmon); exploit, cracker and future advanced agents proprietary in a separate private repo/package; CLA + trademark. Plan and coupling table: `docs/open-core-split.md`. Never publish the pre-0.1.0 history.
    **Pipeline:** `security.yml` (CodeQL gate + pip-audit), `release.yml` (publishing off
    until repo var `RELEASE_PUBLISH=true`), `package.yml`, `.githooks/pre-commit`; see
-   `docs/ci.md`. `website/` is untracked here and deploys by hand to Cloudflare
-   (`python3 website/build.py --sync docs/help --check`). Still to build: a visual GUI CI
+   `docs/ci.md`. The website is its own repo, `agenti-foss/website`
+   (Cloudflare Pages builds on push; `build.py --sync <this repo>/docs/help --check`). Still to build: a visual GUI CI
    job. Update check (report-only, off by default) not yet live-checked in the GUI.
    **CI/CD decisions (2026-10-20):** see `docs/open-core-split.md` § CI/CD; apt repo
    tool: `packaging/apt/repo.sh`, signing: `docs/release-signing.md`.

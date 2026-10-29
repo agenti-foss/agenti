@@ -48,9 +48,10 @@ open-source audit is done. `workflow_dispatch` is a dry run and never publishes.
 
 ## Download page
 
-`website/` is the public site for agenti-foss.org: home, download, docs, security and
-report-a-bug, built by `website/build.py` and deployed by GitHub Pages from its own
-repo. See `website/README.md`.
+The public site for agenti-foss.org (home, download, docs, security and report-a-bug)
+is its own repo, `agenti-foss/website`, built by its `build.py` and deployed by
+Cloudflare Pages on every push to its `main`. Its docs are a copy of `docs/help/`
+here: `python3 build.py --sync <this repo>/docs/help --check`. See its README.
 
 ## Run it yourself
 
