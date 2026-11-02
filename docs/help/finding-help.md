@@ -19,6 +19,10 @@ section, that mentions what you are looking for.
 - On the Docs page, press `/` to jump to the search bar, **Enter** to open the
   first result, the arrow keys to move between results, and **Esc** to clear
   the search.
+- Scrolled down a long page? The search bar (and **All docs**) move into the
+  top bar, so you can search from where you are. On a phone the search is the
+  round magnifier button. Clearing the search takes you back to where you were
+  reading.
 
 ## From the command line
 

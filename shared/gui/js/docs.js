@@ -157,6 +157,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let pending = null;
 
   function setSearching(on) {
+    // Results show under the real field: if it is above the screen, go up to it.
+    if (on && results.hidden && $("docs-search").getBoundingClientRect().top < 0) window.scrollTo(0, 0);
     results.hidden = !on;
     if (slug) view.hidden = on || !article.innerHTML;
     else list.hidden = on;
@@ -266,10 +268,89 @@ document.addEventListener("DOMContentLoaded", () => {
     else (i === 0 ? input : hits[i - 1]).focus();
   });
 
+  // ---- the search docks into the top bar ---------------------------------------
+  // Like the back pill (nav.js): once the page scrolls the search field away, a
+  // copy slides into the bar. Typing there hands the words to the real field at
+  // the top, so there is one search and one set of results; clearing it returns
+  // you to where you were reading. On a phone the docked search is a round
+  // button. agenti-foss.org's docs.js does the same.
+  const form = $("docs-search");
+  const bar = $("topnav");
+  let readingAt = null; // what you were reading when a search started from the bar
+  let dock = null, dockInput = null;
+  if (bar) {
+    dock = document.createElement("div");
+    dock.className = "nav-search";
+    dock.setAttribute("aria-hidden", "true");
+    dock.innerHTML = `<button type="button" class="nav-search-btn" tabindex="-1" aria-label="Search the docs" title="Search the docs (/)">${Agenti.icon("search", 16)}</button>
+      <input type="search" class="nav-search-input" tabindex="-1" placeholder="Search the docs" aria-label="Search the docs" maxlength="200" spellcheck="false" enterkeyhint="search">`;
+    dockInput = dock.querySelector("input");
+    $("nav-back").after(dock);
+  }
+  const dockField = () => !!dockInput && getComputedStyle(dockInput).display !== "none";
+  function placeDock() {
+    if (!bar) return;
+    const gone = form.getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom;
+    // While the docked field is in use it stays, even if the page moves.
+    const on = gone || document.activeElement === dockInput;
+    bar.classList.toggle("has-search", on);
+    dock.setAttribute("aria-hidden", on ? "false" : "true");
+    dock.querySelectorAll("button, input").forEach((c) => { c.tabIndex = on ? 0 : -1; });
+  }
+  let ticking = false;
+  window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(() => { ticking = false; placeDock(); }); } }, { passive: true });
+  window.addEventListener("resize", placeDock, { passive: true });
+  placeDock();
+
+  // Up to the real field, remembering where you were reading.
+  function toSearch(value) {
+    if (readingAt === null && slug) {
+      // The block at the top of the screen, not a scroll offset: the bar
+      // un-compacts at the top and compacts again, which moves the page.
+      const under = bar ? bar.getBoundingClientRect().bottom : 0;
+      const el = [...article.children].find((c) => c.getBoundingClientRect().bottom > under);
+      readingAt = { y: window.scrollY, el, top: el ? el.getBoundingClientRect().top : 0 };
+    }
+    window.scrollTo(0, 0);
+    input.focus({ preventScroll: true });
+    if (value !== undefined) {
+      input.value = value;
+      input.setSelectionRange(value.length, value.length);
+      input.dispatchEvent(new Event("input"));
+    } else input.select();
+    placeDock();
+  }
+  function backToReading() {
+    if (readingAt === null) return;
+    const { y, el, top } = readingAt;
+    readingAt = null;
+    requestAnimationFrame(() => {
+      if (el && el.isConnected) window.scrollBy(0, el.getBoundingClientRect().top - top);
+      else window.scrollTo(0, y);
+      placeDock();
+    });
+  }
+  if (dock) {
+    dock.querySelector("button").addEventListener("click", () => {
+      if (dockField()) dockInput.focus(); else toSearch();
+    });
+    dockInput.addEventListener("input", () => {
+      const v = dockInput.value;
+      dockInput.value = "";
+      toSearch(v);
+    });
+    dockInput.addEventListener("keydown", (e) => { if (e.key === "Escape") dockInput.blur(); });
+    dockInput.addEventListener("blur", () => setTimeout(placeDock, 0));
+  }
+  // The search ended (field emptied, or left empty): back to the page as it was.
+  input.addEventListener("input", () => { if (!input.value) backToReading(); });
+  input.addEventListener("blur", () => { if (!input.value) backToReading(); });
+
   document.addEventListener("keydown", (e) => {
     if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
     e.preventDefault();
+    if (bar && bar.classList.contains("has-search") && dockField()) { dockInput.focus(); return; }
     input.focus();
     input.select();
   });

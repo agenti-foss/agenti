@@ -234,6 +234,11 @@
 [data-skin="arcade"] .topnav .nav-dash { border-radius: var(--radius-sm); border-width: 2px; border-color: var(--border-strong); color: var(--text); font-weight: 700; }
 [data-skin="arcade"] .topnav .nav-dash[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
 [data-skin="arcade"] .topnav .nav-back { border-radius: var(--radius-sm); font-weight: 700; }
+[data-skin="arcade"] .topnav .nav-search-input { border-radius: var(--radius-sm); }
+[data-skin="arcade"] .topnav .nav-search-input:focus { box-shadow: 2px 2px 0 var(--accent); }
+@media (max-width: 600px) {
+  [data-skin="arcade"] .topnav .nav-search-btn { border-radius: var(--radius-sm); border-width: 2px; border-color: var(--border-strong); color: var(--text); }
+}
 [data-skin="arcade"] .topnav.compact { box-shadow: none; }
 [data-skin="arcade"] .dropdown-panel {
   border-width: 2px; border-color: var(--border-strong);
