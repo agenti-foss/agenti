@@ -162,8 +162,8 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
 - [x] Live self-hosted model on the test VM: Ollama model discovery through
       the relay, then GUI-launched enum runs using `qwen3:1.7b` and
       `qwen2.5:1.5b`. Both reached Agenti's tools; malformed arguments and
-      disallowed commands were refused. The first timed out; the second
-      repeated an invalid command. Neither demonstrated a successful scan.
+      disallowed commands were refused. The second repeated an invalid command;
+      both runs timed out without demonstrating a successful scan.
       Scripted model-server tests on the VM also cover successful tool calls,
       caps and relay denial. These tiny CPU models are not a quality benchmark.
 
