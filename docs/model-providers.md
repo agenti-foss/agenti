@@ -1,7 +1,7 @@
 # Any model: one Agenti, many AI providers
 
 Status: design agreed 2026-11-04; phase A live-proven on Claude and OpenAI;
-phase B implementation and cloud VM proof complete, remaining checks in progress.
+phase B complete and VM-proven; the small self-hosted model has limitations noted below.
 This file is the plan
 and the hand-off brief: whoever continues (a person, Claude Code or Codex)
 starts here, then `AGENTS.md` / `CLAUDE.md`.
@@ -159,7 +159,13 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
       reasoning returned encrypted); self-hosted keeps Chat Completions
       (`Provider.wire`). And a multi-query run's report showed only the last
       query's cost: engines now report `session_cost_usd`.
-- [ ] Live: a self-hosted model (e.g. Ollama with a tool-calling model).
+- [x] Live self-hosted model on the test VM: Ollama model discovery through
+      the relay, then GUI-launched enum runs using `qwen3:1.7b` and
+      `qwen2.5:1.5b`. Both reached Agenti's tools; malformed arguments and
+      disallowed commands were refused. The first timed out; the second
+      repeated an invalid command. Neither demonstrated a successful scan.
+      Scripted model-server tests on the VM also cover successful tool calls,
+      caps and relay denial. These tiny CPU models are not a quality benchmark.
 
 Known gaps found while building A (resolved in B, 2026-11-04):
 - [x] Resolve secrets per key across user, agent, organisation and shared tiers.
@@ -189,23 +195,23 @@ Known gaps found while building A (resolved in B, 2026-11-04):
 
 **B. Everywhere a model is chosen (hand-off point for Codex)**
 
-**Implementation and VM cloud proof complete; final checks in progress
-(2026-11-04).** No phase C work has begun. Do not call Phase B done until the
-remaining checkbox below has its proof. The operator approved a small local
-model: Ollama and a tool-capable model are installed on the test VM and the
-real self-hosted run is underway. Its first call used a malformed argument;
-no command ran. The engine now returns an actionable error before a handler
-receives an argument of the wrong type. Scripted-server tests also prove its
-protocol, tools, caps and denied-relay behavior on the VM.
+**Phase B: done (2026-11-04).** The CLI, API, GUI, team launches,
+provider configuration, paid-agent adapters, scaffold and help now use the
+provider-neutral backbone. Real cloud GUI runs and a mixed-provider team ran
+on the test VM. Paid-agent branches passed private hosted CI against core
+`6c337c6`; they remain unmerged and nothing has been published. No phase C
+work has begun. A tiny self-hosted model reached the live tool guard, but it
+repeated invalid commands and did not demonstrate a successful scan; see the
+self-hosted proof above. Model quality and latency vary by model.
 
-Proof so far:
-- Full core check: 49 suites passed. Both paid agents overlaid on the new
+Proof:
+- Full core check: 50 suites passed. Both paid agents overlaid on the new
   core: 53 suites passed. GUI checks: 114 views passed (including the opened
   model picker). A pre-existing TOTP test crossed clock windows under load;
   its replay/unused-code checks now use a fixed clock, with authentication
   behavior unchanged (228 authd checks passed).
 - VM installed-code checks as `agenti-run`: secrets (2), provider/preflight
-  (5), provider settings (5), engine and real relay integration (74).
+  (5), provider settings (5), engine and real relay integration (77).
   The complete deployment verification passed, with the paid agents too.
 - Real GUI enum runs: Claude haiku produced 5 findings and obeyed its turn
   cap; OpenAI `gpt-5.6-terra` completed with 3 findings and a report costing
@@ -227,12 +233,11 @@ Proof so far:
 - Scaffold generated and compiled on the VM with `agent_tools` and
   `open_session`. Choosing-model help was installed and read through the CLI.
 
-Remaining CI work: the operator enabled deploy keys and approved a dedicated
-read-only key for the private development core. GitHub accepted that key, and
-CI secrets are stored in both private paid repos. The paid changes are
-prepared in their own repositories; never overlay or commit their private
-source into this core repository. Hosted checks still need to run against the
-final development-core commit.
+Private hosted CI passed for the development core (CI, security and package)
+and for both paid-agent branches using a dedicated read-only core deploy key.
+The paid changes remain in their own private repositories; do not overlay or
+commit their private source into the core repository. Their CI pins the code
+revision above; update the pin for a future published core release.
 
 - [x] CLI: provider model names, live `models` list, provider keys, model-price
       policy (`admin set-policy model-price` delegates to the engagement policy).
@@ -240,9 +245,10 @@ final development-core commit.
 - [x] API + GUI: provider/model picker with live suggestions and typed names;
       provider/model per team member; provider keys/address and allowed model
       names/wildcards/prices in Settings. Proof: live GUI and team runs above.
-- [ ] Paid agents: neutral tool imports, no CVP gate, CI on the new core.
-      Code and local CI/VM proof are complete; hosted CI remains. Cracker
-      already uses the neutral shared analysis runner.
+- [x] Paid agents: neutral tool imports, no CVP gate, CI on the new core.
+      Proof: VM cracker run and exploit dry-run above, local overlay suites,
+      and passing hosted CI on both private branches. Cracker already uses
+      the neutral shared analysis runner.
 - [x] `new_agent.py` scaffold on `agent_tools` and `open_session`.
       Proof: generated file compiles on the VM; exception-path tests pass.
 - [x] Docs: `docs/help/choosing-a-model.md`, installation guidance and the paid

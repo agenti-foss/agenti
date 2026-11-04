@@ -312,7 +312,7 @@ no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the r
   apt.agenti-foss.org (runtime 1.0.0). Open core public at `agenti-foss/agenti` (from
   0.1.0; earlier history never public); this repo's `main` fast-forwards it. `agenti-runtime`
   fetches Anthropic's Claude Code at install (pinned by SHA-256), never ships it.
-- CI (`bash shared/ci.sh all`): 49 suites, ruff, shellcheck, `node --check`, old-name guard;
+- CI (`bash shared/ci.sh all`): 50 suites, ruff, shellcheck, `node --check`, old-name guard;
   gitleaks and `package.yml` (build, lintian, install/purge) run in the workflows; see
   `docs/ci.md` (decisions: `docs/open-core-split.md` § CI/CD).
   `sudo ./shared/deploy.sh` installs the WORKING TREE, so another session's unfinished
