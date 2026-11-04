@@ -52,17 +52,19 @@ def main() -> int:
         os.kill(pid, 9)                  # setup is stuck on a question we do not answer
     _, status = os.waitpid(pid, 0)
     text = out.decode(errors="replace")
-    sys.stdout.write(text[-1500:] if os.environ.get("SHOW") else "")
     checks = {
         "finished the half-made admin": "was created by an earlier setup but has no password yet" in text,
         "refused the 4-character password and asked again": "it needs at least 8" in text,
-        "the API key was skipped": "skipped — agent runs will refuse to start until a key is set" in text,
+        "the API key was skipped": "skipped — configure the provider you want" in text,
         "setup reached the end": "Done." in text and os.waitstatus_to_exitcode(status) == 0,
     }
     for k, v in checks.items():
         print(f"  {'[ OK ]' if v else '[FAIL]'} setup {k}")
     if not all(checks.values()):
-        print(text[-3000:])
+        # Setup displays a TOTP secret, its QR code, and recovery codes. Even
+        # disposable test credentials do not belong in CI logs.
+        print(f"  setup exit status: {os.waitstatus_to_exitcode(status)}; answered {step}/{len(ANSWERS)} prompts")
+        print("  setup output withheld because it may contain enrollment credentials")
     return 0 if all(checks.values()) else 1
 
 
