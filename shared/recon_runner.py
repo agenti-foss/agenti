@@ -253,7 +253,7 @@ def setup(manifest_path: Path) -> None:
         scope=SCOPE, profiles=PROFILES,
         operational_notes=_OPERATIONAL_NOTES, task=TASK,
     )
-    MCP_SERVER = CONTRACT.build_mcp_server()
+    MCP_SERVER = None   # built by engine_claude, only for a run on Claude
     TOOL_ALLOWLIST_HOOK = CONTRACT.make_tool_allowlist_hook(LOG)
 
 
@@ -334,7 +334,7 @@ def configure(profile: Profile) -> Profile:
     agent_runtime.load_secrets(
         agent_runtime.secrets_path_list(profile.data_root, AGENT_NAME, ORG_DIR, SHARED_DIR)
     )
-    agent_runtime.require_api_key(AGENT_NAME)
+    agent_runtime.require_api_key(AGENT_NAME, profile.model)
 
     # -- the prompt the agent actually sees -----------------------------------
     # The authorization block comes from the engagement (the ceiling), but the

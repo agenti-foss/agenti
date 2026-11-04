@@ -11,7 +11,8 @@ CLI (and only it: the harness hands it HTTPS_PROXY, not the scanners) goes
 through this relay on localhost.
 
 The relay accepts HTTP CONNECT for the allowed endpoints only — by default
-api.anthropic.com:443 — and refuses everything else with 403. It never sees the
+the cloud model providers, api.anthropic.com:443 and api.openai.com:443
+(docs/model-providers.md) — and refuses everything else with 403. It never sees the
 traffic: TLS runs end to end between the CLI and Anthropic, with the CLI
 verifying Anthropic's certificate. It resolves the name itself, outside the
 run's fence. It is not a general proxy and keeps no logs of content.
@@ -20,8 +21,10 @@ run's fence. It is not a general proxy and keeps no logs of content.
 
 Its port is held by systemd from boot (agenti-relay.socket, operator decision
 2026-10-23: a free port could be taken by any local user); the relay itself
-starts on a run's first connection and takes the socket as fd 3. The allowed list can be widened only by root:
-/etc/agenti/relay.conf, ALLOW=host:port host:port.
+starts on a run's first connection and takes the socket as fd 3. The allowed list can be changed only by root:
+/etc/agenti/relay.conf, ALLOW=host:port host:port. That list REPLACES the
+default, so it names every endpoint, e.g. for a self-hosted model:
+ALLOW=api.anthropic.com:443 api.openai.com:443 10.0.0.5:11434
 """
 from __future__ import annotations
 
@@ -33,7 +36,7 @@ import socket
 import sys
 
 DEFAULT_LISTEN = "127.0.0.1:8429"
-DEFAULT_ALLOW = ("api.anthropic.com:443",)
+DEFAULT_ALLOW = ("api.anthropic.com:443", "api.openai.com:443")
 CONF = "/etc/agenti/relay.conf"
 MAX_HEADER = 8192
 IDLE_TIMEOUT_S = 900

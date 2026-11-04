@@ -261,18 +261,13 @@ AGENT_SCOPE_FILENAME = "agent-scope.json"           # <agent>/ — per-agent nar
 # an approval must not go stale just because the same content was re-saved.
 AUDIT_FIELDS: tuple[str, ...] = ("updated_at", "updated_by", "updated_via")
 
-# The curated, admin-settable model list — deliberately short and closed
-# (a picker, never free text): the one place both the organisation policy's
-# allowed_models validation and every agent's --model resolution look up
-# an alias. Lives here, not in agent_runtime.py, because this module is
-# stdlib-only and imported by preflight.py/engagement_store.py (system
-# python3) as well as every agent inside the vault venv — agent_runtime.py
-# imports it from here instead of keeping its own copy.
-MODEL_ALIASES: dict[str, str] = {
-    "haiku":  "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-5",
-    "opus":   "claude-opus-5",
-}
+# Model names (any provider) are model_registry's: <provider>:<model>, plus
+# Claude's old aliases, which stay here under their old name for callers.
+# Stdlib-only, like this module (preflight/engagement_store run it on the
+# system python3).
+import model_registry  # noqa: E402
+
+MODEL_ALIASES: dict[str, str] = model_registry.CLAUDE_ALIASES
 
 _RECORD_FIELDS: tuple[str, ...] = (
     "engagement_id", "client", "authorizing_party", "authorizing_title",
@@ -291,7 +286,7 @@ _REQUIRED_TEXT: tuple[str, ...] = (
 # engagement, and must not silently invalidate an existing approval.
 _POLICY_KEYS: tuple[str, ...] = (
     "require_approval", "max_turns_ceiling", "max_budget_usd_ceiling",
-    "timeout_s_ceiling", "allowed_models",
+    "timeout_s_ceiling", "allowed_models", "model_prices",
 )
 
 # Platform-wide fallback, used whenever an organisation's own record leaves a
@@ -374,11 +369,15 @@ def empty_scope() -> dict[str, dict[str, list[str]]]:
 
 
 def canonical_model(name: str) -> str:
-    """Resolve a curated alias ('haiku') or an already-canonical model id to
-    the canonical id the SDK expects. An unrecognized string passes through
+    """One spelling per model (model_registry.canonical): a Claude alias or id
+    as the bare id the Claude SDK expects, any other provider's model as
+    <provider>:<model>. A string that cannot be a model name passes through
     unchanged — this never invents a model; the caller (load_run_config,
     _validate_policy) decides whether that's acceptable."""
-    return MODEL_ALIASES.get(name, name)
+    try:
+        return model_registry.canonical(name)
+    except model_registry.ModelNameError:
+        return name
 
 
 def _validate_policy(data: Any) -> dict:
@@ -417,13 +416,31 @@ def _validate_policy(data: Any) -> dict:
     if models is not None:
         if not isinstance(models, list) or not all(isinstance(m, str) for m in models):
             raise EngagementError("policy.allowed_models must be a list of model names")
-        bad = sorted(m for m in models
-                     if m not in MODEL_ALIASES and m not in MODEL_ALIASES.values())
+        bad = sorted(m for m in models if not model_registry.valid_policy_entry(m))
         if bad:
             raise EngagementError(
-                f"policy.allowed_models contains unrecognized model(s) {', '.join(bad)} — "
-                f"choose from {', '.join(MODEL_ALIASES)} (this is a curated list, not free text)")
+                f"policy.allowed_models contains unrecognized model name(s) {', '.join(bad)}. "
+                f"Use <provider>:<model> (e.g. openai:gpt-5.1, local:qwen3:32b), "
+                f"<provider>:* for all of a provider's models, or a Claude name "
+                f"({', '.join(MODEL_ALIASES)} or claude-…)")
         out["allowed_models"] = sorted(set(models))
+
+    prices = data.get("model_prices")
+    if prices is not None:
+        if not isinstance(prices, dict):
+            raise EngagementError("policy.model_prices must map a model name to [input, output] "
+                                  "US dollars per million tokens")
+        clean = {}
+        for name, pair in prices.items():
+            if not model_registry.valid_policy_entry(name) or str(name).endswith(":*"):
+                raise EngagementError(f"policy.model_prices: '{name}' is not a model name")
+            if (not isinstance(pair, (list, tuple)) or len(pair) != 2
+                    or not all(isinstance(x, (int, float)) and not isinstance(x, bool) and x >= 0
+                               for x in pair)):
+                raise EngagementError(f"policy.model_prices['{name}'] must be [input, output] "
+                                      f"US dollars per million tokens, e.g. [1.25, 10]")
+            clean[canonical_model(name)] = [float(pair[0]), float(pair[1])]
+        out["model_prices"] = clean
 
     return out
 
@@ -444,6 +461,8 @@ def resolve_policy(record: dict | None) -> dict:
             out[key] = pol[key]
     if pol.get("allowed_models"):
         out["allowed_models"] = list(pol["allowed_models"])
+    if pol.get("model_prices"):
+        out["model_prices"] = dict(pol["model_prices"])
     return out
 
 
@@ -451,8 +470,7 @@ def model_allowed(name: str, policy: dict) -> bool:
     """Is `name` (an alias or a canonical model id) in the effective
     allowed-model set? Both sides are canonicalized so 'haiku' and its
     real model id are always treated as the same choice."""
-    canon = canonical_model(name)
-    return canon in {canonical_model(a) for a in (policy.get("allowed_models") or [])}
+    return model_registry.allowed(name, list(policy.get("allowed_models") or []))
 
 
 def _text(record: dict, name: str, *, required: bool) -> str:

@@ -419,7 +419,7 @@ async def _run_program(argv: list[str], *, timeout: float, cwd: str, env: dict) 
 
 def _build_run_scan(ctx: ToolContext, *, allowed_binaries: set, denied_patterns: list,
                     timeout_s: int = 900, dynamic_allow: Callable | None = None):
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool(
         "run_scan",
@@ -517,7 +517,7 @@ def _build_read_tool(ctx: ToolContext, *, name: str, not_found_text: str,
     behavior regression caught by live-testing trafficmon's configure()
     end to end, not by reading the diff. Default False so enum/research are
     unaffected; True only for read_evidence's registration below."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool(
         name,
@@ -578,7 +578,7 @@ _register(ToolSpec(
 # ===========================================================================
 def _build_fetch_page(ctx: ToolContext, *, http_get: Callable, extract_html: Callable,
                       page_filename: Callable, max_fetches_per_run: int, max_links_shown: int = 25):
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool(
         "fetch_page",
@@ -713,7 +713,7 @@ def _build_fetch_external(ctx: ToolContext, *, http_get: Callable, extract_html:
         human can see where the agent went
       * what comes back is untrusted third-party text, and is labelled so
     """
-    from claude_agent_sdk import tool
+    from agent_tools import tool
     from urllib.parse import urlsplit
 
     @tool(
@@ -791,7 +791,7 @@ def _build_fetch_external(ctx: ToolContext, *, http_get: Callable, extract_html:
 
 def _build_web_search(ctx: ToolContext, *, search_backend: Callable, api_key_env: str,
                       max_searches_per_run: int, domain_join: Callable[[list], str]):
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool(
         "web_search",
@@ -887,7 +887,7 @@ _register(ToolSpec(
 # trafficmon family — passive-capture evidence
 # ===========================================================================
 def _build_list_evidence(ctx: ToolContext, *, manifest_key: str = "manifest"):
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool("list_evidence",
          "List the evidence collected in this window: which analysers ran, "
@@ -922,7 +922,7 @@ def _build_capture_host(ctx: ToolContext, *, default_iface: Callable, bpf_from_s
                         management_exclusion: Callable, capture_window: Callable,
                         tshark_evidence: Callable, max_followup_s: int,
                         capture_payloads_key: str = "capture_payloads"):
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool("capture_host",
          "Capture a short follow-up window for ONE in-scope host, when the "
@@ -1309,7 +1309,7 @@ def _build_analyze_file(ctx: ToolContext, *, programs: set, agent_dir: Path,
     inside the sandbox. The program, its options and the files it may name
     are all checked by analysis_programs.parse_command first; the sandbox is
     what holds if a program is exploited by the file it is reading."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
     import analysis_programs
     import run_files
     import sandbox
@@ -1395,7 +1395,7 @@ def _build_extract_hashes(ctx: ToolContext, *, agent_dir: Path):
     files john and hashcat can read (hash_extract.py: fixed patterns, every
     line rebuilt from captured groups). The model names the source file; it
     never writes the content. Offered to agents that have john or hashcat."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
     import analysis_programs
     import hash_extract
     import run_files

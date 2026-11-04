@@ -83,6 +83,9 @@ class _Options(_Plain):
         OPTIONS.append(k)
 
 
+# The real SDK's class name: the run loop recognises a result by it (any engine).
+_Result.__name__ = "ResultMessage"
+
 _fake = types.ModuleType("claude_agent_sdk")
 _fake.ClaudeAgentOptions = _Options
 _fake.ClaudeSDKClient = _Fake

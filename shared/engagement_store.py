@@ -260,6 +260,24 @@ def _merge_policy(existing: dict, args) -> dict:
         policy.pop("allowed_models", None)
     elif args.allowed_models:
         policy["allowed_models"] = list(args.allowed_models)
+    prices = dict(policy.get("model_prices") or {})
+    for name in args.clear_model_price or []:
+        prices.pop(name, None)
+        prices.pop(ec.canonical_model(name), None)
+    for spec in args.model_price or []:
+        name, sep, pair = spec.rpartition("=")
+        try:
+            inp, out = (float(x) for x in pair.split(","))
+        except ValueError:
+            sys.exit(f"--model-price '{spec}': write <model>=<input>,<output> in US dollars per "
+                     f"million tokens, e.g. --model-price openai:gpt-5.1=1.25,10")
+        if not sep or not name:
+            sys.exit(f"--model-price '{spec}': write <model>=<input>,<output>")
+        prices[name] = [inp, out]
+    if prices:
+        policy["model_prices"] = prices
+    else:
+        policy.pop("model_prices", None)
     return policy
 
 
@@ -716,6 +734,12 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("--allowed-models", action="append", default=None, metavar="NAME",
                    help="repeatable; replaces the WHOLE allowed-model list (a curated pick, "
                         "not an incremental add) — e.g. --allowed-models haiku --allowed-models sonnet")
+    s.add_argument("--model-price", action="append", default=None, metavar="MODEL=IN,OUT",
+                   help="what a cloud model costs, US dollars per million input and output tokens "
+                        "(e.g. openai:gpt-5.1=1.25,10). The budget cap of a run on an OpenAI model "
+                        "needs it; Claude's spend comes from the Claude SDK, a self-hosted model is free")
+    s.add_argument("--clear-model-price", action="append", default=None, metavar="MODEL",
+                   help="forget one model's price")
     s.add_argument("--clear-allowed-models", action="store_true",
                    help="revert to the platform default model list")
 

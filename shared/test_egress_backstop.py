@@ -93,7 +93,8 @@ check("the allowed host on another port is refused with 403",
       ask(f"CONNECT localhost:{echo_port + 1} HTTP/1.1\r\n\r\n".encode()).startswith(b"HTTP/1.1 403"), True)
 check("a plain HTTP request (not CONNECT) is refused with 400",
       ask(b"GET http://example.com/ HTTP/1.1\r\nHost: example.com\r\n\r\n").startswith(b"HTTP/1.1 400"), True)
-check("the default allow-list is the Anthropic API alone", egress_relay.DEFAULT_ALLOW, ("api.anthropic.com:443",))
+check("the default allow-list is the cloud model APIs alone (Anthropic, OpenAI)", egress_relay.DEFAULT_ALLOW,
+      ("api.anthropic.com:443", "api.openai.com:443"))
 
 # audit run 2: systemd's agenti-relay.socket holds the port and hands it over as an fd
 _held = socket.socket(); _held.bind(("127.0.0.1", 0)); _held.listen()

@@ -131,9 +131,11 @@ class AgentContract:
     # the contract's safety checks unit-testable on their own.
     def build_mcp_server(self):
         from claude_agent_sdk import create_sdk_mcp_server
+        import agent_tools
         return create_sdk_mcp_server(
             name=self.mcp_server_name, version=self.mcp_server_version,
-            tools=list(self.tools),
+            tools=[agent_tools.to_sdk(t) if isinstance(t, agent_tools.ToolDef) else t
+                   for t in self.tools],
         )
 
     # -- derived: the PreToolUse hard-deny hook ------------------------------

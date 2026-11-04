@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 #
-# set-secret.sh — install an Anthropic API key into the data root (the vault,
-# when it is enabled). Run through `sudo agenti setup` or `sudo agenti <agent> set-key`.
+# set-secret.sh — install an AI provider's API key into the data root (the
+# vault, when it is enabled). Run through `sudo agenti setup` or `sudo agenti <agent> set-key`.
+#
+#   --provider anthropic   ANTHROPIC_API_KEY (the default)
+#   --provider openai      OPENAI_API_KEY
+#   --provider local       LOCAL_LLM_API_KEY, for a self-hosted model; with
+#                          --base-url <http(s)://host:port/v1> its address
+#                          (LOCAL_LLM_BASE_URL, not a secret but kept with it)
+# Each tier's file holds every provider's key: setting one replaces only its
+# own line (docs/model-providers.md).
 #
 # The key is read from a SILENT prompt, never from the command line, so it
 # never lands in your shell history, the process table, or a log.
@@ -22,7 +30,8 @@
 #   org / agent / user:   0600 agenti-run:agenti-run — owned by the one account
 #                         that runs the agents.
 #
-# Usage:  sudo ./set-secret.sh [--org | --agent <a> | --user <u>] [--show | --stdin]
+# Usage:  sudo ./set-secret.sh [--provider anthropic|openai|local] [--base-url <url>]
+#                               [--org | --agent <a> | --user <u>] [--show | --stdin]
 #
 set -euo pipefail
 
@@ -40,8 +49,19 @@ ORG=0
 STDIN=0        # --stdin: the key is the first line of stdin, no questions (Settings → Platform)
 AGENT=""
 USER_NAME=""
+PROVIDER="anthropic"
+BASE_URL=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --provider)
+            PROVIDER="${2:-}"
+            [[ "$PROVIDER" =~ ^(anthropic|openai|local)$ ]] || die "--provider is one of: anthropic, openai, local"
+            shift 2 ;;
+        --base-url)
+            BASE_URL="${2:-}"
+            [[ "$BASE_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$ ]] \
+                || die "--base-url needs the model server's address, e.g. http://10.0.0.5:11434/v1"
+            shift 2 ;;
         --org) ORG=1; shift ;;
         --agent)
             AGENT="${2:-}"
@@ -75,6 +95,12 @@ else
     TIER="shared"
 fi
 SECRETS="$PREFIX/secrets.env"
+case "$PROVIDER" in
+    anthropic) KEY_VAR=ANTHROPIC_API_KEY; KEY_LABEL="Anthropic"; KEY_PREFIX="sk-ant-" ;;
+    openai)    KEY_VAR=OPENAI_API_KEY;    KEY_LABEL="OpenAI";    KEY_PREFIX="sk-" ;;
+    local)     KEY_VAR=LOCAL_LLM_API_KEY; KEY_LABEL="self-hosted model"; KEY_PREFIX="" ;;
+esac
+[[ -z "$BASE_URL" || "$PROVIDER" == local ]] || die "--base-url is for --provider local (a self-hosted model)"
 
 _SHOW_FLAGS="${USER_NAME:+--user $USER_NAME }${AGENT:+--agent $AGENT }$([[ $ORG -eq 1 ]] && echo "--org " || true)"
 [[ $EUID -eq 0 ]] || die "must run as root. Try: sudo $0 ${_SHOW_FLAGS}${1:-}"
@@ -100,12 +126,16 @@ if [[ "${1:-}" == "--show" ]]; then
         mode=$(stat -c '%a' "$SECRETS"); owner=$(stat -c '%U:%G' "$SECRETS")
         echo "secrets.env ($TIER) present: mode $mode, owner $owner"
         # Show ONLY a fingerprint — never the key.
-        if grep -q '^ANTHROPIC_API_KEY=' "$SECRETS"; then
-            key=$(grep '^ANTHROPIC_API_KEY=' "$SECRETS" | head -1 | cut -d= -f2-)
-            echo "ANTHROPIC_API_KEY set: ${key:0:7}… (${#key} chars, sha256 ${key:+$(printf '%s' "$key" | sha256sum | cut -c1-12)})"
-        else
-            echo "ANTHROPIC_API_KEY: NOT SET"
-        fi
+        for var in ANTHROPIC_API_KEY OPENAI_API_KEY LOCAL_LLM_API_KEY; do
+            if grep -q "^$var=." "$SECRETS"; then
+                key=$(grep "^$var=" "$SECRETS" | head -1 | cut -d= -f2-)
+                echo "$var set: ${key:0:7}… (${#key} chars, sha256 $(printf '%s' "$key" | sha256sum | cut -c1-12))"
+            else
+                echo "$var: NOT SET"
+            fi
+        done
+        url=$(sed -n 's/^LOCAL_LLM_BASE_URL=//p' "$SECRETS" | head -1)
+        echo "LOCAL_LLM_BASE_URL: ${url:-NOT SET}"
     else
         echo "secrets.env ($TIER) not present at $SECRETS"
     fi
@@ -116,21 +146,28 @@ fi
 if [[ $STDIN -eq 1 ]]; then
     IFS= read -r API_KEY || true
 else
-    if [[ -f "$SECRETS" ]]; then
-        echo "$SECRETS ($TIER) already exists; this will REPLACE the stored key."
+    if [[ -f "$SECRETS" ]] && grep -q "^$KEY_VAR=." "$SECRETS"; then
+        echo "$SECRETS ($TIER) already holds a $KEY_LABEL key; this will REPLACE it."
         read -r -p "continue? [y/N] " reply
         [[ "$reply" =~ ^[Yy]$ ]] || { echo "aborted."; exit 0; }
     fi
-    echo "Paste the Anthropic API key, then press Enter."
+    if [[ "$PROVIDER" == local ]]; then
+        echo "Paste the self-hosted model's API key, or just press Enter if it needs none."
+    else
+        echo "Paste the $KEY_LABEL API key, then press Enter."
+    fi
     echo "(input is hidden — nothing will appear as you type)"
     read -rs API_KEY
     echo
 fi
 
-[[ -n "$API_KEY" ]] || die "no key entered"
+[[ -n "$API_KEY" || "$PROVIDER" == local ]] || die "no key entered"
 # Cheap sanity check — catches a mis-paste before you discover it at runtime.
-[[ "$API_KEY" == sk-ant-* ]] || die "that does not look like an Anthropic key (expected it to start with 'sk-ant-')"
+[[ -z "$KEY_PREFIX" || "$API_KEY" == "$KEY_PREFIX"* ]] \
+    || die "that does not look like an $KEY_LABEL key (expected it to start with '$KEY_PREFIX')"
 [[ "$API_KEY" != *[[:space:]]* ]] || die "the key contains whitespace — likely a bad paste"
+[[ "$PROVIDER" != local || -n "$BASE_URL" ]] || grep -qs '^LOCAL_LLM_BASE_URL=.' "$SECRETS" \
+    || die "a self-hosted model needs its address: add --base-url http://<host>:<port>/v1"
 
 # Write via a temp file in the same directory, then atomically move it, so
 # the key is never briefly readable at a looser mode.
@@ -140,12 +177,21 @@ if [[ -n "$OWNER" ]]; then
 else
     chmod 640 "$TMP"
 fi
-cat > "$TMP" <<EOF
+{
+    cat <<EOF
 # secrets.env ($TIER) — loaded by the harness via agent_runtime.load_secrets()'s
 # ordered candidate list. $( [[ -n "$OWNER" ]] && echo "0600 ${OWNER}:${OWNER}." || echo "0640 root:${SHARED_GROUP} — the service account is a member." )
 # Never commit this file anywhere.
-ANTHROPIC_API_KEY=${API_KEY}
 EOF
+    # Every other provider's line stays as it was; this one is replaced.
+    if [[ -f "$SECRETS" ]]; then
+        grep -E '^[A-Z_]+=' "$SECRETS" | grep -v "^$KEY_VAR=" \
+            | { if [[ -n "$BASE_URL" ]]; then grep -v '^LOCAL_LLM_BASE_URL='; else cat; fi; } || true
+    fi
+    [[ -n "$API_KEY" ]] && printf '%s=%s\n' "$KEY_VAR" "$API_KEY"
+    [[ -n "$BASE_URL" ]] && printf 'LOCAL_LLM_BASE_URL=%s\n' "$BASE_URL"
+    true
+} > "$TMP"
 if [[ -n "$OWNER" ]]; then
     chown "$OWNER:$OWNER" "$TMP"
 else

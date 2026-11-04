@@ -392,7 +392,7 @@ def configure(profile: Profile) -> Profile:
     agent_runtime.load_secrets([profile.data_root / "secrets.env",
                                 ORG_DIR / "secrets.env",
                                 SHARED_DIR / "secrets.env"])
-    agent_runtime.require_api_key(AGENT_NAME)
+    agent_runtime.require_api_key(AGENT_NAME, profile.model)
 
     _this_run = (
         "SCOPE FOR THIS RUN\\n"

@@ -175,17 +175,27 @@ def load_secrets(paths: list[Path | None]) -> None:
         return          # first match wins
 
 
-def require_api_key(agent_name: str) -> None:
-    """Fail EARLY if there is no key, rather than dying mid-flight on an auth
-    error after the agent has already spun up."""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+def require_api_key(agent_name: str, model: str | None = None) -> None:
+    """Fail EARLY if the run's provider has no key (or a self-hosted model no
+    address), rather than dying mid-flight on an auth error after the agent
+    has already spun up. With no model: Claude, as before the provider seam."""
+    import model_registry
+    try:
+        p = model_registry.provider_of(model) if model else model_registry.PROVIDERS["anthropic"]
+    except model_registry.ModelNameError as e:
+        sys.exit(f"REFUSING: {e}")
+    flag = "" if p.name == "anthropic" else f" --provider {p.name}"
+    if p.base_url_env and not os.environ.get(p.base_url_env):
+        sys.exit(f"REFUSING: no address for the {p.label} ({p.base_url_env}).\n"
+                 f"  set it:  sudo /usr/lib/agenti/set-secret.sh{flag} --base-url http://<host>:<port>/v1")
+    if p.key_required and not os.environ.get(p.key_env):
         sys.exit(
-            f"REFUSING: no ANTHROPIC_API_KEY.\n"
-            f"  shared key:    sudo ./set-secret.sh\n"
-            f"  org-wide:      sudo ./set-secret.sh --org\n"
-            f"  per-agent:     sudo ./set-secret.sh --agent {agent_name}\n"
-            f"  per-user:      sudo ./set-secret.sh --user <username>\n"
-            f"  dev:           read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY"
+            f"REFUSING: no {p.key_env} ({p.label}).\n"
+            f"  shared key:    sudo /usr/lib/agenti/set-secret.sh{flag}\n"
+            f"  org-wide:      sudo /usr/lib/agenti/set-secret.sh{flag} --org\n"
+            f"  per-agent:     sudo /usr/lib/agenti/set-secret.sh{flag} --agent {agent_name}\n"
+            f"  per-user:      sudo /usr/lib/agenti/set-secret.sh{flag} --user <username>\n"
+            f"  dev:           read -rs {p.key_env} && export {p.key_env}"
         )
 
 
@@ -1173,7 +1183,7 @@ def make_team_message_tool(agent_dir: Path):
     if team_info is None:
         return None
 
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     team, member = team_info["team"], team_info["member"]
     channel = team_channel_path(agent_dir, team)
@@ -1287,7 +1297,7 @@ def make_propose_complete_tool(agent_dir: Path):
     if team_info is None:
         return None
 
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     team, member = team_info["team"], team_info["member"]
     channel = team_channel_path(agent_dir, team)
@@ -1359,7 +1369,7 @@ def make_ask_operator_tool(agent_dir: Path, holder: "StateHolder"):
     no special-casing needed for it to show up in the console feed; (2)
     the `awaiting_operator` flag on state.json (state.py), which is what
     the pump loop and the GUI actually key off of."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool(
         "ask_operator",
@@ -2295,7 +2305,7 @@ def make_suggest_preference_tool(agent_dir: Path):
     in the GUI. Capped per run, and the text is cut to one short line, so it
     cannot be used to smuggle a long instruction (or whatever it read on a web
     page) into a future run unnoticed."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
     sent = {"n": 0}
     MAX_PER_RUN, MAX_CHARS = 3, 300
 
@@ -2343,7 +2353,7 @@ def make_file_tools(agent_dir: Path) -> tuple:
     (run_files.py holds every rule). Read-only by construction: the files and
     their folder are root-owned. Offered to every run, so a file attached
     while the run is going is readable at once."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
 
     @tool("list_files",
           "List the files the operator attached to this run: name, size, and "
@@ -2533,7 +2543,7 @@ def make_request_tool_tool(agent_dir: Path, holder: "StateHolder", offered: set)
     ask_operator pause, so an approval or refusal arrives as an ordinary
     operator message. It cannot grant anything: the grant is written by root,
     after the operator clicks, and only for a program on `offered`."""
-    from claude_agent_sdk import tool
+    from agent_tools import tool
     names = sorted(offered)
     sent = {"n": 0}
     MAX_PER_RUN = 5
@@ -2654,6 +2664,18 @@ def system_prompt_file(text: str) -> dict:
             pass
     atexit.register(_remove)
     return {"type": "file", "path": path}
+
+
+def run_model_prices(org_dir) -> dict:
+    """The organisation's stated model prices (policy.model_prices), for the
+    budget cap of a run on the OpenAI-compatible engine. {} when unreadable:
+    a cloud model with no price is then refused, never run uncapped."""
+    try:
+        record = engagement_context.read_record(
+            Path(org_dir) / engagement_context.ORG_ENGAGEMENT_FILENAME)
+        return dict(engagement_context.resolve_policy(record).get("model_prices") or {})
+    except Exception:
+        return {}
 
 
 def cli_env() -> dict[str, str]:

@@ -24,14 +24,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from claude_agent_sdk import (
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-    HookMatcher,
-    ResultMessage,
-)
-
 import agent_runtime
+import model_session
 import state
 from agent_runtime import Profile
 
@@ -40,8 +34,8 @@ from agent_runtime import Profile
 class Session:
     """What one run needs from its agent kind."""
     profile: Profile
-    contract: Any                  # AgentContract (its MCP server name and tool names)
-    mcp_server: Any
+    contract: Any                  # AgentContract (its tools, tool names, MCP server name)
+    mcp_server: Any                # the Claude engine's tool server, or None to build it there
     allowlist_hook: Callable       # the PreToolUse hard-deny hook
     system_prompt: str
     agent_dir: Path                # this run's slot
@@ -275,19 +269,16 @@ async def run_session(s: Session) -> int:
     # narration, tool calls and their results into the one ledger, in order.
     tracker = agent_runtime.StateTracker(STATE, summarize_tool_content)
 
-    options = ClaudeAgentOptions(
-        system_prompt=agent_runtime.system_prompt_file(s.system_prompt),
-        mcp_servers={s.contract.mcp_server_name: s.mcp_server},
-        allowed_tools=sorted(s.contract.allowed_tool_names),
-        # dontAsk fails closed: any tool not pre-approved above is denied (there
-        # is no human to answer a prompt in an unattended run). The hook below is
-        # the belt to this suspenders — it runs first and denies even if the mode
-        # is ever loosened. Two independent layers, neither enumerating built-ins.
-        permission_mode="dontAsk",
-        setting_sources=[],  # load no user/project settings: nothing outside our own files steers a run
-        hooks=agent_runtime.build_hooks(s.allowlist_hook, HookMatcher, agent_dir=agent_dir,
-                                        state=STATE, tracker=tracker, logger=log),
+    # The model's provider is the seam's business (docs/model-providers.md):
+    # the same tools, the same allow-list guard, the same operator/team
+    # delivery after each tool call, the same caps, whichever engine runs it.
+    spec = model_session.SessionSpec(
         model=profile.model,
+        system_prompt=s.system_prompt,
+        contract=s.contract,
+        mcp_server=s.mcp_server,
+        pre_tool_hook=s.allowlist_hook,
+        post_tool_hook=agent_runtime.make_inbox_hook(agent_dir, STATE, lambda: tracker.turn, log),
         max_turns=profile.max_turns,            # stop after N agentic turns
         max_budget_usd=profile.max_budget_usd,  # hard stop on spend
         # Attach to the previous conversation when resuming. Per-run caps are
@@ -295,7 +286,10 @@ async def run_session(s: Session) -> int:
         # every time, so a resume can never inherit a looser budget than the
         # operator set for it (CLAUDE.md §1 invariant 7).
         resume=resume_session,
+        state_dir=profile.data_root / "state",
         env=agent_runtime.cli_env(),
+        model_prices=agent_runtime.run_model_prices(s.org_dir),
+        logger=log,
     )
 
     result = None
@@ -314,7 +308,7 @@ async def run_session(s: Session) -> int:
     # __aexit__ — write_report() below never ran despite the first copy
     # having been "handled". Wrapping the whole async-with closes that gap.
     try:
-        async with ClaudeSDKClient(options=options) as client:
+        async with model_session.open_session(spec) as client:
             # `agenti ... interrupt` (SIGUSR1) — a faster stop that aborts the
             # in-flight tool call instead of waiting for it. Installed here,
             # once `client` is live, because client.interrupt() needs the
@@ -348,7 +342,7 @@ async def run_session(s: Session) -> int:
                     while True:
                         async for message in client.receive_response():
                             print(journal_line(message))
-                            if isinstance(message, ResultMessage):
+                            if type(message).__name__ == "ResultMessage":
                                 result = message
                                 agent_runtime.note_result(message)
                             elif (type(message).__name__ == "SystemMessage"
