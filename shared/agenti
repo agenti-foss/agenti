@@ -1022,7 +1022,7 @@ Allowed models: $(allowed_models)"
     # --dry-run means something. They still decide; this only refuses sooner.
     local pre prc=0
     pre=$(python3 "$LIBDIR/run_coverage.py" precheck --org-dir "$(org_dir)" --agent "$agent" \
-            --kind "$scope_kind" --target "$target" --model "$model" 2>&1) || prc=$?
+            --kind "$scope_kind" --target "$target" --model "$model" --owner "$OWNER" 2>&1) || prc=$?
     if [[ $prc -eq 3 ]]; then
         die "REFUSING to start '$agent'${target:+ against '$target'}; nothing was created or run:
 $(printf '%s\n' "$pre" | sed 's/^/  - /')"

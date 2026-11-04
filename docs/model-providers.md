@@ -162,9 +162,23 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
 Known gaps found while building A (do these in B):
 - `load_secrets` takes the FIRST tier file that exists, whole: a per-user file
   holding only a Claude key hides the org's OpenAI key. Make it per key.
+  **Fixed (2026-11-04):** each key now resolves independently through the
+  tiers, with explicit environment values retaining priority. Regression
+  checks passed locally and on the test VM against the installed helper,
+  including under the real `agenti-run` account: a user Claude key does not
+  hide a broader OpenAI key, and an insecure lower-tier file is refused.
+  This is helper-level proof; the Phase B launch/GUI boxes remain unticked.
 - `run_coverage.py precheck` checks the model is allowed but not its price,
   key or address: an OpenAI run with no price fails at start (a report says
   why) instead of being refused before a slot exists. Add those checks there.
+  **Implemented, helper-proven on the VM (2026-11-04):** the CLI passes the
+  run owner; precheck resolves that owner's provider settings and refuses a
+  missing cloud price/key or missing/invalid self-hosted URL before slot
+  allocation. Four provider regression tests passed against the installed
+  code as `agenti-run`. Also found and corrected preflight's unconditional
+  Anthropic key, Claude executable and Anthropic egress checks: these now
+  follow the selected provider. Full deployed-unit and GUI launch proof is
+  still pending; no Phase B box is complete.
 - The "no API key" banners (dashboard, Launch, Settings → Platform) look only
   at `ANTHROPIC_API_KEY`.
 - `/etc/agenti/relay.conf` replaces the relay's default list: adding a
@@ -175,6 +189,28 @@ Known gaps found while building A (do these in B):
   lists models live.
 
 **B. Everywhere a model is chosen (hand-off point for Codex)**
+
+**In progress, session saved 2026-11-04 at the operator's request:** the first
+two Known gaps have implementations and VM helper-level regression proof
+(two secrets tests and five provider/preflight tests, against installed code
+as `agenti-run`). Changes are deployed directly to the test VM:
+`agent_runtime.py`, `run_coverage.py`, `preflight.py`, and `/usr/bin/agenti`.
+No Phase B checkbox has been ticked; real deployed-unit/GUI launch proof
+and the mixed-provider team run are still required. The VM currently has
+no IAM users (`admin user list --json` returned `[]`); an asynchronous request
+was sent asking the operator to complete first-run setup, with no answer yet.
+Check readiness again next session. No provider keys were read or printed.
+
+Local targeted suites passed: `test_secrets.py`, `test_provider_precheck.py`,
+`test_run_coverage.py` (31 checks), `test_preflight.py` (56 checks).
+The full `ci.sh all` run needs system Python with `cryptography` and the lint
+tools on PATH. A sandboxed attempt hit socket restrictions; the unrestricted
+rerun was still running when the operator requested this save. Its log is
+`/tmp/agenti-phase-b-ci-unrestricted.log` on the development machine: check
+its final result or rerun before relying on it. No GUI assets were changed.
+Next: finish/prove the remaining Known gaps, then the Phase B checklist;
+do not start phase C or publish to the public repository.
+
 - [ ] CLI: `start --model openai:gpt-…`, `models` verb (live list),
       `set-secret` for the new keys, `admin set-policy` for `model_prices`.
 - [ ] API + GUI: launch page provider + model picker (live list); team

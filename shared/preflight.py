@@ -75,6 +75,12 @@ API_HOST = "api.anthropic.com"
 results: list[tuple[bool, str, str]] = []
 
 
+def run_provider():
+    import model_registry
+    config = json.loads((DATA_ROOT / "run-config.json").read_text())
+    return model_registry.provider_of(config.get("model", ""))
+
+
 def add(ok: bool, label: str, detail: str = "") -> None:
     results.append((ok, label, detail))
 
@@ -125,14 +131,23 @@ def check_secrets() -> None:
     # systemd has already loaded every key tier (shared, org, agent, slot and
     # the owner's own, last wins) into this environment; that is the key the
     # run will use, so it is the one to require (audit run 1, N01).
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    try:
+        provider = run_provider()
+    except (OSError, ValueError) as e:
+        add(False, "secrets", f"cannot resolve this run's provider: {e}; start again with --model <provider>:<model>")
+        return
+    if provider.base_url_env and not os.environ.get(provider.base_url_env):
+        add(False, "secrets", f"no self-hosted address; set one with: sudo /usr/lib/agenti/set-secret.sh "
+                             "--provider local --base-url http://<host>:<port>/v1")
+        return
+    if provider.key_required and not os.environ.get(provider.key_env):
         add(False, "secrets",
-            "no Anthropic API key reached this run (vault unlocked? set one with: "
-            "sudo agenti setup, sudo agenti <agent> set-key or sudo agenti admin set-user-key <user>)")
+            f"no {provider.label} API key reached this run; set one with: "
+            f"sudo /usr/lib/agenti/set-secret.sh --provider {provider.name}")
         return
     found = next((p for p in SECRETS_CANDIDATES if p.exists()), None)
     if found is None:
-        add(True, "secrets", "API key present (from the organisation, agent or user tier)")
+        add(True, "secrets", "provider credentials present" if provider.key_required else "self-hosted address present (key optional)")
         return
     SECRETS_FILE = found
     st = SECRETS_FILE.stat()
@@ -162,6 +177,13 @@ def check_secrets() -> None:
 def check_claude_code() -> None:
     """Anthropic's Claude Code program, which agenti-runtime fetches at install
     instead of redistributing it (packaging/runtime/fetch-claude-code)."""
+    try:
+        if run_provider().engine != "claude":
+            add(True, "claude-code", "not needed for this provider")
+            return
+    except (OSError, ValueError) as e:
+        add(False, "claude-code", f"cannot resolve this run's provider: {e}")
+        return
     import importlib.util
     spec = importlib.util.find_spec("claude_agent_sdk")
     if spec is None or not spec.origin:
@@ -192,15 +214,15 @@ def check_scans() -> None:
         add(False, "scans-writable", f"{target}: {e}")
 
 
-def _connect_api(relay: str) -> socket.socket:
+def _connect_api(relay: str, api_host: str = API_HOST, api_port: int = 443) -> socket.socket:
     """A TCP connection to API_HOST:443 — direct, or through the run's relay
     (an IP-scoped run can reach nothing else; audit run 1, fix 1b)."""
     if not relay:
-        return socket.create_connection((API_HOST, 443), timeout=8)
+        return socket.create_connection((api_host, api_port), timeout=8)
     hostport = relay.split("://", 1)[-1].rstrip("/")
     host, port = hostport.rsplit(":", 1)
     sock = socket.create_connection((host, int(port)), timeout=8)
-    sock.sendall(f"CONNECT {API_HOST}:443 HTTP/1.1\r\nHost: {API_HOST}:443\r\n\r\n".encode())
+    sock.sendall(f"CONNECT {api_host}:{api_port} HTTP/1.1\r\nHost: {api_host}:{api_port}\r\n\r\n".encode())
     reply = b""
     while b"\r\n\r\n" not in reply and len(reply) < 4096:
         chunk = sock.recv(1024)
@@ -220,13 +242,20 @@ def check_egress() -> None:
     relay = os.environ.get("AGENTI_RELAY", "")
     via = f" via the relay ({relay})" if relay else ""
     try:
-        with _connect_api(relay) as raw:
-            with ctx.wrap_socket(raw, server_hostname=API_HOST) as tls:
-                tls.getpeercert()        # also validates the cert -> catches bad clock
-        add(True, "api-egress", f"TLS to {API_HOST}:443{via} ok")
+        from urllib.parse import urlsplit
+        provider = run_provider()
+        url = urlsplit(provider.base_url or os.environ.get(provider.base_url_env, ""))
+        if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password:
+            raise ValueError("invalid provider address; configure it with set-secret.sh --provider local --base-url")
+        port = url.port or (443 if url.scheme == "https" else 80)
+        with _connect_api(relay, url.hostname, port) as raw:
+            if url.scheme == "https":
+                with ctx.wrap_socket(raw, server_hostname=url.hostname) as tls:
+                    tls.getpeercert()
+        add(True, "api-egress", f"{url.scheme.upper()} to {url.hostname}:{port}{via} ok")
     except Exception as e:
         hint = ("  [start the relay: sudo systemctl start agenti-relay]" if relay else "")
-        add(False, "api-egress", f"cannot reach {API_HOST}:443{via} ({e}){hint}")
+        add(False, "api-egress", f"cannot reach this run's model provider{via} ({e}){hint}")
 
 
 def check_code_immutable() -> None:

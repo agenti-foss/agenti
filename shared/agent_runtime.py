@@ -130,11 +130,16 @@ def secrets_path_list(
 
 
 def load_secrets(paths: list[Path | None]) -> None:
-    """Load KEY=VALUE pairs from the FIRST secrets file that exists.
+    """Apply per-key tier resolution without overriding exported values."""
+    os.environ.update(read_secrets(paths, os.environ))
+
+
+def read_secrets(paths: list[Path | None], inherited=None) -> dict[str, str]:
+    """Load KEY=VALUE pairs, taking the first value found for each key.
 
     Lookup is ordered — per-user wins over per-agent over org-wide over
-    shared — so a single key works for everything and narrower keys can be
-    added later for cost attribution without touching code.
+    shared — independently for each key, so a narrower provider key does
+    not hide another provider's key in a broader tier.
 
     Two deliberate behaviours:
       * REFUSES to read a file any account outside the intended readership
@@ -142,9 +147,12 @@ def load_secrets(paths: list[Path | None]) -> None:
         OR root-owned 0640 with THIS process a genuine member of the owning
         group (the platform-shared tier). Anything else is refused: a secret
         the wrong account can read is not a secret.
-      * Does NOT override variables already in the environment, so an
-        explicit export still wins for one-off overrides.
+      * Values in `inherited` win over files. The run passes its environment;
+        the root launch precheck uses the same resolver without exporting keys.
+        Root may read the restricted root-owned tier files before launch;
+        an unprivileged reader must belong to their owning group.
     """
+    values = dict(inherited or {})
     for path in paths:
         if path is None:
             continue
@@ -152,7 +160,7 @@ def load_secrets(paths: list[Path | None]) -> None:
             continue
         st = path.stat()
         mode = stat.S_IMODE(st.st_mode)
-        if st.st_uid == os.getuid():
+        if st.st_uid == os.getuid() and st.st_uid != 0:
             if mode & 0o077:
                 sys.exit(f"REFUSING: {path} is mode {oct(mode)} — group/other can read it. "
                          f"Fix with: sudo chmod 600 {path}")
@@ -160,7 +168,7 @@ def load_secrets(paths: list[Path | None]) -> None:
             other_denied = (mode & 0o007) == 0
             group_read_only = (mode & 0o070) in (0o040, 0o000)
             root_owned = st.st_uid == 0
-            in_group = st.st_gid in (*os.getgroups(), os.getgid())
+            in_group = os.getuid() == 0 or st.st_gid in (*os.getgroups(), os.getgid())
             if not (root_owned and other_denied and group_read_only and in_group):
                 sys.exit(f"REFUSING: {path} is mode {oct(mode)} owned by uid {st.st_uid} — "
                          f"not readable as this process's own file (0600) nor as the "
@@ -171,8 +179,8 @@ def load_secrets(paths: list[Path | None]) -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-        return          # first match wins
+            values.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    return values
 
 
 def require_api_key(agent_name: str, model: str | None = None) -> None:

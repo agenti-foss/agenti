@@ -35,6 +35,7 @@ refused a moment later; preflight and the harness still decide.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -90,7 +91,8 @@ def why_uncovered(org_dir: Path, agent: str, kind: str, target_text: str,
     return ""
 
 
-def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: str) -> list[str]:
+def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: str,
+                owner: str | None = None) -> list[str]:
     """Every reason a start of `agent` against `target_text` with `model`
     would be refused by preflight or the harness, in plain words."""
     reasons: list[str] = []
@@ -103,6 +105,42 @@ def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: s
         reasons.append(f"model '{model}' is not allowed here. Allowed: "
                        f"{', '.join(policy['allowed_models']) or '(none configured)'} "
                        f"(an admin changes this in Settings → Engagement)")
+    elif model:
+        import model_registry as mr
+        provider = mr.provider_of(model)
+        if provider.engine == "openai" and mr.price_for(model, policy.get("model_prices")) is None:
+            reasons.append(f"no price configured for '{model}'; set USD per million input/output tokens: "
+                           f"sudo agenti engagement set --model-price {model}=INPUT,OUTPUT")
+        if owner is not None:
+            if owner in (".", "..") or not owner or Path(owner).name != owner:
+                reasons.append("invalid run owner; use an existing Agenti username with --owner")
+            else:
+                from agent_runtime import read_secrets
+                tiers = [org_dir / "users" / owner / "secrets.env",
+                         org_dir / agent / "secrets.env", org_dir / "secrets.env",
+                         org_dir.parent / "shared" / "secrets.env"]
+                try:
+                    values = read_secrets(tiers, os.environ)
+                    flag = f" --provider {provider.name}"
+                    if provider.key_required and not values.get(provider.key_env):
+                        reasons.append(f"no {provider.label} API key for this run; set one with: "
+                                       f"sudo /usr/lib/agenti/set-secret.sh{flag}")
+                    if provider.base_url_env:
+                        from urllib.parse import urlsplit
+                        address = values.get(provider.base_url_env, "")
+                        try:
+                            url = urlsplit(address)
+                            valid = (url.scheme in ("http", "https") and url.hostname and
+                                     not url.username and not url.password and not url.query and
+                                     not url.fragment and (url.port is None or 1 <= url.port <= 65535))
+                        except ValueError:
+                            valid = False
+                        if not valid:
+                            reasons.append(f"no valid {provider.label} address; set one with: "
+                                           f"sudo /usr/lib/agenti/set-secret.sh{flag} "
+                                           "--base-url http://<host>:<port>/v1")
+                except (OSError, SystemExit) as e:
+                    reasons.append(f"could not load this run's provider settings: {e}")
     if kind not in ("cidr", "domain"):
         return reasons
     why = why_uncovered(org_dir, agent, kind, target_text, starting=True)
@@ -135,9 +173,10 @@ def main(argv=None) -> int:
     pc.add_argument("--kind", required=True)
     pc.add_argument("--target", default="")
     pc.add_argument("--model", default="")
+    pc.add_argument("--owner", required=True, help="run owner whose provider keys take priority")
     a = ap.parse_args(argv)
     if a.cmd == "precheck":
-        reasons = why_refused(Path(a.org_dir), a.agent, a.kind, a.target, a.model)
+        reasons = why_refused(Path(a.org_dir), a.agent, a.kind, a.target, a.model, a.owner)
         print("\n".join(reasons) if reasons else "ok")
         return 3 if reasons else 0
     if a.cmd == "exclusions":

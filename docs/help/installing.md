@@ -191,7 +191,16 @@ one agent its own key (`sudo agenti <agent> set-key`) or one user their own
 (`sudo agenti admin set-user-key <user>`), for example so each has its own
 spending limit in the Anthropic Console. A run uses the most specific key there
 is: the user's own, then the agent's, then the organisation's, then the shared
-one. Renaming a user takes their key (and their memory notes) with them; deleting
+one. Each provider's key resolves independently: a user's Anthropic key does
+not hide an OpenAI key at the organisation or shared level. An explicitly
+exported environment value takes priority over files. Every secrets file
+that is read must still have restricted permissions.
+Before creating a run, Agenti checks that its provider has a key (if required)
+and that a self-hosted provider has an HTTP or HTTPS address. OpenAI models
+also need an administrator-configured price so the run can enforce its budget:
+`sudo agenti engagement set --model-price openai:<model>=<input>,<output>`
+(USD per million tokens). A refusal includes the command to fix the setting.
+Renaming a user takes their key (and their memory notes) with them; deleting
 a user deletes their key. These per-agent and per-user keys are set only at the
 server's terminal; the web interface sets only the shared one.
 

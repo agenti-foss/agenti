@@ -138,11 +138,14 @@ check("approval required and missing: refused, naming the command",
       "sudo agenti engagement approve" in " ".join(pre("cidr", "10.0.0.5", "sonnet")), True)
 save(record(policy={"require_approval": False}))
 r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "--org-dir", str(org),
-                    "--agent", "enum", "--kind", "cidr", "--target", "192.0.2.1", "--model", "gpt-4"],
+                    "--owner", "tester", "--agent", "enum", "--kind", "cidr", "--target", "192.0.2.1", "--model", "gpt-4"],
                    capture_output=True, text=True)
 check("the CLI: exit 3 and one reason per line", (r.returncode, len(r.stdout.strip().splitlines())), (3, 2))
+keyfile = org / "secrets.env"
+keyfile.write_text("ANTHROPIC_API_KEY=test-fixture\n")
+keyfile.chmod(0o600)
 r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "--org-dir", str(org),
-                    "--agent", "enum", "--kind", "cidr", "--target", "10.0.0.5", "--model", "sonnet"],
+                    "--owner", "tester", "--agent", "enum", "--kind", "cidr", "--target", "10.0.0.5", "--model", "sonnet"],
                    capture_output=True, text=True)
 check("...exit 0 and 'ok'", (r.returncode, r.stdout.strip()), (0, "ok"))
 

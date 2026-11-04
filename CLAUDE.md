@@ -193,7 +193,7 @@ from `/proc/<pid>/mountinfo`.
   the approver. A domain run's start-time exclusions are root's `run-excluded`; a new one
   under its target stops it. fetch_external/web_search refuse every engagement host.
 - **Launch:** `start -t <target> --model <m>`; model mandatory; `run_coverage.py
-  precheck` (model, scope, window, approval) refuses BEFORE a slot exists (and makes
+  precheck` (model, provider key/address/price, scope, window, approval) refuses BEFORE a slot exists (and makes
   `--dry-run` honest); a 2 s post-start recheck catches the rest. Files attached before start are handed to the run; a file-analysis
   agent takes no target and refuses to start with no file. Every start is its
   own isolated run (fresh slot, see Current state).
