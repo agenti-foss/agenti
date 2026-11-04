@@ -261,13 +261,14 @@ agenti-runtime installed. Packages: `packaging/build-runtime.sh dist/`,
 `packaging/build-deb.sh dev dist/ [--edition exploit|cracker]`. GUI assets are
 version-stamped and `no-cache`; a stale page is a deploy that did not run.
 
+**GUI views (CI):** `shared/ci.sh gui` (`tests/gui/`, every page in pages.json against
+API answers recorded from a test box; new page or call → pages.json / record.js, `docs/ci.md`).
+
 **Live GUI check:** `shared/gui_check.py` (Selenium, real login, 390 px and
 1440 px; env `AGENTI_GUI_BASE USER PW_FILE TOTP_FILE ADMIN EXPECT_SECURE`).
-For click-throughs use the Playwright driver at `~/.local/agenti-tools/gui-drive/`
-(box's own Chromium; CDP virtual authenticator for passkeys; register a
-`page.on('dialog')` handler or native `confirm()` silently no-ops). WebAuthn
-needs the real origin (your deployment URL); plain-loopback
-`http://127.0.0.1:8420` works for everything else behind the proxy.
+Click-throughs: Playwright at `~/.local/agenti-tools/gui-drive/` (box's Chromium; CDP
+virtual authenticator for passkeys; a `page.on('dialog')` handler or `confirm()`
+no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the rest.
 
 **Recurring traps (each has bitten at least twice):**
 - A backslash or escaped quote inside an f-string expression is a SyntaxError
@@ -305,6 +306,9 @@ needs the real origin (your deployment URL); plain-loopback
 - **Security audits: two full runs done (2026-10-22 → 24)**, 73 confirmed + 23 leads, every
   fix shipped before 0.1.0 and live-checked; public summary in `docs/help/security-testing.md`.
   The CodeQL gate passes (`.github/codeql-reviewed.json` holds the reviewed findings and reasons).
+- **Network by default (2026-11-04):** a fresh install listens on 0.0.0.0, HTTPS,
+  self-signed (`write_first_api_conf`; upgrades keep api.conf); the setup page answers any
+  direct browser (`_setup_reachable`: never via proxy/tunnel or cross-site; code-guarded).
 - **Released: 0.1.2** (2026-11-04) on GitHub and the hand-signed apt repo
   apt.agenti-foss.org (runtime 1.0.0). Open core public at `agenti-foss/agenti` (from
   0.1.0; earlier history never public); this repo's `main` fast-forwards it. `agenti-runtime`
@@ -317,7 +321,7 @@ needs the real origin (your deployment URL); plain-loopback
 - **Package layout** (`docs/packaging.md`): FHS paths, bundled `agenti-runtime`, optional
   vault, `configure.sh`/`verify.sh`, `agenti setup`, `agenti gui configure`; console-only
   verbs refuse agenti-api. `tool_settings_store.catalog_for` is the one catalog reader.
-- `principal` → `user`: iam.db/Python keep "principal"; refusal lists carry both.
+- `principal` → `user`: iam.db and Python keep "principal".
 - **Docs page:** `shared/help_docs.py` serves `docs/help/*.md` to `agenti docs`, `/docs…`
   and `gui/docs.html`. FastAPI's explorer and `/openapi.json` are OFF.
 - **IAM:** two hardcoded roles (see Recurring traps). API keys resolve per-user (the
@@ -325,23 +329,19 @@ needs the real origin (your deployment URL); plain-loopback
 - **Plugins:** `agenti-exploit` / `agenti-cracker`, described by `packaging/plugins/<agent>.conf`
   (generic action-pending/approve/reject, engagement `enabled_capabilities`); plugin API v1
   in `docs/open-core-split.md`; `test_plugin_isolation.py` proves the core works alone.
-- **Every start is its own run:** a fresh slot `<owner>.run-<8 hex>` (`--copy` pins the
-  label; the GUI sends `?copy=` always). No `--copy` = the one run going, else the latest;
-  `acknowledge`/`action-approve <id>` find the run holding the id. `attach` with no
-  `--copy` stages in `<owner>`, which the next unlabelled start moves out of.
-- Remote access: `agenti gui configure --behind-proxy` + a Cloudflare Tunnel to
-  `http://127.0.0.1:8420` (the user's change; Claude's Cloudflare access is read-only).
+- **Every start is its own run:** slot `<owner>.run-<8 hex>` (`--copy` pins it; the GUI
+  always sends `?copy=`); no `--copy` = the run going, else the latest; `attach` with no
+  `--copy` stages in `<owner>` for the next unlabelled start.
+- Remote access: `agenti gui configure --behind-proxy` + the user's own tunnel/proxy.
 
 ### Open questions / next work
-1. **NEXT:** an apt host for the paid agents (their repos' CI pins core `CORE_VERSION`), a
-   guided Cloudflare setup command taking the user's own scoped token (never argv), a
-   visual GUI CI job, and a live GUI check of the update check (report-only, off by
-   default). Agenti is meant to become model-agnostic (any provider, self-hosted
-   included): keep the model behind a seam.
+1. **NEXT:** an apt host for the paid agents (on hold; their CI pins core
+   `CORE_VERSION`). Remote access setup is the user's own (no guided Cloudflare command,
+   decided 2026-11-04). Agenti is meant to become model-agnostic (any provider,
+   self-hosted included): keep the model behind a seam.
    **Licensing (2026-10-19):** open core AGPL-3.0; exploit, cracker and future advanced
    agents proprietary, one private repo each; CLA + trademark (`docs/open-core-split.md`).
-   Releases: `release.yml` (public repo only), `packaging/apt/repo.sh`,
-   `docs/release-signing.md`. The website is its own repo, `agenti-foss/website`
+   Releases: `release.yml` (public repo only), `repo.sh`, `docs/release-signing.md`. The website is its own repo, `agenti-foss/website`
    (`build.py --sync <this repo>/docs/help --check`).
 2. Notifications/escalation on an acknowledged channel; request rate limiting
    beyond the login throttle; aggregate spend caps; MCP access for Claude Code

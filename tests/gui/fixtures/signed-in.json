@@ -1,0 +1,1470 @@
+{
+ "_about": "Recorded by tests/gui/record.js from a test box; replayed by serve.py. Record again when a page calls something new.",
+ "answers": {
+  "GET /admin/agent-controls/enum": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "sections": [
+     {
+      "id": "identity",
+      "title": "What it is",
+      "editable": false,
+      "rows": [
+       [
+        "Scope kind",
+        "CIDRScope"
+       ],
+       [
+        "Category",
+        "cybersecurity"
+       ]
+      ]
+     },
+     {
+      "id": "scope",
+      "title": "Scope",
+      "editable": true,
+      "edit_where": "Agent scope panel below",
+      "rows": [
+       [
+        "Organisation allows",
+        "198.51.100.0/24"
+       ],
+       [
+        "This agent narrows to",
+        "no narrowing (inherits the organisation)"
+       ],
+       [
+        "A run is held to",
+        "198.51.100.0/24"
+       ],
+       [
+        "Always excluded",
+        "198.51.100.7"
+       ]
+      ]
+     },
+     {
+      "id": "instructions",
+      "title": "Instructions the agent reads",
+      "editable": true,
+      "edit_where": "editors coming (phase 4); CLI: agenti admin context",
+      "rows": [
+       [
+        "System prompt (required)",
+        "shipped default, 648 bytes"
+       ],
+       [
+        "Skills — this agent",
+        "not set"
+       ],
+       [
+        "Skills — every agent",
+        "not set"
+       ],
+       [
+        "Organisation policy",
+        "not set"
+       ],
+       [
+        "Operator preferences (memory)",
+        "0 user(s) have one; each run reads only its launcher's"
+       ]
+      ]
+     },
+     {
+      "id": "limits",
+      "title": "Run limits (set for the organisation)",
+      "editable": true,
+      "edit_where": "Settings → Engagement",
+      "rows": [
+       [
+        "Admin approval required",
+        "yes"
+       ],
+       [
+        "Max turns",
+        "40"
+       ],
+       [
+        "Max spend per run",
+        "$10.0"
+       ],
+       [
+        "Max run time",
+        "3600 s"
+       ],
+       [
+        "Allowed models",
+        "haiku, sonnet, opus"
+       ]
+      ]
+     },
+     {
+      "id": "tools",
+      "title": "Tools the agent can call",
+      "editable": false,
+      "edit_where": "built agents: Settings → Agents → Edit; hand-built: deploy only",
+      "rows": [
+       [
+        "run_scan",
+        "Run one allow-listed recon command (nmap, enum4linux-ng, etc.) against an in-scope host."
+       ],
+       [
+        "read_scan",
+        "Retrieve part of a previously run scan's saved output."
+       ]
+      ]
+     },
+     {
+      "id": "programs",
+      "title": "Programs it may run (enforced allow-list)",
+      "editable": true,
+      "edit_where": "Settings → Agents → Tool allow-list",
+      "rows": [
+       [
+        "GetNPUsers.py",
+        "Impacket: find accounts without pre-auth (AS-REP roasting)"
+       ],
+       [
+        "GetUserSPNs.py",
+        "Impacket: request service tickets (Kerberoasting)"
+       ],
+       [
+        "dig",
+        "DNS lookups (records, zone data where allowed)"
+       ],
+       [
+        "enum4linux-ng",
+        "SMB/NetBIOS enumeration (shares, users, policies)"
+       ],
+       [
+        "gobuster",
+        "directory/vhost/DNS brute-forcer for content discovery"
+       ],
+       [
+        "netexec",
+        "network service enumeration across SMB/LDAP/WinRM/etc."
+       ],
+       [
+        "nikto",
+        "web server scanner for known issues and misconfigurations"
+       ],
+       [
+        "nmap",
+        "port/service scanner and NSE script host — the primary recon tool"
+       ],
+       [
+        "ping",
+        "basic reachability check"
+       ],
+       [
+        "rpcclient",
+        "MS-RPC client for querying Windows services"
+       ],
+       [
+        "smbclient",
+        "SMB client for listing and reading allowed shares"
+       ],
+       [
+        "whatweb",
+        "web technology fingerprinter"
+       ]
+      ],
+      "note": null
+     },
+     {
+      "id": "denied",
+      "title": "Command patterns always refused",
+      "editable": false,
+      "rows": [
+       [
+        "[;&|]",
+        ""
+       ],
+       [
+        "`|\\$\\(",
+        ""
+       ],
+       [
+        ">|>>",
+        ""
+       ],
+       [
+        "(^|\\s)(-x|-X|--exec-method|--put-file|--sam|--lsa|--ntds|--dpapi|--laps)(\\s|=|$)",
+        ""
+       ],
+       [
+        "(^|\\s)-c\\s*['\"]?\\s*(put|mput|del|rm|rmdir|mkdir|rename)\\b",
+        ""
+       ]
+      ]
+     },
+     {
+      "id": "privileges",
+      "title": "Privileges and isolation",
+      "editable": false,
+      "edit_where": "deploy only (it is the boundary)",
+      "rows": [
+       [
+        "Linux capabilities",
+        "cap_net_admin cap_net_raw"
+       ],
+       [
+        "Capability ceiling",
+        "cap_net_admin cap_net_raw"
+       ],
+       [
+        "Can never gain new privileges",
+        "yes"
+       ],
+       [
+        "Whole system read-only",
+        "strict"
+       ],
+       [
+        "Max processes",
+        "512"
+       ],
+       [
+        "Network address families",
+        "AF_UNIX AF_INET AF_INET6 AF_NETLINK"
+       ]
+      ]
+     },
+     {
+      "id": "isolation",
+      "title": "What a run can see and write",
+      "editable": false,
+      "edit_where": "deploy only (it is the boundary)",
+      "rows": [
+       [
+        "Organisation folder",
+        "replaced by an empty read-only one; only the items below are put back"
+       ],
+       [
+        "Writable",
+        "its own run folder only (plus its team's chat channel, append-only, when it runs on a team)"
+       ],
+       [
+        "Read-only",
+        "the engagement and approval, this agent's scope file, and the model API key files"
+       ],
+       [
+        "Its code and the shared library",
+        "read-only (outside every writable path)"
+       ]
+      ]
+     },
+     {
+      "id": "guards",
+      "title": "Guards that always apply",
+      "editable": false,
+      "rows": [
+       [
+        "The model has no shell. It can only call the tools listed here; every built-in tool is refused by the allow-list and again by a check that runs before each tool call.",
+        ""
+       ],
+       [
+        "Scope is checked inside each tool against root-owned files, never against the prompt.",
+        ""
+       ],
+       [
+        "Network tools check the address a name actually resolves to, so a name that points inside the network is refused.",
+        ""
+       ],
+       [
+        "The run's scope, settings and code are read-only to the agent's own account.",
+        ""
+       ],
+       [
+        "Turns, spend and wall-clock time are hard caps that reset on every run.",
+        ""
+       ],
+       [
+        "Every tool call, refusal and operator message is written to the audit log and the report.",
+        ""
+       ]
+      ]
+     }
+    ],
+    "scope": {
+     "agent": "enum",
+     "scope_kind": "cidr",
+     "org_in_scope": [
+      "198.51.100.0/24"
+     ],
+     "org_out_of_scope": [
+      "198.51.100.7"
+     ],
+     "agent_in_scope": [],
+     "agent_out_of_scope": [],
+     "effective_in_scope": [
+      "198.51.100.0/24"
+     ],
+     "effective_error": null,
+     "narrowed": false
+    },
+    "drift": {
+     "checked_at_unit": "agenti-enum-instance@verify.service",
+     "loaded": true,
+     "checks": [
+      {
+       "name": "NoNewPrivileges",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "ProtectSystem",
+       "declared": "strict",
+       "live": "strict",
+       "status": "ok"
+      },
+      {
+       "name": "ProtectHome",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "PrivateTmp",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "ProtectKernelModules",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "ProtectControlGroups",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "LockPersonality",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "RestrictSUIDSGID",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "ProtectKernelTunables",
+       "declared": "yes",
+       "live": "yes",
+       "status": "ok"
+      },
+      {
+       "name": "TasksMax",
+       "declared": "512",
+       "live": "512",
+       "status": "ok"
+      },
+      {
+       "name": "AmbientCapabilities",
+       "declared": "cap_net_admin cap_net_raw",
+       "live": "cap_net_admin cap_net_raw",
+       "status": "ok"
+      },
+      {
+       "name": "CapabilityBoundingSet",
+       "declared": "cap_net_admin cap_net_raw",
+       "live": "cap_net_admin cap_net_raw",
+       "status": "ok"
+      },
+      {
+       "name": "never starts on boot",
+       "declared": "not enabled",
+       "live": "static",
+       "status": "ok"
+      }
+     ],
+     "ok": true,
+     "failed": 0,
+     "summary": "everything systemd enforces matches what was deployed"
+    }
+   }
+  },
+  "GET /admin/agent-scope/enum": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "agent": "enum",
+    "scope_kind": "cidr",
+    "org_in_scope": [
+     "198.51.100.0/24"
+    ],
+    "org_out_of_scope": [
+     "198.51.100.7"
+    ],
+    "agent_in_scope": [],
+    "agent_out_of_scope": [],
+    "effective_in_scope": [
+     "198.51.100.0/24"
+    ],
+    "effective_error": null,
+    "narrowed": false
+   }
+  },
+  "GET /admin/bindings": {
+   "status": 200,
+   "body": [
+    {
+     "subject_kind": "user",
+     "subject": "claude-admin",
+     "role": "admin",
+     "resource": "org",
+     "effect": "allow"
+    }
+   ]
+  },
+  "GET /admin/context/system-prompt?agent=enum": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "kind": "system-prompt",
+    "agent": "enum",
+    "source": "default",
+    "text": "## Objective\n\nAssess the authorized host(s) for live services and AD exposure, then give me a findings summary.\n\n## How you work\n\nInteract with the network ONLY via run_scan. Enumeration only: discover hosts,\nports, services, and AD information. Never exploit, brute force, or run DoS.\n\nOutput is trimmed by default and saved to disk. When the summary or index\nsuggests detail you need, call read_scan with a TARGETED grep pattern or a\nspecific line range — do not pull whole files unless you truly need them; every\nbyte you retrieve stays in context for the rest of the run.\n\nIf a finding looks critical, stop and summarize it for human review.\n",
+    "sha256": "b3fd415eca2ba171b1c53625ca7f7eb24399cfaa65761624dc5e33652c79703a",
+    "bytes": 648,
+    "max_bytes": 20000,
+    "has_default": true,
+    "required": true,
+    "history": []
+   }
+  },
+  "GET /admin/policy": {
+   "status": 200,
+   "body": {
+    "require-separate-approver": "off",
+    "webauthn-enabled": "off",
+    "update-check": "off",
+    "require-2fa": "on"
+   }
+  },
+  "GET /admin/tool-requests": {
+   "status": 200,
+   "body": []
+  },
+  "GET /admin/tool-settings/enum": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "settings_error": null,
+    "baseline": [
+     "GetNPUsers.py",
+     "GetUserSPNs.py",
+     "dig",
+     "enum4linux-ng",
+     "gobuster",
+     "netexec",
+     "nikto",
+     "nmap",
+     "ping",
+     "rpcclient",
+     "smbclient",
+     "whatweb"
+    ],
+    "settings": {
+     "enable": [],
+     "approvable": [],
+     "disable": []
+    },
+    "effective": [
+     "GetNPUsers.py",
+     "GetUserSPNs.py",
+     "dig",
+     "enum4linux-ng",
+     "gobuster",
+     "netexec",
+     "nikto",
+     "nmap",
+     "ping",
+     "rpcclient",
+     "smbclient",
+     "whatweb"
+    ],
+    "added": [],
+    "removed": [],
+    "approvable": [],
+    "purposes": {
+     "nmap": "port/service scanner and NSE script host — the primary recon tool",
+     "ping": "basic reachability check",
+     "dig": "DNS lookups (records, zone data where allowed)",
+     "nikto": "web server scanner for known issues and misconfigurations",
+     "gobuster": "directory/vhost/DNS brute-forcer for content discovery",
+     "whatweb": "web technology fingerprinter",
+     "enum4linux-ng": "SMB/NetBIOS enumeration (shares, users, policies)",
+     "rpcclient": "MS-RPC client for querying Windows services",
+     "smbclient": "SMB client for listing and reading allowed shares",
+     "netexec": "network service enumeration across SMB/LDAP/WinRM/etc.",
+     "GetUserSPNs.py": "Impacket: request service tickets (Kerberoasting)",
+     "GetNPUsers.py": "Impacket: find accounts without pre-auth (AS-REP roasting)"
+    },
+    "extra_denied_patterns": [
+     "(^|\\s)(-x|-X|--exec-method|--put-file|--sam|--lsa|--ntds|--dpapi|--laps)(\\s|=|$)",
+     "(^|\\s)-c\\s*['\"]?\\s*(put|mput|del|rm|rmdir|mkdir|rename)\\b"
+    ],
+    "catalog": [
+     {
+      "name": "curl",
+      "group": "web",
+      "purpose": "fetch a web page or response headers over HTTP(S) — GET only",
+      "extra_denied": [
+       "(^|\\s)(-d|--data\\S*|-F|--form\\S*|-T|--upload-file|-X|--request|-K|--config|-u|--user|-o|-O|--output|--remote-name)(\\s|=|$)",
+       "\\b(file|gopher|dict|ftp|ftps|scp|sftp|ldap|smb)://"
+      ],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "sslscan",
+      "group": "tls",
+      "purpose": "list the TLS versions and ciphers a service accepts",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "sslyze",
+      "group": "tls",
+      "purpose": "analyse a service's TLS configuration",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "testssl.sh",
+      "group": "tls",
+      "purpose": "test a service's TLS ciphers and known TLS flaws",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": false,
+      "install_hint": "sudo apt install testssl.sh"
+     },
+     {
+      "name": "whois",
+      "group": "network",
+      "purpose": "look up who an address is registered to",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "traceroute",
+      "group": "network",
+      "purpose": "show the network path to a host",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "nbtscan",
+      "group": "windows",
+      "purpose": "list NetBIOS names on a network",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "showmount",
+      "group": "unix",
+      "purpose": "list a host's NFS exports",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "smbmap",
+      "group": "windows",
+      "purpose": "list SMB shares and their permissions",
+      "extra_denied": [
+       "(^|\\s)(-x|--execute|--upload|--download|--delete|--skip)(\\s|=|$)",
+       "(^|\\s)-(u|p|H)(\\s|$)"
+      ],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "snmpwalk",
+      "group": "network",
+      "purpose": "read a device's SNMP data (read-only)",
+      "extra_denied": [
+       "(^|\\s)-v\\s*3"
+      ],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "ldapsearch",
+      "group": "windows",
+      "purpose": "read directory entries over LDAP (anonymous only)",
+      "extra_denied": [
+       "(^|\\s)(-w|-W|-y|-D|-Y|-H\\s*ldapi)(\\s|=|$)"
+      ],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "ike-scan",
+      "group": "network",
+      "purpose": "detect and fingerprint IPsec VPN gateways",
+      "extra_denied": [
+       "--aggressive|(^|\\s)-A(\\s|$)"
+      ],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     },
+     {
+      "name": "wafw00f",
+      "group": "web",
+      "purpose": "detect which web application firewall protects a site",
+      "extra_denied": [],
+      "source": "reviewed",
+      "installed": true,
+      "install_hint": null
+     }
+    ],
+    "history": [],
+    "ok": true
+   }
+  },
+  "GET /admin/user-history": {
+   "status": 200,
+   "body": []
+  },
+  "GET /admin/users": {
+   "status": 200,
+   "body": [
+    {
+     "name": "claude-admin",
+     "kind": "user",
+     "active": 1,
+     "created_at": 1793776375.8387458,
+     "created_by": "setup-code",
+     "has_password": 1,
+     "has_totp": 1,
+     "totp_required": true
+    }
+   ]
+  },
+  "GET /agents": {
+   "status": 200,
+   "body": {
+    "vault": "off",
+    "agents": [
+     {
+      "agent": "enum",
+      "scope_kind": "cidr",
+      "category": "cybersecurity",
+      "title": "Network enumeration",
+      "description": "Maps hosts and services on in-scope networks with reviewed recon tools. Never exploits.",
+      "built": null,
+      "tools": [
+       "run_scan",
+       "read_scan"
+      ],
+      "programs": [
+       "nmap",
+       "ping",
+       "dig",
+       "nikto",
+       "gobuster",
+       "whatweb",
+       "enum4linux-ng",
+       "rpcclient",
+       "smbclient",
+       "netexec",
+       "GetUserSPNs.py",
+       "GetNPUsers.py"
+      ]
+     },
+     {
+      "agent": "research",
+      "scope_kind": "domain",
+      "category": "research",
+      "title": "OSINT research",
+      "description": "Researches an in-scope domain from its own website and public sources, read-only.",
+      "built": null,
+      "tools": [
+       "fetch_page",
+       "fetch_external",
+       "read_page",
+       "web_search"
+      ],
+      "programs": [
+       "HTTP/HTTPS GET (target)",
+       "HTTP/HTTPS GET (outside sites)",
+       "Brave Search API"
+      ]
+     },
+     {
+      "agent": "trafficmon",
+      "scope_kind": "cidr",
+      "category": "network-evidence",
+      "title": "Traffic monitor",
+      "description": "Passively captures and summarizes network traffic for in-scope hosts.",
+      "built": null,
+      "tools": [
+       "list_evidence",
+       "read_evidence",
+       "capture_host"
+      ],
+      "programs": [
+       "tcpdump",
+       "tshark",
+       "suricata",
+       "zeek (optional)"
+      ]
+     }
+    ]
+   }
+  },
+  "GET /agents/enum/engagement": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "path": "/var/lib/agenti/data/org/engagement.json",
+    "exists": true,
+    "record": {
+     "engagement_id": "ENG-EXAMPLE-01",
+     "client": "Example Corp",
+     "authorizing_party": "Dana Example",
+     "authorizing_title": "CISO",
+     "authorization_ref": "SOW-0001",
+     "valid_from": "2026-11-01",
+     "valid_until": "2027-01-31",
+     "emergency_contact": "soc@example.com",
+     "notes": "",
+     "capture_payloads": false,
+     "enabled_capabilities": [],
+     "exploitation_enabled": false,
+     "retention_days": 0,
+     "redact": [],
+     "scope": {
+      "cidr": {
+       "in_scope": [
+        "198.51.100.0/24"
+       ],
+       "out_of_scope": [
+        "198.51.100.7"
+       ]
+      },
+      "domain": {
+       "in_scope": [
+        "example.com"
+       ],
+       "out_of_scope": []
+      }
+     },
+     "policy": {},
+     "updated_at": 1793777112.114038,
+     "updated_by": "kali",
+     "updated_via": "cli"
+    },
+    "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+    "approval": {
+     "engagement_id": "ENG-EXAMPLE-01",
+     "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+     "approved_by": "kali",
+     "approved_at": 1793777112.4050593,
+     "via": "cli"
+    },
+    "view": {
+     "scope_kind": "cidr",
+     "in_scope": [
+      "198.51.100.0/24"
+     ],
+     "out_of_scope": [
+      "198.51.100.7"
+     ],
+     "usable": true,
+     "narrowed": false,
+     "agent_in_scope": [],
+     "org_in_scope": [
+      "198.51.100.0/24"
+     ],
+     "error": null
+    },
+    "approval_status": {
+     "approved": true,
+     "current": true,
+     "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+     "approved_by": "kali",
+     "approved_at": 1793777112.4050593,
+     "reason": "approved by kali (2026-11-04 07:25 UTC)"
+    },
+    "history": [
+     {
+      "ts": 1793777112.114038,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "ENG-EXAMPLE-01",
+      "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+      "created": true,
+      "changed": [
+       "(created)"
+      ]
+     },
+     {
+      "ts": 1793777112.4050593,
+      "by": "kali",
+      "via": "cli",
+      "action": "approve",
+      "engagement_id": "ENG-EXAMPLE-01",
+      "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0"
+     }
+    ],
+    "effective_policy": {
+     "require_approval": true,
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "haiku",
+      "sonnet",
+      "opus"
+     ]
+    }
+   }
+  },
+  "GET /agents/enum/files": {
+   "status": 200,
+   "body": {
+    "run": [],
+    "run_dir": null,
+    "pending": [],
+    "limits": {
+     "file_bytes": 104857600,
+     "run_bytes": 524288000,
+     "run_files": 50
+    },
+    "text": "no files attached."
+   }
+  },
+  "GET /agents/enum/findings?n=500": {
+   "status": 200,
+   "body": []
+  },
+  "GET /agents/enum/history?n=50": {
+   "status": 200,
+   "body": []
+  },
+  "GET /agents/enum/memory/proposals": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "agent": "enum",
+    "user": "claude-admin",
+    "proposals": []
+   }
+  },
+  "GET /agents/enum/status": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "owner": "claude-admin",
+    "copy": null,
+    "name": "",
+    "vault": "off",
+    "state": "inactive",
+    "freezer": "n/a",
+    "target": "",
+    "team": null,
+    "model": "",
+    "last_report": "",
+    "live": {}
+   }
+  },
+  "GET /agents/enum/tool-approvals": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "agent": "enum",
+    "requests": []
+   }
+  },
+  "GET /agents/enum/tools": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "title": "Network enumeration",
+    "description": "Maps hosts and services on in-scope networks with reviewed recon tools. Never exploits.",
+    "scope_kind": "CIDRScope",
+    "category": "cybersecurity",
+    "mcp_tools": [
+     {
+      "name": "run_scan",
+      "purpose": "Run one allow-listed recon command (nmap, enum4linux-ng, etc.) against an in-scope host.",
+      "params": [
+       "command"
+      ]
+     },
+     {
+      "name": "read_scan",
+      "purpose": "Retrieve part of a previously run scan's saved output.",
+      "params": [
+       "end_line",
+       "file",
+       "pattern",
+       "start_line"
+      ]
+     }
+    ],
+    "command_line_tools": {
+     "enforced": true,
+     "items": [
+      {
+       "name": "nmap",
+       "purpose": "port/service scanner and NSE script host — the primary recon tool"
+      },
+      {
+       "name": "ping",
+       "purpose": "basic reachability check"
+      },
+      {
+       "name": "dig",
+       "purpose": "DNS lookups (records, zone data where allowed)"
+      },
+      {
+       "name": "nikto",
+       "purpose": "web server scanner for known issues and misconfigurations"
+      },
+      {
+       "name": "gobuster",
+       "purpose": "directory/vhost/DNS brute-forcer for content discovery"
+      },
+      {
+       "name": "whatweb",
+       "purpose": "web technology fingerprinter"
+      },
+      {
+       "name": "enum4linux-ng",
+       "purpose": "SMB/NetBIOS enumeration (shares, users, policies)"
+      },
+      {
+       "name": "rpcclient",
+       "purpose": "MS-RPC client for querying Windows services"
+      },
+      {
+       "name": "smbclient",
+       "purpose": "SMB client for listing and reading allowed shares"
+      },
+      {
+       "name": "netexec",
+       "purpose": "network service enumeration across SMB/LDAP/WinRM/etc."
+      },
+      {
+       "name": "GetUserSPNs.py",
+       "purpose": "Impacket: request service tickets (Kerberoasting)"
+      },
+      {
+       "name": "GetNPUsers.py",
+       "purpose": "Impacket: find accounts without pre-auth (AS-REP roasting)"
+      }
+     ],
+     "note": ""
+    },
+    "denied_patterns": [
+     "[;&|]",
+     "`|\\$\\(",
+     ">|>>"
+    ]
+   }
+  },
+  "GET /auth/me": {
+   "status": 200,
+   "body": {
+    "user": "claude-admin",
+    "authenticated_via": "session",
+    "role": "admin",
+    "permissions": [
+     "agent:chat",
+     "agent:note",
+     "agent:pause",
+     "agent:read",
+     "agent:resume",
+     "agent:start",
+     "agent:stop",
+     "engagement:approve",
+     "engagement:manage",
+     "iam:manage",
+     "iam:read",
+     "output:delete",
+     "output:promote",
+     "team:manage"
+    ],
+    "totp_enrolled": true,
+    "mfa_setup_required": false
+   }
+  },
+  "GET /auth/webauthn/config": {
+   "status": 200,
+   "body": {
+    "enabled": false,
+    "configured": false,
+    "rpId": null,
+    "origin": null,
+    "ok": true
+   }
+  },
+  "GET /auth/webauthn/passkeys": {
+   "status": 200,
+   "body": []
+  },
+  "GET /context/org": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "kind": "org",
+    "source": "none",
+    "text": "",
+    "sha256": null,
+    "bytes": 0,
+    "max_bytes": 20000,
+    "has_default": false,
+    "required": false,
+    "history": []
+   }
+  },
+  "GET /dashboard": {
+   "status": 200,
+   "body": {
+    "owner": "claude-admin",
+    "vault": "off",
+    "storage": {
+     "encrypted": false,
+     "how": "none",
+     "device": "/dev/vda1",
+     "path": "/var/lib/agenti/data",
+     "warning": "Data from agents is currently not encrypted: reports, scans, attached files and the API key are stored as plain files on this disk. Turn on the vault (Settings → Platform → Vault, or sudo agenti vault enable), or use full-disk encryption."
+    },
+    "api_key": "missing",
+    "slots": [],
+    "teams": [],
+    "viewer": "claude-admin",
+    "mode": "own",
+    "actions": [
+     "launch",
+     "chat",
+     "note",
+     "stop",
+     "pause",
+     "resume",
+     "acknowledge",
+     "hide",
+     "set_model",
+     "outputs_delete"
+    ]
+   }
+  },
+  "GET /docs": {
+   "status": 200,
+   "body": {
+    "count": 14,
+    "pages": [
+     {
+      "page": "agent-page",
+      "title": "The agent page",
+      "summary": "Following a run: status, messages, notes and controls.",
+      "icon": "activity"
+     },
+     {
+      "page": "analysing-files",
+      "title": "Analysing a file",
+      "summary": "Giving a file-analysis agent a capture or other file to examine.",
+      "icon": "file"
+     },
+     {
+      "page": "attaching-files",
+      "title": "Attaching files",
+      "summary": "Attaching files to a run or a team.",
+      "icon": "paperclip"
+     },
+     {
+      "page": "building-agents",
+      "title": "Building your own agent",
+      "summary": "How administrators build their own agents in settings.",
+      "icon": "building"
+     },
+     {
+      "page": "finding-help",
+      "title": "Finding help",
+      "summary": "Searching the help pages, in the app and from the command line.",
+      "icon": "search"
+     },
+     {
+      "page": "installing",
+      "title": "Installing and setting up",
+      "summary": "Installing, first-run setup, updating and removing Agenti (for admins).",
+      "icon": "download"
+     },
+     {
+      "page": "keeping-reports",
+      "title": "Keeping a report, and re-enabling a user",
+      "summary": "Keeping a report permanently, and re-enabling a disabled user.",
+      "icon": "star"
+     },
+     {
+      "page": "private-dashboards",
+      "title": "Your dashboard is private",
+      "summary": "Who can see which runs.",
+      "icon": "lock"
+     },
+     {
+      "page": "security-testing",
+      "title": "How Agenti is security-tested",
+      "summary": "How Agenti's security is audited and tested, what the audits found, and how to report a problem.",
+      "icon": "shield"
+     },
+     {
+      "page": "sending-output",
+      "title": "Sending output to another agent",
+      "summary": "Handing a run's results to another agent.",
+      "icon": "send"
+     },
+     {
+      "page": "signing-in",
+      "title": "Signing in, two-factor codes and recovery codes",
+      "summary": "Passwords, second factors and passkeys.",
+      "icon": "key"
+     },
+     {
+      "page": "teams",
+      "title": "Teams",
+      "summary": "Running several agents together as a team.",
+      "icon": "team"
+     },
+     {
+      "page": "the-vault",
+      "title": "The vault",
+      "summary": "The optional encrypted data folder: turning it on, unlocking after a reboot, uninstalling.",
+      "icon": "lock"
+     },
+     {
+      "page": "updates",
+      "title": "Checking for updates",
+      "summary": "Checking whether a newer release is out. Report-only.",
+      "icon": "refresh"
+     }
+    ]
+   }
+  },
+  "GET /docs/installing": {
+   "status": 200,
+   "body": {
+    "page": "installing",
+    "title": "Installing and setting up",
+    "summary": "Installing, first-run setup, updating and removing Agenti (for admins).",
+    "icon": "download",
+    "markdown": "# Installing and setting up\n\n*For whoever installs and looks after the Agenti server.*\n\n## The short version\n\n```\ncurl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh\n```\n\nIt ends by printing the address to open and a **setup code**. Open that\naddress in a browser on the Agenti machine or any computer on its network\n(for example `https://192.168.1.20:8420`), accept the certificate warning, enter\nthe code and create the first admin. Then set up the engagement in\n**Settings → Engagement** and approve it. You can now launch an agent.\n\n## What you need\n\n- Kali Linux (supported), Debian 13 or Ubuntu 24.04, on a regular PC (`amd64`)\n  or an ARM board such as a Raspberry Pi 5 (`arm64`).\n- An Anthropic API key (console.anthropic.com). You can add it during setup or\n  later.\n- Written permission for every target you will scan.\n\n## Installing\n\nThe command above adds Agenti's package repository to `apt` and installs\nAgenti. `apt` picks the right package for your CPU and installs the tools the\nagents use (nmap, tshark, suricata and others). A tool your system does not\nhave is skipped without stopping the install. The packages are signed: the\ninstaller accepts the repository's key only if its fingerprint is\n\n```\n2D6F 55F9 385B 8C76 0C2E 95BD 8111 66F5 1B2D AE49\n```\n\n**Prefer to do it by hand?** These are the same steps:\n\n```\ncurl -fsSL https://apt.agenti-foss.org/agenti-release-key.asc -o agenti.asc\ngpg --show-keys agenti.asc        # check the fingerprint above\nsudo install -m 0644 agenti.asc /usr/share/keyrings/agenti-archive-keyring.asc\nsudo tee /etc/apt/sources.list.d/agenti.sources >/dev/null <<'EOF'\nTypes: deb\nURIs: https://apt.agenti-foss.org\nSuites: stable\nComponents: main\nSigned-By: /usr/share/keyrings/agenti-archive-keyring.asc\nEOF\nsudo apt update && sudo apt install agenti\n```\n\nTwo packages arrive:\n\n| Package | What it is |\n|---|---|\n| `agenti-runtime` | Agenti's own Python and libraries, bundled. Installing downloads one more file: Anthropic's Claude Code program, from PyPI, checked against its pinned SHA-256 (it is Anthropic's, so it is fetched rather than shipped). |\n| `agenti` | Agenti itself: the command line, the agents and the web interface. |\n\nWhen it finishes, the web interface is already running and reachable from\nyour network over HTTPS (port 8420), and nobody can sign in until setup is\ndone. The last lines it prints are the address to open and the setup code.\n\n**The certificate warning.** Agenti makes its own certificate at install, so\neach browser warns the first time (\"not private\" / \"not secure\"). The\ninstaller prints the certificate's SHA-256 fingerprint: check that the browser\nshows the same one, then accept. Sign-in with a password and an authenticator\napp works on this address; **passkeys** need a real domain name\n(`sudo agenti gui configure --hostname agenti.example.com`, see\n`sudo agenti gui configure --help`).\n\n**Only this machine?** `sudo agenti gui configure --bind 127.0.0.1 --no-tls`\nkeeps the web interface off the network. An upgrade never changes this\nsetting.\n\nIf the installer says **this machine's clock is wrong**, fix the clock\n(`sudo timedatectl set-ntp true`, check with `date -u`) and run it again. A\nrestored virtual machine or a dual-boot PC often has the wrong time.\n\n## First-run setup in the browser\n\n1. Open the address the installer printed (`agenti gui status` shows it\n   again), on the Agenti machine or another computer on its network. The\n   setup page is not offered through a tunnel or proxy, so nobody on the\n   internet can reach it; on your network, only someone with the setup code\n   can claim the server.\n2. Enter the **setup code** the installer printed. To see it again:\n   `sudo agenti setup-code`. Twenty wrong tries cancel the code; make a new\n   one with `sudo agenti setup-code --new`.\n3. Choose the admin's username, then a password, and scan the QR code with an\n   authenticator app. **Save the recovery codes** it shows.\n4. Sign in. Setup then offers two optional steps, both also in\n   **Settings → Platform**:\n   - **The Anthropic API key.** Paste it; you confirm it's you, and it is\n     stored on the server and never shown again.\n   - **The vault.** An encrypted folder for Agenti's data. Read **The vault**\n     first.\n\nBoth can wait: until a key is saved, the dashboard and the Launch page say\n*No Anthropic API key yet: agents can't start*, with a link to add one. Closing\nthe dashboard's notice hides it until you next sign in.\n\nThe setup code stops working as soon as an admin can sign in.\n\n## First-run setup in a terminal: `sudo agenti setup`\n\nThe same setup, one question at a time, plus the choice of how the web\ninterface is reached. You can run it again whenever you like; a step that is\nalready done says so and is skipped.\n\n1. **The first admin.** The name defaults to your Linux username. Keep it:\n   runs you start from the terminal then appear on that account's dashboard.\n   Type a password twice, then scan the QR code with an authenticator app.\n   **Save the recovery codes** it prints. You can add a passkey later in\n   **Settings → Security**.\n2. **The vault (optional, default no).** It is asked before the API key so the\n   key is stored inside it from the start.\n3. **The Anthropic API key (optional).** Paste it at the prompt. Nothing appears\n   as you type, and it never lands in a log or your shell history.\n4. **Opening the web interface.** Other computers on your network (the\n   default, with a self-signed certificate); only this machine; or from\n   anywhere through a tunnel or proxy such as Cloudflare Tunnel. Press Enter to\n   keep it as it is. Change it any time with `sudo agenti gui configure --help`.\n\n## Checking the installation\n\n```\nsudo agenti verify\n```\n\nIt tests every safety boundary by trying the forbidden thing (for example, the\nweb server trying to read the user database), and changes nothing. A **FAIL**\nline names the fix. On a new install it warns that no engagement exists yet;\nthat goes away once you set one up and approve it.\n\n## Before the first run: the engagement\n\nAgents only work inside an approved engagement: the client, the scope\n(addresses or domains), the dates and who authorised it.\n\n1. **Settings → Engagement** (or `sudo agenti engagement set --help`).\n2. An admin **approves** it (or `sudo agenti engagement approve`).\n\nAny later change to the engagement needs a fresh approval. Until then, every\nagent refuses to start and says so.\n\n**Runs already going when the engagement changes.** A run keeps working as long\nas the new version still covers it (a note fixed, a scope widened and waiting\nfor approval). A run the change takes cover from is **stopped straight away**,\nand writes its partial report: its target is no longer in scope or is now\nexcluded (for a research run, also when a new exclusion lands inside its target,\ne.g. `payroll.acme.example` under a run on `acme.example`), the engagement's dates have ended, or exploitation was switched off for\nan exploit run. The same goes for narrowing one agent's own scope (Settings →\nAgents). The confirmation after saving names every run that was stopped and why.\nA run also refuses every further action once the engagement's last day has\npassed, even if nobody changed anything: an exploit approved before then does not\nfire after it, a traffic capture stops at the end of that day, and resuming a run\ngets the same checks as starting one (including *require a separate approver*).\n\nSaving and approving each ask you to confirm it's you (password and 2FA code, or\na passkey). An approval covers exactly the version you were looking at: if\nsomeone changes the engagement while you review it, approving is refused and you\nreview the new version. \"Require approval\" can be turned off only at the server\n(`sudo agenti engagement set --no-require-approval`), never from the web.\n\nAnything on the engagement's **out of scope** list is enforced, not just shown\nto the agent: an excluded address or domain can't be a run's target, a range\nthat contains one is refused, and no command or page fetch may reach it. Start\neach exclusion with the address, range or domain itself, then a note, e.g.\n`198.51.100.0/24 (payroll)`; an entry that doesn't start that way stops every run\nuntil it is fixed. An IPv4 address written in IPv6 form (`::ffff:198.51.100.7`) is the same\naddress, in scope lists, exclusions and targets alike. A research agent will not\nread an excluded site, or any other site of the engagement outside its own\ntarget, as \"background\" either.\n\n## Updating\n\n```\nsudo apt update && sudo apt upgrade\n```\n\nAgenti updates with the rest of the system. Your users, settings and data are\nkept. The web interface restarts on the new version; a run already going\nfinishes on the code it started with.\n\nTo replace the API key: **Settings → Platform → Anthropic API key**, or at the\nserver `sudo /usr/lib/agenti/set-secret.sh` (it asks before replacing the old one).\n\n**Separate keys, separate spend caps.** Besides the one shared key you can give\none agent its own key (`sudo agenti <agent> set-key`) or one user their own\n(`sudo agenti admin set-user-key <user>`), for example so each has its own\nspending limit in the Anthropic Console. A run uses the most specific key there\nis: the user's own, then the agent's, then the organisation's, then the shared\none. Renaming a user takes their key (and their memory notes) with them; deleting\na user deletes their key. These per-agent and per-user keys are set only at the\nserver's terminal; the web interface sets only the shared one.\n\n## Removing Agenti\n\n| Command | What goes | What stays |\n|---|---|---|\n| `sudo apt remove agenti` | the program, its services, its sudo rule; running agents are stopped; the vault, if on, is **locked** | settings, users, all data |\n| `sudo apt purge agenti` | the above and the settings; then it **asks** whether to delete all data too (default: no) | the data, unless you answer yes |\n\n**To delete everything**, run `sudo apt purge agenti agenti-runtime` in a\nterminal and answer **Yes**. That removes every report, scan, attached file,\nAPI key, the user database, the vault and Agenti's service accounts. It cannot\nbe undone.\n\nWithout a terminal (a script), purge keeps the data and prints the exact\ncommands to delete it yourself. A script can answer yes in advance:\n`echo \"agenti agenti/purge-data boolean true\" | sudo debconf-set-selections`.\n\n## Messages you may see\n\n| Message | What to do |\n|---|---|\n| The sign-in page says *Agenti isn't set up yet* | You opened it through a tunnel or proxy. Open Agenti at its own address (`agenti gui status` shows it) and enter the setup code (`sudo agenti setup-code`), or run `sudo agenti setup` on the server. |\n| The setup page says *setup isn't offered through a tunnel or proxy* | The same: use the machine's own address on your network, or `sudo agenti setup`. |\n| The browser can't reach the address at all | Check the GUI listens on the network: `agenti gui status`. If it shows `127.0.0.1`, run `sudo agenti gui configure --bind 0.0.0.0 --tls`. A firewall on the machine must allow TCP port 8420. |\n| The browser says the connection is *not private* | Expected the first time: Agenti made its own certificate. Compare the fingerprint (`sudo agenti setup-code` while setup is pending, or `openssl x509 -in /var/lib/agenti/tls/api.crt -noout -fingerprint -sha256`), then accept. |\n| *that setup code is not right* | `sudo agenti setup-code` shows the current one. |\n| *there is no setup code right now* | Too many wrong tries cancelled it: `sudo agenti setup-code --new`. |\n| *this machine's clock is wrong* (installer) | `sudo timedatectl set-ntp true`, check with `date -u`, then run the installer again. |\n| *this identity store is from an older Agenti (schema v1…)* | Agenti supports fresh installs only. Move the old store aside (the message gives the exact command) and run `sudo agenti setup`. |\n| *no Anthropic API key reached this run* | No key is set at any level. **Settings → Platform → Anthropic API key**, or `sudo agenti setup`, or set one for the agent or the user (above). |\n| The web interface does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |\n| *the vault is locked* | `sudo agenti vault unlock` (see **The vault**) |\n| *…is not approved as it stands* | An admin approves the engagement (Settings → Engagement). |\n| *REFUSING: target … is outside the authorized engagement scope* | The target isn't in the engagement. Pick one inside it, or have an admin add it and approve again. |\n| A run's report says *Invalid API key* | The key was revoked or mistyped. Replace it in **Settings → Platform**, or `sudo /usr/lib/agenti/set-secret.sh` |\n| A run started from the terminal doesn't show on your dashboard | It belongs to your Linux username. Start it with `--owner <your Agenti name>`, or use the same name for both. |\n| A report's Findings section is empty | The run hit its turn, budget or time limit before writing its summary. The commands it ran and their output are still in the report. |\n| Anything else | `sudo agenti verify`: each FAIL line names the fix. |\n",
+    "headings": [
+     {
+      "level": 1,
+      "text": "Installing and setting up",
+      "anchor": ""
+     },
+     {
+      "level": 2,
+      "text": "The short version",
+      "anchor": "the-short-version"
+     },
+     {
+      "level": 2,
+      "text": "What you need",
+      "anchor": "what-you-need"
+     },
+     {
+      "level": 2,
+      "text": "Installing",
+      "anchor": "installing"
+     },
+     {
+      "level": 2,
+      "text": "First-run setup in the browser",
+      "anchor": "first-run-setup-in-the-browser"
+     },
+     {
+      "level": 2,
+      "text": "First-run setup in a terminal: `sudo agenti setup`",
+      "anchor": "first-run-setup-in-a-terminal-sudo-agenti-setup"
+     },
+     {
+      "level": 2,
+      "text": "Checking the installation",
+      "anchor": "checking-the-installation"
+     },
+     {
+      "level": 2,
+      "text": "Before the first run: the engagement",
+      "anchor": "before-the-first-run-the-engagement"
+     },
+     {
+      "level": 2,
+      "text": "Updating",
+      "anchor": "updating"
+     },
+     {
+      "level": 2,
+      "text": "Removing Agenti",
+      "anchor": "removing-agenti"
+     },
+     {
+      "level": 2,
+      "text": "Messages you may see",
+      "anchor": "messages-you-may-see"
+     }
+    ]
+   }
+  },
+  "GET /docs/search?q=passkey": {
+   "status": 200,
+   "body": {
+    "query": "passkey",
+    "terms": [
+     "passkey"
+    ],
+    "count": 12,
+    "results": [
+     {
+      "page": "signing-in",
+      "title": "Signing in, two-factor codes and recovery codes",
+      "icon": "key",
+      "anchor": "what-an-error-means",
+      "heading": "What an error means",
+      "snippet": "…The lock clears on its own. \"this account's second factor is a passkey…\" Your account has a passkey and no code app, so the password alone is not a sign-in. Use Sign in with a…",
+      "score": 7
+     },
+     {
+      "page": "signing-in",
+      "title": "Signing in, two-factor codes and recovery codes",
+      "icon": "key",
+      "anchor": "the-short-version",
+      "heading": "The short version",
+      "snippet": "…authenticator app — or, if your admin has turned it on, with a passkey (your device's own fingerprint, face or PIN check), which needs no password at all. If your only second…",
+      "score": 6
+     },
+     {
+      "page": "security-testing",
+      "title": "How Agenti is security-tested",
+      "icon": "shield",
+      "anchor": "signing-in-and-accounts",
+      "heading": "Signing in and accounts",
+      "snippet": "Rating What could happen Fixed by Medium An account with only a passkey could sign in with its password alone, skipping two-factor. Two-factor is required for every password…",
+      "score": 4
+     },
+     {
+      "page": "signing-in",
+      "title": "Signing in, two-factor codes and recovery codes",
+      "icon": "key",
+      "anchor": "common-questions",
+      "heading": "Common questions",
+      "snippet": "…Why was I signed out after changing my password, my 2FA or a passkey? Changing how you sign in ends every session, including the one you did it from, so a session someone else…",
+      "score": 4
+     },
+     {
+      "page": "building-agents",
+      "title": "Building your own agent",
+      "icon": "building",
+      "anchor": "the-short-version",
+      "heading": "The short version",
+      "snippet": "…Both actions ask for your password and a fresh 2FA code (or a passkey).",
+      "score": 3
+     },
+     {
+      "page": "finding-help",
+      "title": "Finding help",
+      "icon": "search",
+      "anchor": "searching",
+      "heading": "Searching",
+      "snippet": "…them. Part of a word is enough: pass finds both password and passkey. Opening a result takes you straight to that section with your words highlighted. Clear removes the…",
+      "score": 3
+     },
+     {
+      "page": "finding-help",
+      "title": "Finding help",
+      "icon": "search",
+      "anchor": "from-the-command-line",
+      "heading": "From the command line",
+      "snippet": "…summary. agenti docs signing-in prints one page. agenti docs search passkey searches every page. Add --json to any of them for output a script can read.",
+      "score": 3
+     },
+     {
+      "page": "installing",
+      "title": "Installing and setting up",
+      "icon": "download",
+      "anchor": "first-run-setup-in-a-terminal-sudo-agenti-setup",
+      "heading": "First-run setup in a terminal: sudo agenti setup",
+      "snippet": "…authenticator app. Save the recovery codes it prints. You can add a passkey later in Settings → Security. The vault (optional, default no). It is asked before the API key so the…",
+      "score": 3
+     },
+     {
+      "page": "installing",
+      "title": "Installing and setting up",
+      "icon": "download",
+      "anchor": "before-the-first-run-the-engagement",
+      "heading": "Before the first run: the engagement",
+      "snippet": "…each ask you to confirm it's you (password and 2FA code, or a passkey). An approval covers exactly the version you were looking at: if someone changes the engagement while you…",
+      "score": 3
+     },
+     {
+      "page": "keeping-reports",
+      "title": "Keeping a report, and re-enabling a user",
+      "icon": "star",
+      "anchor": "re-enable-a-disabled-user-admins",
+      "heading": "Re-enable a disabled user (admins)",
+      "snippet": "…check-mark button. It asks for your password and a 2FA code (or a passkey), because re-enabling gives the account back whatever access it kept. Only admins can do this.",
+      "score": 3
+     },
+     {
+      "page": "the-vault",
+      "title": "The vault",
+      "icon": "lock",
+      "anchor": "turning-it-on",
+      "heading": "Turning it on",
+      "snippet": "…stored it, then confirm it's you (password and 2FA code, or a passkey). It takes a few minutes; keep the page open. The passphrase goes from your browser straight to the server's…",
+      "score": 3
+     },
+     {
+      "page": "installing",
+      "title": "Installing and setting up",
+      "icon": "download",
+      "anchor": "installing",
+      "heading": "Installing",
+      "snippet": "…with a password and an authenticator app works on this address; passkeys need a real domain name (sudo agenti gui configure --hostname agenti.example.com, see sudo agenti gui…",
+      "score": 1
+     }
+    ]
+   }
+  },
+  "GET /engagement": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "path": "/var/lib/agenti/data/org/engagement.json",
+    "exists": true,
+    "record": {
+     "engagement_id": "ENG-EXAMPLE-01",
+     "client": "Example Corp",
+     "authorizing_party": "Dana Example",
+     "authorizing_title": "CISO",
+     "authorization_ref": "SOW-0001",
+     "valid_from": "2026-11-01",
+     "valid_until": "2027-01-31",
+     "emergency_contact": "soc@example.com",
+     "notes": "",
+     "capture_payloads": false,
+     "enabled_capabilities": [],
+     "exploitation_enabled": false,
+     "retention_days": 0,
+     "redact": [],
+     "scope": {
+      "cidr": {
+       "in_scope": [
+        "198.51.100.0/24"
+       ],
+       "out_of_scope": [
+        "198.51.100.7"
+       ]
+      },
+      "domain": {
+       "in_scope": [
+        "example.com"
+       ],
+       "out_of_scope": []
+      }
+     },
+     "policy": {},
+     "updated_at": 1793777112.114038,
+     "updated_by": "kali",
+     "updated_via": "cli"
+    },
+    "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+    "approval": {
+     "engagement_id": "ENG-EXAMPLE-01",
+     "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+     "approved_by": "kali",
+     "approved_at": 1793777112.4050593,
+     "via": "cli"
+    },
+    "view": null,
+    "approval_status": {
+     "approved": true,
+     "current": true,
+     "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+     "approved_by": "kali",
+     "approved_at": 1793777112.4050593,
+     "reason": "approved by kali (2026-11-04 07:25 UTC)"
+    },
+    "history": [
+     {
+      "ts": 1793777112.114038,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "ENG-EXAMPLE-01",
+      "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0",
+      "created": true,
+      "changed": [
+       "(created)"
+      ]
+     },
+     {
+      "ts": 1793777112.4050593,
+      "by": "kali",
+      "via": "cli",
+      "action": "approve",
+      "engagement_id": "ENG-EXAMPLE-01",
+      "digest": "dda56a9c66914b145855f906767338fb4bbfd5b4e4b97646ffc01ff3bbbe3ee0"
+     }
+    ],
+    "effective_policy": {
+     "require_approval": true,
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "haiku",
+      "sonnet",
+      "opus"
+     ]
+    }
+   }
+  },
+  "GET /outputs": {
+   "status": 200,
+   "body": {
+    "owner": "claude-admin",
+    "outputs": [],
+    "total_used": 0,
+    "total_limit": 5368709120,
+    "user": "claude-admin",
+    "operator_used": 0,
+    "operator_limit": 1073741824
+   }
+  }
+ }
+}

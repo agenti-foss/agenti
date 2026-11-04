@@ -1,0 +1,9 @@
+{
+  "name": "agenti-gui-visual-check",
+  "private": true,
+  "description": "The GUI visual check (visual.js) and its fixture recorder (record.js). Not part of any package.",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

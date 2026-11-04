@@ -1,0 +1,23 @@
+{
+  "_about": "Every page the visual check opens, and what must be on screen once it has loaded. record.js visits the same list on a live box to capture the API answers (fixtures/). 'as': who is looking.",
+  "pages": [
+    {"name": "login", "as": "signed-out", "path": "/login.html", "ready": "#login-form"},
+    {"name": "setup-done", "as": "signed-out", "path": "/setup.html", "ready": "#setup-done:not([hidden])"},
+    {"name": "reset-password", "as": "signed-out", "path": "/reset-password.html", "ready": "h1"},
+    {"name": "enrol-no-link", "as": "signed-out", "path": "/enrol.html", "ready": "h1"},
+    {"name": "dashboard", "as": "signed-in", "path": "/dashboard.html", "ready": "#topnav"},
+    {"name": "launch", "as": "signed-in", "path": "/launch.html", "ready": "#topnav"},
+    {"name": "agent-enum", "as": "signed-in", "path": "/agent.html?agent=enum", "ready": "#topnav"},
+    {"name": "outputs", "as": "signed-in", "path": "/outputs.html", "ready": "#topnav"},
+    {"name": "docs", "as": "signed-in", "path": "/docs.html", "ready": ".docs-row, .list"},
+    {"name": "docs-installing", "as": "signed-in", "path": "/docs.html?page=installing", "ready": "article h1, article h2"},
+    {"name": "docs-search", "as": "signed-in", "path": "/docs.html?search=passkey", "ready": "#docs-q"},
+    {"name": "settings-account", "as": "signed-in", "path": "/settings.html#account", "ready": "#pane-account:not([hidden])"},
+    {"name": "settings-security", "as": "signed-in", "path": "/settings.html#security", "ready": "#pane-security:not([hidden])"},
+    {"name": "settings-appearance", "as": "signed-in", "path": "/settings.html#appearance", "ready": "#pane-appearance:not([hidden])"},
+    {"name": "settings-agents", "as": "signed-in", "path": "/settings.html#agents", "ready": "#pane-agents:not([hidden])"},
+    {"name": "settings-engagement", "as": "signed-in", "path": "/settings.html#engagement", "ready": "#pane-engagement:not([hidden])"},
+    {"name": "settings-users", "as": "signed-in", "path": "/settings.html#users", "ready": "#pane-users:not([hidden])"},
+    {"name": "settings-platform", "as": "signed-in", "path": "/settings.html#platform", "ready": "#pane-platform:not([hidden])"}
+  ]
+}

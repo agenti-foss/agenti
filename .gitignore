@@ -39,3 +39,7 @@ dist/
 
 # Local Claude Code permissions: per-developer, never published.
 .claude/settings.json
+
+# The GUI visual check's installed library and its screenshots (tests/gui/).
+tests/gui/node_modules/
+tests/gui/out/

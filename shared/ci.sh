@@ -4,6 +4,8 @@
 #   shared/ci.sh            lint + test (what a push must pass)
 #   shared/ci.sh lint       syntax and obvious-bug checks, no tests
 #   shared/ci.sh test       every shared/test_*.py suite
+#   shared/ci.sh gui        every GUI page in a real browser (tests/gui/visual.js;
+#                           needs node, Chrome or Chromium, and npm ci in tests/gui)
 #
 # GitHub Actions (.github/workflows/ci.yml) runs exactly this, so a green
 # run on GitHub means the same thing as a green run at your desk. Nothing
@@ -65,7 +67,7 @@ lint() {
         while IFS= read -r js; do
             n=$((n + 1))
             node --check "$js" || { fail "node --check $js"; jsbad=1; }
-        done < <(git ls-files --cached --others --exclude-standard 'shared/gui/js/*.js' | sort -u)
+        done < <(git ls-files --cached --others --exclude-standard 'shared/gui/js/*.js' 'tests/gui/*.js' | sort -u)
         [[ $jsbad -eq 0 ]] && ok "node --check on $n files"
     fi
 
@@ -110,12 +112,28 @@ run_tests() {
     printf '  %d suites, %d failed\n' "$total" "$bad"
 }
 
+# Every page at a phone and a desktop width, light and dark, both skins,
+# against recorded API answers: fails on script errors, a page wider than the
+# screen, a page that never shows its content, or an unrecorded API call.
+gui_views() {
+    note "GUI: every page in a real browser (tests/gui/visual.js)"
+    need node "GUI views" || return 0
+    if [[ ! -d tests/gui/node_modules/playwright-core ]]; then
+        if [[ "${CI:-}" == "true" ]]; then fail "GUI views — run: (cd tests/gui && npm ci)"
+        else SKIPPED+=("GUI views (cd tests/gui && npm ci)"); printf '  SKIP  GUI views — tests/gui needs: npm ci\n'; fi
+        return 0
+    fi
+    node tests/gui/visual.js --out tests/gui/out && ok "GUI views (screenshots: tests/gui/out/index.html)" \
+        || fail "GUI views (screenshots: tests/gui/out/index.html)"
+}
+
 case "${1:-all}" in
     lint) lint ;;
     test) run_tests ;;
+    gui)  gui_views ;;
     all)  lint; run_tests ;;
-    -h|--help|help) sed -n 2,17p "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "usage: shared/ci.sh [lint|test|all]" >&2; exit 2 ;;
+    -h|--help|help) sed -n 2,19p "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "usage: shared/ci.sh [lint|test|gui|all]" >&2; exit 2 ;;
 esac
 
 echo

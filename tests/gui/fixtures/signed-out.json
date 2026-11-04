@@ -1,0 +1,28 @@
+{
+ "_about": "Recorded by tests/gui/record.js from a test box; replayed by serve.py. Record again when a page calls something new.",
+ "answers": {
+  "GET /auth/me": {
+   "status": 401,
+   "body": {
+    "detail": "not authenticated — sign in at /auth/login, or send Authorization: Bearer agk_<prefix>_<secret>"
+   }
+  },
+  "GET /auth/setup-status": {
+   "status": 200,
+   "body": {
+    "setup_needed": false,
+    "reachable": true
+   }
+  },
+  "GET /auth/webauthn/config": {
+   "status": 200,
+   "body": {
+    "enabled": false,
+    "configured": false,
+    "rpId": null,
+    "origin": null,
+    "ok": true
+   }
+  }
+ }
+}

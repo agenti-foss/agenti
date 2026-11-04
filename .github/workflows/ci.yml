@@ -49,6 +49,26 @@ jobs:
       - run: pip install cryptography==50.0.1
       - run: shared/ci.sh test
 
+  gui:
+    name: GUI views (every page, phone and desktop, both skins)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # playwright-core only (no browser download): the runner's own Chrome
+      # does the rendering. Pinned by tests/gui/package-lock.json; no install
+      # scripts run.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: tests/gui
+      - run: CHROME="$(command -v google-chrome)" shared/ci.sh gui
+      # Every view as a screenshot (index.html), kept whether it passed or not.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: gui-views
+          path: tests/gui/out/
+          if-no-files-found: error
+
   secrets:
     name: Secrets scan (whole git history)
     runs-on: ubuntu-24.04
