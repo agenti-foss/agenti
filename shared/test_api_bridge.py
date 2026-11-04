@@ -91,13 +91,19 @@ for node in ast.walk(tree):
         words = shape(node.args[1:] if getattr(node.func, "id", "") in ("_call_stdin", "_attach") else node.args)
     else:
         continue
-    if not words or words[0] not in ("admin", "team", "engagement", "docs", "dashboard", "agents", "enum"):
+    if not words or words[0] not in ("admin", "team", "engagement", "docs", "dashboard", "agents", "models", "enum"):
         continue
     if words[0] == "enum" and len(words) < 2:
         continue
-    seen.add(tuple(words[:3] if words[0] == "team" else words[:2]))
+    seen.add(tuple(words[:1] if words[0] == "models" else words[:3] if words[0] == "team" else words[:2]))
 missing = sorted(w for w in seen if not allowed(list(w) + ["--json"]))
 check(f"all {len(seen)} verb shapes the API uses pass the bridge", missing, [])
+check("model views accept the provider and owner's installed agent",
+      allowed(["models", "--provider", "openai", "--owner", "alice", "--agent", "enum", "--status", "--json"]), True)
+check("model views cannot replace the trusted data root",
+      allowed(["models", "--root", "/tmp/other"]), False)
+check("model views cannot choose an arbitrary provider",
+      allowed(["models", "--provider", "other"]), False)
 
 section("everything else is refused")
 for argv in (["enum", "export"], ["enum", "set-key"], ["enum", "purge"], ["vault", "lock"],

@@ -30,10 +30,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import os
 import re
 import socket
 import sys
+import tempfile
+from pathlib import Path
 
 DEFAULT_LISTEN = "127.0.0.1:8429"
 DEFAULT_ALLOW = ("api.anthropic.com:443", "api.openai.com:443")
@@ -45,12 +48,49 @@ CONNECT_RE = re.compile(rb"^CONNECT ([A-Za-z0-9.-]{1,253}):([0-9]{1,5}) HTTP/1\.
 
 def _conf_allow(path: str = CONF) -> tuple[str, ...]:
     try:
-        for line in open(path, encoding="utf-8"):
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
             if line.startswith("ALLOW="):
                 return tuple(x.lower() for x in line[6:].split() if x)
     except OSError:
         pass
     return ()
+
+
+def allow_endpoint(endpoint: str, path: str = CONF) -> tuple[str, ...]:
+    """Root's additive edit: preserve configured destinations or the defaults."""
+    conf = Path(path)
+    conf.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(conf) + ".lock", "a") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        return _allow_endpoint(endpoint, path)
+
+
+def _allow_endpoint(endpoint: str, path: str) -> tuple[str, ...]:
+    match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9.-]{0,252}):([0-9]{1,5})", endpoint)
+    if not match or not 1 <= int(match[2]) <= 65535:
+        raise ValueError("use host:port, e.g. model.example.com:11434 (port 1–65535)")
+    endpoint = f"{match[1].lower()}:{int(match[2])}"
+    conf = Path(path)
+    try:
+        original = conf.read_text()
+    except FileNotFoundError:
+        original = ""
+    allowed = tuple(dict.fromkeys((*(_conf_allow(path) or DEFAULT_ALLOW), endpoint)))
+    lines = [line for line in original.splitlines() if not line.startswith("ALLOW=")]
+    lines.append("ALLOW=" + " ".join(allowed))
+    conf.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".relay-", dir=conf.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            stream.write("\n".join(lines) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.fchmod(stream.fileno(), 0o644)
+        os.replace(temporary, conf)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return allowed
 
 
 async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -128,7 +168,16 @@ def main(argv=None) -> int:
     ap.add_argument("--allow", action="append", default=[], metavar="HOST:PORT")
     ap.add_argument("--fd", type=int, default=None,
                     help="serve on this inherited listening socket (systemd socket activation: 3)")
+    ap.add_argument("--add-allowed", metavar="HOST:PORT", help="root only: add a destination, preserving the current allow-list")
     a = ap.parse_args(argv)
+    if a.add_allowed:
+        if os.geteuid() != 0:
+            ap.error("adding a destination needs root: sudo agenti admin relay allow host:port")
+        try:
+            print("Allowed relay destinations: " + " ".join(allow_endpoint(a.add_allowed)))
+        except (OSError, ValueError) as e:
+            ap.error(str(e))
+        return 0
     allowed = {x.lower() for x in (a.allow or _conf_allow() or DEFAULT_ALLOW)}
     asyncio.run(serve(a.listen, allowed, a.fd))
     return 0

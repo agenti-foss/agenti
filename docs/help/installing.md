@@ -18,8 +18,9 @@ the code and create the first admin. Then set up the engagement in
 
 - Kali Linux (supported), Debian 13 or Ubuntu 24.04, on a regular PC (`amd64`)
   or an ARM board such as a Raspberry Pi 5 (`arm64`).
-- An Anthropic API key (console.anthropic.com). You can add it during setup or
-  later.
+- A cloud API key (Anthropic or OpenAI), or your own compatible model server.
+  See [Choosing a model](choosing-a-model.md). You can add a Claude key during
+  setup or later.
 - Written permission for every target you will scan.
 
 ## Installing
@@ -97,7 +98,7 @@ restored virtual machine or a dual-boot PC often has the wrong time.
      first.
 
 Both can wait: until a key is saved, the dashboard and the Launch page say
-*No Anthropic API key yet: agents can't start*, with a link to add one. Closing
+*No model provider is configured yet*, with a link to add one. Closing
 the dashboard's notice hides it until you next sign in.
 
 The setup code stops working as soon as an admin can sign in.
@@ -183,7 +184,7 @@ Agenti updates with the rest of the system. Your users, settings and data are
 kept. The web interface restarts on the new version; a run already going
 finishes on the code it started with.
 
-To replace the API key: **Settings → Platform → Anthropic API key**, or at the
+To replace the API key: **Settings → Platform → Model providers**, or at the
 server `sudo /usr/lib/agenti/set-secret.sh` (it asks before replacing the old one).
 
 **Separate keys, separate spend caps.** Besides the one shared key you can give
@@ -232,7 +233,7 @@ commands to delete it yourself. A script can answer yes in advance:
 | *there is no setup code right now* | Too many wrong tries cancelled it: `sudo agenti setup-code --new`. |
 | *this machine's clock is wrong* (installer) | `sudo timedatectl set-ntp true`, check with `date -u`, then run the installer again. |
 | *this identity store is from an older Agenti (schema v1…)* | Agenti supports fresh installs only. Move the old store aside (the message gives the exact command) and run `sudo agenti setup`. |
-| *no Anthropic API key reached this run* | No key is set at any level. **Settings → Platform → Anthropic API key**, or `sudo agenti setup`, or set one for the agent or the user (above). |
+| *no Anthropic API key reached this run* | No key is set at any level. **Settings → Platform → Model providers**, or `sudo agenti setup`, or set one for the agent or the user (above). |
 | The web interface does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |
 | *the vault is locked* | `sudo agenti vault unlock` (see **The vault**) |
 | *…is not approved as it stands* | An admin approves the engagement (Settings → Engagement). |

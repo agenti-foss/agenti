@@ -7,6 +7,7 @@
     {"name": "enrol-no-link", "as": "signed-out", "path": "/enrol.html", "ready": "h1"},
     {"name": "dashboard", "as": "signed-in", "path": "/dashboard.html", "ready": "#topnav"},
     {"name": "launch", "as": "signed-in", "path": "/launch.html", "ready": "#topnav"},
+    {"name": "launch-enum", "as": "signed-in", "path": "/launch.html", "click": "[data-agent=enum]", "ready": "#run-model-picker input"},
     {"name": "agent-enum", "as": "signed-in", "path": "/agent.html?agent=enum", "ready": "#topnav"},
     {"name": "outputs", "as": "signed-in", "path": "/outputs.html", "ready": "#topnav"},
     {"name": "docs", "as": "signed-in", "path": "/docs.html", "ready": ".docs-row, .list"},

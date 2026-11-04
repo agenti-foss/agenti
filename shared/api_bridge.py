@@ -117,6 +117,20 @@ def check(argv: list[str]) -> None:
     first = argv[0]
     if first in ("agents",):
         return
+    if first == "models":
+        i = 1
+        while i < len(argv):
+            option = argv[i]
+            if option in ("--json", "--status"):
+                i += 1
+                continue
+            _need(option in ("--provider", "--owner", "--agent") and i + 1 < len(argv), "models options")
+            value = argv[i + 1]
+            _need(value in ("anthropic", "openai", "local") if option == "--provider" else bool(NAME.fullmatch(value)), "models option value")
+            if option == "--agent":
+                _need(_is_agent(value), "models requires an installed agent")
+            i += 2
+        return
     if first == "dashboard":
         return
     if first == "vault":

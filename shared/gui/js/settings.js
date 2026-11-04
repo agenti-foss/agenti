@@ -1034,8 +1034,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         const timeoutEl = document.getElementById("eng2-timeout-ceiling");
         timeoutEl.value = pol.timeout_s_ceiling != null ? pol.timeout_s_ceiling : "";
         timeoutEl.placeholder = `platform default: ${eff.timeout_s_ceiling}s`;
-        const allowed = new Set(pol.allowed_models || []);
-        engForm.querySelectorAll(".eng2-model").forEach((cb) => { cb.checked = allowed.has(cb.value); });
+        document.getElementById("eng2-models").value = (pol.allowed_models || []).join("\n");
+        document.getElementById("eng2-model-prices").value = Object.entries(pol.model_prices || {}).map(([name, pair]) => `${name}=${pair.join(",")}`).join("\n");
         paintApprovalStatus(data);
       } catch (err) {
         // GET answers 200 with exists:false before the first engagement is
@@ -1079,8 +1079,19 @@ document.addEventListener("DOMContentLoaded", async function () {
         retention_days: parseInt(document.getElementById("eng2-retention").value, 10) || 0,
         redact: engLinesOf("eng2-redact"),
         require_approval: document.getElementById("eng2-require-approval").checked,
-        allowed_models: Array.from(engForm.querySelectorAll(".eng2-model:checked")).map((cb) => cb.value),
+        allowed_models: engLinesOf("eng2-models"),
       };
+      body.model_prices = {};
+      for (const line of engLinesOf("eng2-model-prices")) {
+        const [name, pair, extra] = line.split("=");
+        const parts = (pair || "").split(",");
+        const values = parts.map(Number);
+        if (!name || extra !== undefined || parts.some((v) => !v.trim()) || values.length !== 2 || values.some((v) => !Number.isFinite(v) || v < 0)) {
+          Agenti.banner(engBanner, "err", "Write each price as provider:model=input,output with two non-negative USD prices per million tokens.");
+          return;
+        }
+        body.model_prices[name] = values;
+      }
       if (clearCeilings.has("turns")) body.clear_max_turns_ceiling = true;
       else { const v = document.getElementById("eng2-turns-ceiling").value; if (v) body.max_turns_ceiling = parseInt(v, 10); }
       if (clearCeilings.has("budget")) body.clear_max_budget_ceiling = true;
@@ -1352,41 +1363,45 @@ document.addEventListener("DOMContentLoaded", async function () {
     const kForm = document.getElementById("apikey-form");
     const kInput = document.getElementById("apikey-input");
     const kBtn = document.getElementById("apikey-btn");
+    const kProvider = document.getElementById("apikey-provider");
+    const kAddress = document.getElementById("provider-address");
     async function paintKey() {
+      const provider = kProvider.value;
+      document.getElementById("provider-address-field").hidden = provider !== "local";
+      kAddress.required = provider === "local";
+      kInput.required = provider !== "local";
+      kInput.placeholder = provider === "anthropic" ? "sk-ant-…" : provider === "openai" ? "sk-…" : "API key (optional)";
       try {
-        const d = await Agenti.get("dashboard");
-        if (d.api_key === "set") {
-          kState.innerHTML = `<p><strong>A key is set.</strong> Saving a new one replaces it for every run that starts after.</p>`;
-          kBtn.lastChild.textContent = " Replace key";
-        } else if (d.api_key === "unknown") {
-          kState.innerHTML = `<p>The vault is locked, so the key can't be checked or changed. Unlock it at the server: <code>sudo agenti vault unlock</code></p>`;
-        } else {
-          kState.innerHTML = "";
-          Agenti.banner(kBanner, "warn", "No API key yet: agent runs can't start until one is saved here.");
-        }
-      } catch (err) {
-        Agenti.banner(kBanner, "err", Agenti.errorText(err));
-      }
+        const d = await Agenti.get("models?status=true");
+        const info = (d.providers || {})[provider] || {};
+        if (provider !== kProvider.value) return;
+        kState.textContent = info.ready ? "Configured. Saving replaces this provider's shared settings for future runs."
+          : "Not configured at the shared or organisation level. User and agent keys can be set at the server.";
+        if (provider === "local") kAddress.value = info.base_url || "";
+      } catch (err) { Agenti.banner(kBanner, "err", Agenti.errorText(err)); }
     }
+    kProvider.addEventListener("change", () => { kInput.value = ""; kBanner.className = "banner"; paintKey(); });
     tasks.push(paintKey());
     kForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const key = kInput.value.trim();
-      if (!/^sk-ant-[A-Za-z0-9_-]{8,}$/.test(key)) {
-        Agenti.banner(kBanner, "err", "That doesn't look like an Anthropic API key: it should start with sk-ant- and have no spaces.");
+      const provider = kProvider.value;
+      const base_url = provider === "local" ? kAddress.value.trim() : "";
+      if ((provider !== "local" && !key) || /\s/.test(key)) {
+        Agenti.banner(kBanner, "err", "Enter this provider's API key without spaces; self-hosted keys are optional.");
         return;
       }
       kBtn.disabled = true;
       try {
         const r = await Agenti.requireApproval({
           title: "Save the API key",
-          description: "Confirm it's you to save this Anthropic API key for every agent run.",
-          submit: (creds) => Agenti.post("admin/api-key", { key,
+          description: `Confirm it's you to save the ${provider} settings for future runs.`,
+          submit: (creds) => Agenti.post("admin/api-key", { key, provider, base_url,
             password: creds.password, totp: creds.totp, reauth: creds.reauth }),
         });
         if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was changed."); return; }
-        kForm.reset();
-        Agenti.banner(kBanner, "ok", "API key saved. Runs that start from now on use it.");
+        kInput.value = "";
+        Agenti.banner(kBanner, "ok", "Provider settings saved. Future runs use them.");
         await paintKey();
       } catch (err) {
         Agenti.banner(kBanner, "err", Agenti.errorText(err));

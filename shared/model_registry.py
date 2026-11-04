@@ -19,8 +19,11 @@ Standard library only: system python3 (preflight, engagement_store) imports it.
 from __future__ import annotations
 
 import json
+import hashlib
+import http.client
 import re
 import urllib.request
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 
 
@@ -157,12 +160,33 @@ def cost_usd(price: tuple[float, float], prompt_tokens: int, completion_tokens: 
     return (prompt_tokens * price[0] + completion_tokens * price[1]) / 1_000_000
 
 
+def secret_digest(provider: str, key: str, base_url: str = "") -> str:
+    """Bind approval to the provider, address and key without exposing the key."""
+    return hashlib.sha256(json.dumps([provider, base_url, key], separators=(",", ":")).encode()).hexdigest()
+
+
+def validate_base_url(value: str) -> str:
+    """The address shape supported by the CONNECT relay; never echo credentials."""
+    try:
+        url = urlsplit(value)
+        valid = (url.scheme in ("http", "https") and url.hostname and
+                 re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,252}", url.hostname) and
+                 not url.username and not url.password and not url.query and not url.fragment and
+                 not any(c.isspace() or ord(c) < 32 for c in value) and
+                 (url.port is None or 1 <= url.port <= 65535))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError("Use an HTTP or HTTPS address with a DNS name or IPv4 address and port 1–65535, without credentials, a query or a fragment.")
+    return value
+
+
 # ---------------------------------------------------------------------------
 # What a key can use, live from the provider (GET /models). Through the relay
 # when a run or the CLI has one (HTTPS_PROXY); the caller supplies the key.
 # ---------------------------------------------------------------------------
 def list_models(provider: str, *, api_key: str = "", base_url: str = "",
-                opener=urllib.request.urlopen, timeout: float = 15) -> list[str]:
+                opener=urllib.request.urlopen, timeout: float = 15, relay: str = "") -> list[str]:
     """The model ids the provider says this key can use, as Agenti names them
     (sorted). Raises RuntimeError with a plain reason on any failure."""
     p = PROVIDERS.get(provider)
@@ -171,6 +195,7 @@ def list_models(provider: str, *, api_key: str = "", base_url: str = "",
     url = (base_url or p.base_url).rstrip("/")
     if not url:
         raise RuntimeError(f"{p.label}: no address set ({p.base_url_env})")
+    validate_base_url(url)
     headers = {"Accept": "application/json", "User-Agent": "agenti"}
     if p.name == "anthropic":
         headers.update({"x-api-key": api_key, "anthropic-version": "2023-06-01"})
@@ -178,8 +203,22 @@ def list_models(provider: str, *, api_key: str = "", base_url: str = "",
         headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(url + "/models", headers=headers)
     try:
-        with opener(req, timeout=timeout) as r:
-            data = json.loads(r.read(2_000_001))
+        if relay:
+            endpoint, proxy = urlsplit(url), urlsplit(relay)
+            cls = http.client.HTTPSConnection if endpoint.scheme == "https" else http.client.HTTPConnection
+            conn = cls(proxy.hostname, proxy.port or 80, timeout=timeout)
+            conn.set_tunnel(endpoint.hostname, endpoint.port or (443 if endpoint.scheme == "https" else 80))
+            try:
+                conn.request("GET", endpoint.path.rstrip("/") + "/models", headers=headers)
+                response = conn.getresponse()
+                if response.status >= 400:
+                    raise RuntimeError(f"{p.label} returned HTTP {response.status}; check the provider key and relay allow-list")
+                data = json.loads(response.read(2_000_001))
+            finally:
+                conn.close()
+        else:
+            with opener(req, timeout=timeout) as r:
+                data = json.loads(r.read(2_000_001))
     except Exception as e:  # noqa: BLE001 - one plain message for the person
         code = getattr(e, "code", None)
         if code in (401, 403):

@@ -230,6 +230,16 @@ s = Script([call(("run_scan", "{not json")), say("ok")])
 RAN.clear()
 ev = asyncio.run(run(engine_openai.OpenAISession(spec(), provider(), post=s)))
 check("arguments that are not JSON: the tool does not run", RAN, [])
+RAN.clear()
+s = Script([call(("run_scan", '{"command": {"type": "string", "value": "nmap 10.0.0.1"}}')),
+            call(("run_scan", '{"command": "nmap 10.0.0.1"}')), say("done")])
+ev = asyncio.run(run(engine_openai.OpenAISession(spec(), provider(), post=s)))
+check("a malformed typed argument is refused, then a valid retry runs", RAN, [{"command": "nmap 10.0.0.1"}])
+check("the model receives an actionable type error", "must be a JSON string" in s.requests[1]["body"]["messages"][-1]["content"], True)
+s = Script([call(("run_scan", '{}')), say("done")])
+RAN.clear()
+asyncio.run(run(engine_openai.OpenAISession(spec(), provider(), post=s)))
+check("a missing required argument is refused before the tool runs", (RAN, "requires the 'command'" in s.requests[1]["body"]["messages"][-1]["content"]), ([], True))
 
 section("the operator: a message sent mid-run reaches the model after the tool")
 DELIVER[:] = ["[Operator message] focus on port 22"]

@@ -671,6 +671,9 @@ agenti — control surface for scoped AI agents
   sudo agenti setup                           first run: admin, API key, vault, remote access
   sudo agenti verify [gui | agent <name>]     prove the install is sound (changes nothing)
   agenti agents [--json]                      deployed agents (no root needed)
+  sudo agenti models --provider anthropic|openai|local [--agent <name>] [--json]
+                                              live models allowed by policy; --status checks provider readiness
+  sudo agenti admin relay allow host:port     add a model endpoint, preserving the relay allow-list
   agenti docs [<page> | search <words>]       the help pages: list, read, search
                                               (no root needed; agenti docs --help)
   agenti new <name>                           scaffold a new agent pack
@@ -773,8 +776,8 @@ agenti — control surface for scoped AI agents
 
 start options
   -t, --target <ip/cidr>   REQUIRED. May only NARROW the engagement scope.
-      --model <name>       REQUIRED. haiku | sonnet | opus, or a full model
-                           id — must be on the allowed list
+      --model <name>       REQUIRED. provider:model (anthropic, openai, local),
+                           or haiku | sonnet | opus — must be on the allowed list
                            (agenti engagement show)
       --budget <usd>       spend ceiling for this run — left blank, defaults
                            to the organisation's own ceiling; may only NARROW it
@@ -2405,9 +2408,10 @@ cmd_purge() {
 
 cmd_setkey() {
     console_only "$1 set-key"
+    local agent="$1"; shift
     [[ -x "$SET_SECRET_SH" ]] || die "$SET_SECRET_SH missing.
 reinstall it:  $REINSTALL"
-    run "$SET_SECRET_SH" --agent "$1"
+    run "$SET_SECRET_SH" --agent "$agent" "$@"
 }
 
 # agenti admin set-user-key <user>: one user's own API key (its own Console
@@ -2424,7 +2428,8 @@ cmd_set_user_key() {
         || die "no user named '$u' — list them: sudo agenti admin user list"
     [[ -x "$SET_SECRET_SH" ]] || die "$SET_SECRET_SH missing.
 reinstall it:  $REINSTALL"
-    run "$SET_SECRET_SH" --user "$u"
+    shift
+    run "$SET_SECRET_SH" --user "$u" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -4051,18 +4056,21 @@ $(setup_code_usage)" ;;
 # behind an admin's fresh re-authentication bound to the key's SHA-256. At a
 # terminal, use sudo agenti setup (or set-secret.sh), which prompts silently.
 cmd_set_api_key_web() {
-    local grant=""
+    local grant="" provider="anthropic" base_url=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --grant=*) grant="${1#*=}"; shift ;;
+            --provider=*) provider="${1#*=}"; shift ;;
+            --base-url=*) base_url="${1#*=}"; shift ;;
             *) die "REFUSING: 'admin set-api-key' takes only --grant=<id>, with the key on stdin." ;;
         esac
     done
     [[ -n "$grant" ]] || die "REFUSING: saving the API key from the web needs a fresh re-authentication (an approval grant).
 At the terminal instead:  sudo agenti setup"
     local key; IFS= read -r key || true
-    [[ -n "$key" ]] || die "no key was given"
-    local sha; sha=$(printf '%s' "$key" | sha256sum | cut -d' ' -f1)
+    [[ "$provider" =~ ^(anthropic|openai|local)$ ]] || die "unknown provider; choose anthropic, openai or local"
+    [[ -n "$key" || "$provider" == local ]] || die "no key was given"
+    local sha; sha=$(printf '%s' "$key" | python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from model_registry import secret_digest; print(secret_digest(sys.argv[2], sys.stdin.read(), sys.argv[3]))' "$LIBDIR" "$provider" "$base_url")
     local aout arc=0
     aout=$(python3 "$IAM_PY" --json approve-api-key "--sha256=$sha" "--grant=$grant" 2>&1) || arc=$?
     if [[ $arc -ne 0 ]]; then
@@ -4072,7 +4080,9 @@ At the terminal instead:  sudo agenti setup"
     fi
     local by; by=$(printf '%s' "$aout" | _json_field approved_by)
     local out rc=0
-    out=$(printf '%s\n' "$key" | "$SET_SECRET_SH" --stdin 2>&1) || rc=$?
+    local -a key_args=(--provider "$provider" --stdin)
+    [[ -z "$base_url" ]] || key_args+=(--base-url "$base_url")
+    out=$(printf '%s\n' "$key" | "$SET_SECRET_SH" "${key_args[@]}" 2>&1) || rc=$?
     unset key
     logger -t agenti "API_KEY_SET | by=$by | via=api | sha256=${sha:0:12} | rc=$rc" 2>/dev/null || true
     [[ $rc -eq 0 ]] || die "the key was not saved: $(printf '%s' "$out" | grep -i 'error' | tail -n 2 | tr '\n' ' ')"
@@ -4183,10 +4193,11 @@ EOF
     elif grep -qs '^ANTHROPIC_API_KEY=.' "$AGENTI_ROOT/shared/secrets.env"; then
         ok "a key is already set — skipped (replace it:  sudo $SET_SECRET_SH)"
     else
-        echo "  Every agent run uses it. Get one at https://console.anthropic.com/ (it starts sk-ant-)."
+        echo "  Claude runs use it. Get one at https://console.anthropic.com/ (it starts sk-ant-)."
+        echo "  OpenAI and self-hosted providers can be configured in Settings → Platform."
         read -r -p "  set it now? [Y/n] " reply
         if [[ "$reply" =~ ^[Nn] ]]; then
-            ok "skipped — agent runs will refuse to start until a key is set. Later:  sudo agenti setup"
+            ok "skipped — configure the provider you want in Settings → Platform, or return here for Claude: sudo agenti setup"
         else
             "$SET_SECRET_SH" || warn "no key was saved; set it later:  sudo agenti setup"
         fi
@@ -4533,6 +4544,22 @@ reinstall it:  $REINSTALL"
         exec python3 "$IAM_PY" --help
     fi
     case "${1:-}" in
+        set-policy)
+            if [[ "${2:-}" == model-price || "${2:-}" == model_prices ]]; then
+                console_only "admin set-policy model-price"
+                [[ $# -eq 3 ]] || die "usage: sudo agenti admin set-policy model-price provider:model=INPUT,OUTPUT
+Prices are USD per million tokens; this uses the organisation's engagement policy."
+                cmd_org_engagement set --model-price "$3"
+                return
+            fi ;;
+        relay)
+            console_only "admin relay"
+            [[ "${2:-}" == allow && $# -eq 3 ]] || die "usage: sudo agenti admin relay allow host:port
+Adds a model endpoint while keeping the existing destinations (or the cloud defaults).
+Restarts the active relay to apply it; wait for current model requests to finish first."
+            python3 "$LIBDIR/egress_relay.py" --add-allowed "$3" || die "the relay destination was not saved"
+            systemctl try-restart agenti-relay.service || die "saved, but could not restart the relay; run: sudo systemctl restart agenti-relay.service"
+            return ;;
         set-user-key) shift; cmd_set_user_key "$@"; return ;;
         set-api-key) shift; cmd_set_api_key_web "$@"; return ;;
         context)
@@ -5453,13 +5480,19 @@ for m in d["members"]:
 # is captured rather than let straight through.
 cmd_team_start() {
     local name="$1"; shift
-    local default_target=""
+    local default_target="" agent scope_mode
     local -A overrides=()
     local -A role_overrides=()
+    local -A model_overrides=()
     local -a passthrough=()
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --member-model)
+                [[ $# -ge 2 && "$2" == *=* ]] || die "--member-model needs agent=provider:model, e.g. --member-model enum=openai:gpt-5.1"
+                valid_name "${2%%=*}" && [[ -n "${2#*=}" ]] || die "--member-model needs an agent name and a nonempty provider:model"
+                model_overrides["${2%%=*}"]="${2#*=}"
+                shift 2 ;;
             --target)
                 [[ $# -ge 2 ]] || die "--target needs a value, e.g.
   --target 192.0.2.50            (default for every 'shared' member)
@@ -5485,6 +5518,40 @@ cmd_team_start() {
     mapfile -t member_lines < <(_team_members "$name")
     [[ ${#member_lines[@]} -gt 0 ]] || die "team '$name' has no members. add one:
   sudo agenti team $name add-agent <agent>"
+    local override_member candidate found_member
+    for override_member in "${!model_overrides[@]}"; do
+        found_member=0
+        for candidate in "${member_lines[@]}"; do
+            [[ "${candidate%%$'\t'*}" != "$override_member" ]] || found_member=1
+        done
+        [[ $found_member -eq 1 ]] || die "'$override_member' is not a member of team '$name'; check: sudo agenti team $name show"
+    done
+
+    # Check every member that can start before provisioning slots or posting
+    # the kickoff. The shared precheck remains the single source of scope,
+    # model policy and provider key/address/price decisions.
+    local default_model="" i pre_model pre_target pre_kind pre_result pre_rc
+    for ((i=0; i<${#passthrough[@]}; i++)); do
+        if [[ "${passthrough[i]}" == --model ]]; then
+            (( i + 1 < ${#passthrough[@]} )) || die "--model needs a provider:model value"
+            default_model="${passthrough[i+1]}"
+            ((i+=1))
+        fi
+    done
+    for candidate in "${member_lines[@]}"; do
+        agent="${candidate%%$'\t'*}"; scope_mode="${candidate#*$'\t'}"
+        pre_target="${overrides[$agent]:-}"
+        [[ -z "$pre_target" && "$scope_mode" == shared ]] && pre_target="$default_target"
+        pre_kind=$(_agent_scope_kind "$agent")
+        [[ -n "$pre_target" || "$pre_kind" == files ]] || continue
+        pre_model="${model_overrides[$agent]:-$default_model}"
+        [[ -n "$pre_model" ]] || die "team member '$agent' needs a model: use --model <provider:model> or --member-model $agent=<provider:model>"
+        pre_rc=0
+        pre_result=$(python3 "$LIBDIR/run_coverage.py" precheck --org-dir "$(org_dir)" --agent "$agent" \
+                     --kind "$pre_kind" --target "$pre_target" --model "$pre_model" --owner "$OWNER" 2>&1) || pre_rc=$?
+        [[ $pre_rc -eq 0 ]] || die "REFUSING to start team '$name': $agent cannot start; no member was started:
+$(printf '%s\n' "$pre_result" | sed 's/^/  - /')"
+    done
 
     local svc_user; svc_user=$SVC_USER
 
@@ -5581,7 +5648,9 @@ print(json.dumps({"team": sys.argv[1], "member": sys.argv[2]}))
         # context, which IS exempt, restoring the per-member containment
         # the subshell was already supposed to provide.
         rc=0
-        output=$( ( _TEAM_START_IN_PROGRESS=1 cmd_start "$agent" "${start_target[@]}" "${passthrough[@]}" ) ) || rc=$?
+        local -a member_model=()
+        [[ -z "${model_overrides[$agent]:-}" ]] || member_model=(--model "${model_overrides[$agent]}")
+        output=$( ( _TEAM_START_IN_PROGRESS=1 cmd_start "$agent" "${start_target[@]}" "${passthrough[@]}" "${member_model[@]}" ) ) || rc=$?
         [[ $JSON -ne 1 ]] && printf '%s\n' "$output"
 
         if [[ $rc -eq 0 ]]; then
@@ -5701,6 +5770,8 @@ usage: sudo agenti team <list|create|NAME> ...
   sudo agenti team <name> delete
   sudo agenti team <name> start --target <value> [--target <agent>=<value>]...
                                         [--role <agent>=<text>]...
+                                        [--model <provider:model>]
+                                        [--member-model <agent>=<provider:model>]...
   sudo agenti team <name> stop | pause | resume | status
   sudo agenti team <name> say "<text>"    steer every member (§3i)
   sudo agenti team <name> note "<text>"   record only, never delivered
@@ -6081,29 +6152,24 @@ import disk_encryption
 storage = disk_encryption.status(root)
 if storage["encrypted"] is False:
     storage["warning"] = disk_encryption.WARNING
-# Is there an Anthropic key any of this user's runs would use (the four tiers,
-# agent_runtime.load_secrets)? Only yes/no; the GUI offers Settings → Platform.
-# A per-agent file belongs to the run account: never follow a link or block on a pipe.
-def _has_key(f):
-    import stat as _stat
+# Provider readiness is resolved through the same per-key tiers as a run.
+import provider_settings
+providers = {}
+if vault != "locked":
     try:
-        fd = os.open(f, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    except OSError:
-        return False
-    try:
-        if not _stat.S_ISREG(os.fstat(fd).st_mode):
-            return False
-        text = os.read(fd, 1 << 16).decode("utf-8", "replace")
-    finally:
-        os.close(fd)
-    return any(l.startswith("ANTHROPIC_API_KEY=") and len(l.strip()) > 18 for l in text.splitlines())
-_tiers = [Path(root) / "shared" / "secrets.env", Path(root) / "org" / "secrets.env",
-          Path(root) / "org" / "users" / owner / "secrets.env"]
-_tiers += list((Path(root) / "org").glob("*/secrets.env"))
-api_key = "set" if vault != "locked" and any(_has_key(f) for f in _tiers) else (
-    "unknown" if vault == "locked" else "missing")
+        providers = provider_settings.status(Path(root), owner)
+        for candidate in (Path(root) / "org").glob("*/secrets.env"):
+            if candidate.parent.name == "users":
+                continue
+            for name, info in provider_settings.status(Path(root), owner, candidate.parent.name).items():
+                if info["ready"]:
+                    providers[name] = info
+    except (OSError, ValueError, SystemExit):
+        providers = {}
+api_key = ("unknown" if vault == "locked" or not providers else
+           "set" if any(p["ready"] for p in providers.values()) else "missing")
 result = {"owner": owner, "vault": vault, "storage": storage, "api_key": api_key,
-          "slots": out_slots, "teams": teams}
+          "providers": providers, "slots": out_slots, "teams": teams}
 if as_json == "1":
     print(json.dumps(result))
 else:
@@ -6131,6 +6197,10 @@ if [[ "${1:-}" == "new" ]]; then
     console_only new                     # it writes wherever --dir says (audit run 2)
     shift
     cmd_new "$@"
+    exit 0
+fi
+if [[ "${1:-}" == models && ( " $* " == *" --help "* || " $* " == *" -h "* ) ]]; then
+    python3 "$LIBDIR/provider_settings.py" --root "$AGENTI_ROOT" --help
     exit 0
 fi
 
@@ -6576,6 +6646,14 @@ reinstall it:  $REINSTALL"
         shift
         cmd_org_engagement "$@"
         exit 0 ;;
+    models)
+        need_root
+        resolve_slot
+        shift
+        _model_flags=()
+        [[ $JSON -eq 0 ]] || _model_flags+=(--json)
+        python3 "$LIBDIR/provider_settings.py" --root "$AGENTI_ROOT" --owner "$OWNER" "${_model_flags[@]}" "$@"
+        exit $? ;;
     dashboard)
         need_root
         shift
@@ -6681,7 +6759,7 @@ case "$VERB" in
     tool-settings)  require_agent "$AGENT"; cmd_tool_settings "$AGENT" "$@" ;;
     tools)          require_agent "$AGENT"; cmd_tools "$AGENT" ;;
     approval)       require_agent "$AGENT"; cmd_approval "$AGENT" ;;
-    set-key)        require_agent "$AGENT"; cmd_setkey "$AGENT" ;;
+    set-key)        require_agent "$AGENT"; cmd_setkey "$AGENT" "$@" ;;
     provision)      require_agent_master "$AGENT"; cmd_provision "$AGENT" ;;
     *) die "unknown verb '$VERB' for '$AGENT'. Try: agenti --help
 usage: sudo agenti <agent> <verb>, e.g. sudo agenti $AGENT status" ;;

@@ -18,6 +18,7 @@ Standard library only: importing this never needs any provider's SDK.
 from __future__ import annotations
 
 import typing
+import math
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -68,6 +69,34 @@ def json_schema(td: ToolDef) -> dict:
         props = {k: _type_schema(v) for k, v in s.items()}
         return {"type": "object", "properties": props, "required": list(props)}
     return {"type": "object", "properties": {}}
+
+
+def argument_error(td: ToolDef, args: dict) -> str | None:
+    """Check required fields and their declared primitive types before calling a tool.
+
+    Some compatible models return schema descriptions as values. Never coerce
+    them into commands: give the model a useful error and let it try again.
+    Domain-specific validation still happens inside the tool.
+    """
+    schema = json_schema(td)
+    for name in schema.get("required", []):
+        if name not in args:
+            return f"Tool '{td.name}' requires the '{name}' argument. Send a JSON object with that field."
+    types = {"string": str, "object": dict, "array": list, "boolean": bool,
+             "integer": int, "number": (int, float), "null": type(None)}
+    for name, value in args.items():
+        declaration = (schema.get("properties") or {}).get(name) or {}
+        expected = declaration.get("type") if isinstance(declaration, dict) else None
+        if not isinstance(expected, str) or expected not in types:
+            continue
+        valid = isinstance(value, types[expected])
+        if expected in ("integer", "number") and isinstance(value, bool):
+            valid = False
+        if expected == "number" and valid and isinstance(value, float) and not math.isfinite(value):
+            valid = False
+        if not valid:
+            return f"Tool '{td.name}' argument '{name}' must be a JSON {expected}; send a value, not a schema description."
+    return None
 
 
 def to_sdk(td: ToolDef):

@@ -74,7 +74,7 @@ def validate_name(name: str) -> None:
         "shared", "lost+found", "list",
         "new", "admin", "vault", "gui", "help", "docs", "agents", "setup", "setup-code", "verify",
         "team", "outputs", "tool-requests",
-        "engagement", "dashboard", "principals", "users", "bindings", "principal-history",
+        "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
         "user-history", "rename",
     }
     if name in reserved:
@@ -231,13 +231,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from claude_agent_sdk import (
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-    HookMatcher,
-    ResultMessage,
-    tool,
-)
+from agent_tools import tool
+from model_session import SessionSpec, open_session
 
 from engagement_context import (build_system_prompt, assert_in_window,
                                 load_engagement, EngagementError)
@@ -257,7 +252,7 @@ AGENTI_ROOT = paths.data_root()
 # Everything lives under the one organisation directory.
 ORG_DIR = AGENTI_ROOT / "org"
 AGENT_NAME = "{name}"
-AGENT_DIR = ORG_DIR / AGENT_NAME
+AGENT_DIR = Path(os.environ.get("AGENTI_INSTANCE", str(ORG_DIR / AGENT_NAME)))
 SHARED_DIR = AGENTI_ROOT / "shared"
 
 
@@ -389,9 +384,7 @@ def configure(profile: Profile) -> Profile:
     profile = agent_runtime.load_run_config(profile, AGENT_DIR, org_dir=ORG_DIR, logger=LOG)
     PROFILE = profile
 
-    agent_runtime.load_secrets([profile.data_root / "secrets.env",
-                                ORG_DIR / "secrets.env",
-                                SHARED_DIR / "secrets.env"])
+    agent_runtime.load_secrets(agent_runtime.secrets_path_list(AGENT_DIR, AGENT_NAME, ORG_DIR, SHARED_DIR))
     agent_runtime.require_api_key(AGENT_NAME, profile.model)
 
     _this_run = (
@@ -440,7 +433,6 @@ CONTRACT = AgentContract(
     operational_notes=_OPERATIONAL_NOTES,
     task=TASK,
 )
-MCP_SERVER = CONTRACT.build_mcp_server()
 TOOL_ALLOWLIST_HOOK = CONTRACT.make_tool_allowlist_hook(LOG)
 
 
@@ -571,23 +563,19 @@ async def run(profile: Profile) -> int:
     _tracker = agent_runtime.StateTracker(STATE, _summarize_tool_content)
     _track_message_for_state = _tracker.track
 
-    options = ClaudeAgentOptions(
-        system_prompt=agent_runtime.system_prompt_file(SYSTEM_PROMPT),  # never on argv
-        mcp_servers={{CONTRACT.mcp_server_name: MCP_SERVER}},
-        allowed_tools=sorted(CONTRACT.allowed_tool_names),
-        permission_mode="dontAsk",
-        setting_sources=[],  # load no user/project settings: nothing outside our own files steers a run
-        hooks=agent_runtime.build_hooks(TOOL_ALLOWLIST_HOOK, HookMatcher, agent_dir=AGENT_DIR,
-                                        state=STATE, tracker=_tracker, logger=LOG),
+    spec = SessionSpec(
         model=profile.model,
+        system_prompt=SYSTEM_PROMPT,
+        contract=CONTRACT,
+        pre_tool_hook=TOOL_ALLOWLIST_HOOK,
+        post_tool_hook=agent_runtime.make_inbox_hook(AGENT_DIR, STATE, lambda: _tracker.turn, LOG),
         max_turns=profile.max_turns,
         max_budget_usd=profile.max_budget_usd,
-        # Attach to the previous conversation when resuming. Per-run caps are
-        # deliberately NOT carried over: they are re-read from run-config.json
-        # every time, so a resume can never inherit a looser budget than the
-        # operator set for it (CLAUDE.md §1 invariant 7).
+        state_dir=profile.data_root / "state",
         resume=resume_session,
-        env=agent_runtime.cli_env(),  # the relay, in an IP-scoped (kernel-fenced) run
+        env=agent_runtime.cli_env(),
+        model_prices=agent_runtime.run_model_prices(ORG_DIR),
+        logger=LOG,
     )
 
     started = time.time()
@@ -607,7 +595,7 @@ async def run(profile: Profile) -> int:
     # first copy having been "handled". Wrapping the whole async-with closes
     # that gap.
     try:
-        async with ClaudeSDKClient(options=options) as client:
+        async with open_session(spec) as client:
             # `agenti ... interrupt` (SIGUSR1) — a faster stop that aborts the
             # in-flight tool call instead of waiting for it. Installed here,
             # once `client` is live, because client.interrupt() needs the
@@ -629,7 +617,7 @@ async def run(profile: Profile) -> int:
                     while True:
                         async for message in client.receive_response():
                             print(message)
-                            if isinstance(message, ResultMessage):
+                            if type(message).__name__ == "ResultMessage":
                                 result = message
                                 agent_runtime.note_result(message)
                             elif (type(message).__name__ == "SystemMessage"

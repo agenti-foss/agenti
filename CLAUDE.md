@@ -6,8 +6,8 @@ code wins**. Always update this file as you build.
 ## What Agenti is (product definition, 2026-10-06)
 
 An open-source, self-hosted, agentic **cybersecurity** tool for **one
-organisation's internal team**, running on a Kali Linux box, built on the Claude
-Agent SDK. CLI binary `agenti`, shipped as a `.deb` (`docs/packaging.md`).
+organisation's internal team**, running on a Kali Linux box, with Claude,
+OpenAI and compatible self-hosted models through one run loop. CLI binary `agenti`, shipped as a `.deb` (`docs/packaging.md`).
 
 - **One org, many users. Two roles:** `operator` and `admin`. Every operator may
   use every agent. No tenants, no agent kits, no viewer role, no per-user agent
@@ -16,7 +16,7 @@ Agent SDK. CLI binary `agenti`, shipped as a `.deb` (`docs/packaging.md`).
   domain scope), `trafficmon` (passive capture, CIDR scope), `cracker`
   (hash cracking with john/hashcat, file-analysis agent, no network), `exploit`
   (Metasploit exploitation with per-action operator approval, CIDR scope, requires
-  `exploitation_enabled` in the engagement and CVP enrolment), plus whatever admins
+  `exploitation_enabled` in the engagement), plus whatever admins
   build in Settings → Agents: **recon** agents (reviewed programs against a target)
   and **file-analysis** agents (`tshark`/`capinfos`/`suricata -r`/`john`/`hashcat`
   on attached files, in a bubblewrap + seccomp sandbox). A built agent is **data**
@@ -60,8 +60,8 @@ deliberate).
    and only readable by the service account. `-t` may only **narrow** the
    approved scope. Out-of-scope → `REFUSING` in the journal. Since audit run 1 an
    IP-scoped run is also fenced by the kernel (per-slot `scope.conf`: IPAddressDeny=any,
-   IPAddressAllow=localhost + its narrowed networks); the Claude CLI alone reaches
-   Anthropic via `agenti-relay` (egress_relay.py, CONNECT to api.anthropic.com:443 only).
+   IPAddressAllow=localhost + its narrowed networks); model clients reach providers
+   through `agenti-relay` (CONNECT to Anthropic/OpenAI and root-allowed local endpoints).
 3. **Two bounded carve-outs from "recon only."**
    **Carve-out A — offline hash cracking:** `john` and `hashcat` are offered by
    the `cracker` file-analysis agent exclusively: (a) accepts only
@@ -72,8 +72,7 @@ deliberate).
    engagement record (admin gate), (b) enforces the same CIDR scope as recon
    agents, (c) requires per-action operator approval for every module — the run
    pauses, the operator sees the exact options and reason, and nothing fires
-   without an explicit approve call, (d) requires enrolment in Anthropic's
-   Cyber Verification Program (confirmed 2026-10-08), and (e) archives all
+   without an explicit approve call, and (d) archives all
    sessions and loot on teardown. `msfconsole` is never offered in the
    catalog or any allow-list. Neither carve-out extends to recon agents.
 4. **Everything runs unprivileged** as `agenti-run` (nologin). Raw sockets come
@@ -217,8 +216,8 @@ from `/proc/<pid>/mountinfo`.
   actions (grants, rename/delete user, build/remove/edit agent, catalog edits,
   instruction edits) need a fresh re-auth → single-use grant bound to the
   action's SHA-256, consumed by the root CLI; every action asks again (no grace).
-  **First run (0.1.1):** `setup.html`, loopback-only (`_setup_is_local`: no proxy
-  header, loopback Host/Origin) + the setup code (`agenti setup-code`; hash in
+  **First run:** `setup.html`, direct browsers only (`_setup_reachable`: no proxy
+  headers or cross-site requests) + the setup code (`agenti setup-code`; hash in
   runtime.db, 20 tries) → authd `setup_begin` grant → `admin setup-first-admin` →
   enrolment link. Org API key from the web: `admin/api-key`, grant on its SHA-256.
 - **Agent controls (Settings → Agents):** system prompt / skills / org
@@ -309,11 +308,11 @@ no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the r
 - **Network by default (2026-11-04):** a fresh install listens on 0.0.0.0, HTTPS,
   self-signed (`write_first_api_conf`; upgrades keep api.conf); the setup page answers any
   direct browser (`_setup_reachable`: never via proxy/tunnel or cross-site; code-guarded).
-- **Released: 0.1.2** (2026-11-04) on GitHub and the hand-signed apt repo
+- **Released: 0.1.3** (2026-11-04) on GitHub and the hand-signed apt repo
   apt.agenti-foss.org (runtime 1.0.0). Open core public at `agenti-foss/agenti` (from
   0.1.0; earlier history never public); this repo's `main` fast-forwards it. `agenti-runtime`
   fetches Anthropic's Claude Code at install (pinned by SHA-256), never ships it.
-- CI (`bash shared/ci.sh all`): 45 suites, ruff, shellcheck, `node --check`, old-name guard;
+- CI (`bash shared/ci.sh all`): 49 suites, ruff, shellcheck, `node --check`, old-name guard;
   gitleaks and `package.yml` (build, lintian, install/purge) run in the workflows; see
   `docs/ci.md` (decisions: `docs/open-core-split.md` § CI/CD).
   `sudo ./shared/deploy.sh` installs the WORKING TREE, so another session's unfinished
@@ -335,14 +334,12 @@ no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the r
 - Remote access: `agenti gui configure --behind-proxy` + the user's own tunnel/proxy.
 
 ### Open questions / next work
-1. **NEXT:** an apt host for the paid agents (on hold; their CI pins core
-   `CORE_VERSION`). Remote access setup is the user's own (no guided Cloudflare command,
-   decided 2026-11-04). Agenti is meant to become model-agnostic (any provider,
-   self-hosted included): keep the model behind a seam.
-   **Licensing (2026-10-19):** open core AGPL-3.0; exploit, cracker and future advanced
-   agents proprietary, one private repo each; CLA + trademark (`docs/open-core-split.md`).
-   Releases: `release.yml` (public repo only), `repo.sh`, `docs/release-signing.md`. The website is its own repo, `agenti-foss/website`
-   (`build.py --sync <this repo>/docs/help --check`).
+1. **Model providers:** `docs/model-providers.md` records Phase B implementation,
+   VM proof and outstanding checks. Phase C is the console; do not start it during B.
+   Paid-agent apt hosting remains on hold. Remote access is operator-configured.
+   **Licensing:** core AGPL-3.0; advanced agents proprietary, each in a private repo
+   (`docs/open-core-split.md`). Publish only on request: `docs/release-signing.md`;
+   the website is a separate repo and syncs `docs/help/`.
 2. Notifications/escalation on an acknowledged channel; request rate limiting
    beyond the login throttle; aggregate spend caps; MCP access for Claude Code
    over the existing API with a per-user key (`GET /dashboard` is the shape);

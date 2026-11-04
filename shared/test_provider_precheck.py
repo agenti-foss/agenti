@@ -44,6 +44,8 @@ class ProviderPrecheck(unittest.TestCase):
 
     def test_cloud_key_and_price_are_required_independently(self):
         self.assertIn("API key", " ".join(self.reasons("openai:test")))
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "launching-shell-only"}):
+            self.assertIn("API key", " ".join(self.reasons("openai:test")))
         self.secret(".", "OPENAI_API_KEY=fixture\n")
         self.assertEqual(self.reasons("openai:test"), [])
         self.assertIn("--model-price", " ".join(self.reasons("openai:unpriced")))

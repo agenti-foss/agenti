@@ -276,14 +276,17 @@
           </div>
 
           <div class="panel" id="apikey-panel" hidden>
-            <h2 class="ih" data-icon="key">Anthropic API key</h2>
-            <p class="hint">Every agent run uses it. Get one at console.anthropic.com (it starts <code>sk-ant-</code>). It is stored on this server and never shown again.</p>
+            <h2 class="ih" data-icon="key">Model providers</h2>
+            <p class="hint">Keys are stored on this server and never shown again. Runs use the key for their chosen provider.</p>
             <div id="apikey-banner" class="banner"></div>
             <div id="apikey-state" class="stack" style="gap:6px;"></div>
             <form id="apikey-form" class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;" autocomplete="off">
+              <label for="apikey-provider">Provider</label>
+              <select id="apikey-provider"><option value="anthropic">Claude (Anthropic)</option><option value="openai">ChatGPT (OpenAI)</option><option value="local">Self-hosted</option></select>
+              <div id="provider-address-field" class="field" hidden><label for="provider-address">Model server address</label><input id="provider-address" type="url" placeholder="http://model.example.com:11434/v1"><p class="hint">An administrator must also allow this host and port at the server: <code>sudo agenti admin relay allow host:port</code>.</p></div>
               <label for="apikey-input" class="sr-only">API key</label>
               <input type="password" id="apikey-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 240px; min-width:0;">
-              <button type="submit" class="btn btn-primary" id="apikey-btn" data-icon="key">Save key</button>
+              <button type="submit" class="btn btn-primary" id="apikey-btn" data-icon="key">Save settings</button>
             </form>
           </div>
 
@@ -595,15 +598,12 @@
             </div></div>
         </div>
         <div class="field"><label>Allowed models</label>
-          <div class="field-row">
-            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-              <input type="checkbox" class="eng2-model" value="haiku" style="width:auto;"> Haiku</label>
-            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-              <input type="checkbox" class="eng2-model" value="sonnet" style="width:auto;"> Sonnet</label>
-            <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-              <input type="checkbox" class="eng2-model" value="opus" style="width:auto;"> Opus</label>
-          </div>
-          <p class="hint">None checked = every model is allowed (the platform default).</p>
+          <textarea id="eng2-models" rows="3" aria-label="Allowed models" placeholder="anthropic:*&#10;openai:gpt-5.1&#10;local:*"></textarea>
+          <p class="hint">One name or provider wildcard per line (anthropic:*, openai:*, local:*). Blank restores the platform default.</p>
+        </div>
+        <div class="field"><label for="eng2-model-prices">Model prices</label>
+          <textarea id="eng2-model-prices" rows="3" placeholder="openai:gpt-5.1=1.25,10"></textarea>
+          <p class="hint">One model=input,output per line, in USD per million tokens. Required for OpenAI budget enforcement; self-hosted models cost zero.</p>
         </div>
       </details>
       <div id="engagement-banner" class="banner err"></div>

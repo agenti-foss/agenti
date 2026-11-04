@@ -59,8 +59,8 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         --base-url)
             BASE_URL="${2:-}"
-            [[ "$BASE_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$ ]] \
-                || die "--base-url needs the model server's address, e.g. http://10.0.0.5:11434/v1"
+            python3 -c 'import sys; sys.path.insert(0,sys.argv[1]); from model_registry import validate_base_url; validate_base_url(sys.argv[2])' "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" "$BASE_URL" \
+                || die "--base-url needs the model server's HTTP or HTTPS address, e.g. http://model.example.com:11434/v1"
             shift 2 ;;
         --org) ORG=1; shift ;;
         --agent)
@@ -76,6 +76,13 @@ while [[ $# -gt 0 ]]; do
         *) break ;;
     esac
 done
+[[ -z "$AGENT" || "$AGENT" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]] || die "invalid agent name"
+[[ -z "$USER_NAME" || "$USER_NAME" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]] || die "invalid user name"
+tiers=$ORG
+[[ -z "$AGENT" ]] || tiers=$((tiers + 1))
+[[ -z "$USER_NAME" ]] || tiers=$((tiers + 1))
+[[ $tiers -le 1 ]] || die "choose one tier: --org, --agent or --user"
+[[ $# -eq 0 || ( $# -eq 1 && "$1" == --show ) ]] || die "unknown option '$1'; use --provider anthropic|openai|local [--base-url URL] [--org | --agent NAME | --user NAME] [--stdin | --show]"
 
 if [[ -n "$USER_NAME" ]]; then
     PREFIX="$AGENTI_ROOT/org/users/$USER_NAME"

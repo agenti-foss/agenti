@@ -299,7 +299,7 @@ PLATFORM_DEFAULT_POLICY: dict[str, Any] = {
     "max_turns_ceiling": 40,
     "max_budget_usd_ceiling": 10.00,
     "timeout_s_ceiling": 3600,
-    "allowed_models": ["haiku", "sonnet", "opus"],
+    "allowed_models": ["anthropic:*", "haiku", "sonnet", "opus"],
 }
 
 # Same shape as every other project identifier that becomes a filename/log

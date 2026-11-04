@@ -35,7 +35,6 @@ refused a moment later; preflight and the harness still decide.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -120,19 +119,16 @@ def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: s
                          org_dir / agent / "secrets.env", org_dir / "secrets.env",
                          org_dir.parent / "shared" / "secrets.env"]
                 try:
-                    values = read_secrets(tiers, os.environ)
+                    # systemd loads the files, not the launching shell's environment.
+                    values = read_secrets(tiers)
                     flag = f" --provider {provider.name}"
                     if provider.key_required and not values.get(provider.key_env):
                         reasons.append(f"no {provider.label} API key for this run; set one with: "
                                        f"sudo /usr/lib/agenti/set-secret.sh{flag}")
                     if provider.base_url_env:
-                        from urllib.parse import urlsplit
-                        address = values.get(provider.base_url_env, "")
                         try:
-                            url = urlsplit(address)
-                            valid = (url.scheme in ("http", "https") and url.hostname and
-                                     not url.username and not url.password and not url.query and
-                                     not url.fragment and (url.port is None or 1 <= url.port <= 65535))
+                            mr.validate_base_url(values.get(provider.base_url_env, ""))
+                            valid = True
                         except ValueError:
                             valid = False
                         if not valid:

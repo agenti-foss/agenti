@@ -311,10 +311,10 @@ class OpenAISession:
             blocks: list = [TextBlock(reply.text)] if reply.text else []
             for call_id, name, arguments in reply.calls:
                 try:
-                    args = json.loads(arguments)
+                    args = arguments if isinstance(arguments, dict) else json.loads(arguments)
                     if not isinstance(args, dict):
                         raise ValueError
-                except ValueError:
+                except (TypeError, ValueError):
                     args = {"_unparsed": arguments}
                 blocks.append(ToolUseBlock(id=call_id or secrets.token_hex(6),
                                            name=self._qualified(name), input=args))
@@ -359,6 +359,9 @@ class OpenAISession:
             return f"There is no tool named '{bare}'.", True
         if "_unparsed" in block.input:
             return "The arguments were not valid JSON; send them again as a JSON object.", True
+        error = agent_tools.argument_error(td, block.input)
+        if error:
+            return error, True
         try:
             return agent_tools.result_text(await td.handler(block.input))
         except Exception as e:  # noqa: BLE001 - a tool's failure is the model's to read, not a crash

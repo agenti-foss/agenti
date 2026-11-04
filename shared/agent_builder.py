@@ -63,7 +63,7 @@ RESERVED = frozenset({
     "shared", "lost+found", "list", "lib", "agents",
     "new", "admin", "vault", "gui", "help", "docs", "setup", "setup-code", "verify",
     "team", "outputs", "tool-requests",
-    "engagement", "dashboard", "principals", "users", "bindings", "principal-history",
+    "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
     "user-history", "rename",
     "context", "instances", "copies",
 })

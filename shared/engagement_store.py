@@ -260,7 +260,7 @@ def _merge_policy(existing: dict, args) -> dict:
         policy.pop("allowed_models", None)
     elif args.allowed_models:
         policy["allowed_models"] = list(args.allowed_models)
-    prices = dict(policy.get("model_prices") or {})
+    prices = {} if args.clear_model_prices else dict(policy.get("model_prices") or {})
     for name in args.clear_model_price or []:
         prices.pop(name, None)
         prices.pop(ec.canonical_model(name), None)
@@ -740,6 +740,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         "needs it; Claude's spend comes from the Claude SDK, a self-hosted model is free")
     s.add_argument("--clear-model-price", action="append", default=None, metavar="MODEL",
                    help="forget one model's price")
+    s.add_argument("--clear-model-prices", action="store_true", help="clear all prices before applying --model-price entries")
     s.add_argument("--clear-allowed-models", action="store_true",
                    help="revert to the platform default model list")
 

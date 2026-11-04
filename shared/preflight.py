@@ -243,10 +243,9 @@ def check_egress() -> None:
     via = f" via the relay ({relay})" if relay else ""
     try:
         from urllib.parse import urlsplit
+        import model_registry
         provider = run_provider()
-        url = urlsplit(provider.base_url or os.environ.get(provider.base_url_env, ""))
-        if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password:
-            raise ValueError("invalid provider address; configure it with set-secret.sh --provider local --base-url")
+        url = urlsplit(model_registry.validate_base_url(provider.base_url or os.environ.get(provider.base_url_env, "")))
         port = url.port or (443 if url.scheme == "https" else 80)
         with _connect_api(relay, url.hostname, port) as raw:
             if url.scheme == "https":

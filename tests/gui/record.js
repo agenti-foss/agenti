@@ -59,6 +59,7 @@ async function visit(ctx, list, answers) {
   });
   for (const pg of list) {
     await p.goto(base + pg.path, { waitUntil: "networkidle" });
+    if (pg.click) { await p.click(pg.click); await p.waitForLoadState("networkidle"); }
     await p.waitForTimeout(1500);
   }
   await p.close();

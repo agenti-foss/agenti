@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (dash.api_key === "missing" && !viewUser && !keyHidden) {
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
-    keyBanner.innerHTML = `<strong>No Anthropic API key yet: agents can't start.</strong> `
+    keyBanner.innerHTML = `<strong>No model provider is configured yet.</strong> `
       + (admin ? `Add one in <a href="settings.html#platform">Settings → Platform</a>.`
                : `Ask an admin to add one (Settings → Platform).`)
       + `<button type="button" class="banner-close" aria-label="Dismiss">${Agenti.icon("close", 14) || "×"}</button>`;

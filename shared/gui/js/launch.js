@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
     const kb = document.getElementById("key-banner");
-    kb.innerHTML = `<strong>No Anthropic API key yet: agents can't start.</strong> `
+    kb.innerHTML = `<strong>No model provider is configured yet.</strong> `
       + (admin ? `Add one in <a href="settings.html#platform">Settings → Platform</a>.`
                : `Ask an admin to add one (Settings → Platform).`);
     kb.classList.add("show");
@@ -48,8 +48,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   const runNameField = document.getElementById("run-name-field");
   const runNameInput = document.getElementById("run-name");
   const instructionsHint = document.getElementById("run-instructions-hint");
-  const runModelSel = document.getElementById("run-model");
-  const runModelHint = document.getElementById("run-model-hint");
+  let runModelSel = null;
+  const modelHost = document.getElementById("run-model-picker");
+  const memberModels = new Map();
   const runTurnsInput = document.getElementById("run-turns");
   const runBudgetInput = document.getElementById("run-budget");
   const runTimeoutInput = document.getElementById("run-timeout");
@@ -342,25 +343,17 @@ document.addEventListener("DOMContentLoaded", async function () {
                          sonnet: "Sonnet — balanced",
                          opus: "Opus — most capable, slowest, priciest" };
   async function paintModelAndCaps(agent, kind) {
-    runModelSel.innerHTML = `<option value="" disabled selected>Loading…</option>`;
-    runModelSel.disabled = true;
+    modelHost.hidden = mode !== "single";
+    if (mode !== "single") modelHost.querySelectorAll("input,select").forEach((el) => { el.disabled = true; });
+    if (mode === "single") {
+      let remembered = "";
+      try { remembered = localStorage.getItem(LAST_MODEL_KEY) || ""; } catch (e) { /* no persistence */ }
+      runModelSel = AgentiModels.mount(modelHost, { agent, remembered });
+    }
     try {
       const data = await fetchCeiling(agent, kind);
       const policy = data.effective_policy || {};
       currentPolicy = policy;
-      const models = policy.allowed_models || [];
-      runModelSel.innerHTML = models.length
-        ? `<option value="" disabled selected>Choose a model&hellip;</option>`
-          + models.map((m) => `<option value="${esc(m)}">${esc(MODEL_LABELS[m] || m)}</option>`).join("")
-        : `<option value="" disabled selected>(none allowed — ask an admin)</option>`;
-      runModelSel.disabled = models.length === 0;
-      let remembered = "";
-      try { remembered = localStorage.getItem(LAST_MODEL_KEY) || ""; } catch (e) { /* no persistence */ }
-      if (remembered && models.includes(remembered)) runModelSel.value = remembered;
-      runModelHint.textContent = !models.length
-        ? "The organisation's policy allows no models yet — an admin sets the list in Settings."
-        : runModelSel.value ? "Your last choice — change it if you like."
-        : "From the organisation's allowed list.";
       const ceil = (v) => (v === undefined || v === null) ? "" : String(v);
       runTurnsInput.placeholder = `up to ${ceil(policy.max_turns_ceiling)} (ceiling)`;
       runTurnsInput.max = ceil(policy.max_turns_ceiling) || "";
@@ -370,8 +363,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       runTimeoutInput.max = ceil(policy.timeout_s_ceiling) || "";
     } catch (err) {
       currentPolicy = null;
-      runModelSel.innerHTML = `<option value="" disabled selected>(could not load — try again)</option>`;
-      runModelHint.textContent = Agenti.errorText(err);
+      Agenti.banner(runBanner, "err", Agenti.errorText(err));
     }
   }
 
@@ -447,9 +439,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       : "Each agent still only runs its own tools inside its own scope; a team changes how they talk to each other, never what any one of them is allowed to do.";
     instructionsHint.textContent = "Posted to the shared channel once the project starts — every member sees it.";
     teamRoster.hidden = false;
+    memberModels.clear();
     teamRoster.innerHTML = selected.map((a) => `
       <div class="panel" style="padding:10px 12px; margin:0;" data-member="${esc(a.agent)}">
         <strong>${esc(a.agent)}</strong>
+        <div class="team-model-picker"></div>
         <div class="field" style="margin-top:6px;">
           <label>Role for ${esc(a.agent)}</label>
           <input type="text" class="team-role" placeholder="e.g. internal network assessment">
@@ -469,6 +463,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     // request. A member whose engagement can't be read keeps its text input
     // and says so, rather than the whole roster failing.
     selected.forEach(async (a) => {
+      const modelRow = teamRoster.querySelector(`[data-member="${CSS.escape(a.agent)}"]`);
+      memberModels.set(a.agent, AgentiModels.mount(modelRow.querySelector(".team-model-picker"), { agent: a.agent }));
       if (a.scope_kind !== "cidr" && a.scope_kind !== "domain") return;
       const row = teamRoster.querySelector(`[data-member="${CSS.escape(a.agent)}"]`);
       if (!row) return;
@@ -619,11 +615,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       Agenti.banner(runBanner, "err", "Pick at least two agents — a team needs more than one member.");
       return;
     }
-    const model = runModelSel.value;
-    if (!model) {
-      Agenti.banner(runBanner, "err", "Pick a model — required for every launch.");
-      runModelSel.reportValidity();
-      return;
+    const models = {};
+    for (const a of selected) {
+      const picker = memberModels.get(a.agent);
+      if (!picker || !picker.value) {
+        Agenti.banner(runBanner, "err", `Choose a model for ${a.agent}.`);
+        if (picker) picker.reportValidity();
+        return;
+      }
+      models[a.agent] = picker.value;
     }
     const agents = selected.map((a) => a.agent);
     const rolesBody = {}, overrides = {};
@@ -647,13 +647,12 @@ document.addEventListener("DOMContentLoaded", async function () {
         // already created is the normal case, not an error.
         if (!/already exists/i.test(Agenti.errorText(err))) throw err;
       }
-      try { localStorage.setItem(LAST_MODEL_KEY, model); } catch (e) { /* no persistence */ }
       // Every member gets each file (written once, shared on disk).
       if (filePicker.files().length) {
         await AgentiFiles.uploadAll(`teams/${encodeURIComponent(name)}/files`, filePicker.files(), showFilesStatus);
         filePicker.clear(); showFilesStatus("");
       }
-      const startBody = { model, roles: rolesBody, overrides };
+      const startBody = { models, roles: rolesBody, overrides };
       if (runTurnsInput.value) startBody.turns = parseInt(runTurnsInput.value, 10);
       if (runBudgetInput.value) startBody.budget = parseFloat(runBudgetInput.value);
       if (runTimeoutInput.value) startBody.timeout = parseInt(runTimeoutInput.value, 10);

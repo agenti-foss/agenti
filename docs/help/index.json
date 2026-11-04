@@ -1,5 +1,9 @@
 {
   "pages": {
+    "choosing-a-model": {
+      "summary": "Connecting Claude, OpenAI and self-hosted providers, choosing models, and setting model prices.",
+      "icon": "key"
+    },
     "agent-page": {
       "summary": "Following a run: status, messages, notes and controls.",
       "icon": "activity"

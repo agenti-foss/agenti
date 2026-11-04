@@ -95,6 +95,7 @@ function overflowing() {
         });
         const before = await misses();
         await p.goto(BASE + pg.path, { waitUntil: "networkidle" });
+        if (pg.click) { await p.click(pg.click); await p.waitForLoadState("networkidle"); }
         const ready = await p.waitForSelector(pg.ready, { state: "visible", timeout: 8000 }).then(() => true, () => false);
         await p.waitForTimeout(300);
         if (!ready) errors.push(`never showed ${pg.ready}`);

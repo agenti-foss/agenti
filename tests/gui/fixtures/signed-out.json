@@ -17,10 +17,10 @@
   "GET /auth/webauthn/config": {
    "status": 200,
    "body": {
-    "enabled": false,
-    "configured": false,
-    "rpId": null,
-    "origin": null,
+    "enabled": true,
+    "configured": true,
+    "rpId": "agenti.example.com",
+    "origin": "https://agenti.example.com:8420",
     "ok": true
    }
   }

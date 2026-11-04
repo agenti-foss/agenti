@@ -1,6 +1,8 @@
 # Any model: one Agenti, many AI providers
 
-Status: design agreed 2026-11-04; phase A done and live-proven on Claude and OpenAI (2026-11-04); phase B next. This file is the plan
+Status: design agreed 2026-11-04; phase A live-proven on Claude and OpenAI;
+phase B implementation and cloud VM proof complete, remaining checks in progress.
+This file is the plan
 and the hand-off brief: whoever continues (a person, Claude Code or Codex)
 starts here, then `AGENTS.md` / `CLAUDE.md`.
 
@@ -159,67 +161,93 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
       query's cost: engines now report `session_cost_usd`.
 - [ ] Live: a self-hosted model (e.g. Ollama with a tool-calling model).
 
-Known gaps found while building A (do these in B):
-- `load_secrets` takes the FIRST tier file that exists, whole: a per-user file
-  holding only a Claude key hides the org's OpenAI key. Make it per key.
-  **Fixed (2026-11-04):** each key now resolves independently through the
-  tiers, with explicit environment values retaining priority. Regression
-  checks passed locally and on the test VM against the installed helper,
-  including under the real `agenti-run` account: a user Claude key does not
-  hide a broader OpenAI key, and an insecure lower-tier file is refused.
-  This is helper-level proof; the Phase B launch/GUI boxes remain unticked.
-- `run_coverage.py precheck` checks the model is allowed but not its price,
-  key or address: an OpenAI run with no price fails at start (a report says
-  why) instead of being refused before a slot exists. Add those checks there.
-  **Implemented, helper-proven on the VM (2026-11-04):** the CLI passes the
-  run owner; precheck resolves that owner's provider settings and refuses a
-  missing cloud price/key or missing/invalid self-hosted URL before slot
-  allocation. Four provider regression tests passed against the installed
-  code as `agenti-run`. Also found and corrected preflight's unconditional
-  Anthropic key, Claude executable and Anthropic egress checks: these now
-  follow the selected provider. Full deployed-unit and GUI launch proof is
-  still pending; no Phase B box is complete.
-- The "no API key" banners (dashboard, Launch, Settings → Platform) look only
-  at `ANTHROPIC_API_KEY`.
-- `/etc/agenti/relay.conf` replaces the relay's default list: adding a
-  self-hosted endpoint means listing Anthropic and OpenAI too. A root CLI verb
-  (`agenti admin relay allow host:port`) should write it.
-- The default `allowed_models` is still `haiku, sonnet, opus` so the current
-  launch page keeps working; switch it to `anthropic:*` once the launch page
-  lists models live.
+Known gaps found while building A (resolved in B, 2026-11-04):
+- [x] Resolve secrets per key across user, agent, organisation and shared tiers.
+  VM proof: two regression tests as `agenti-run`, plus real root CLI writes
+  with synthetic keys in a temporary data root. A private per-user Claude
+  key no longer hides a broader OpenAI key. Permission checks remain; links
+  and non-regular files are refused before reading.
+- [x] Refuse missing provider prices, keys and addresses before a slot
+  exists. VM proof: real `agenti enum start --dry-run` against temporary
+  fixtures refused all three cases without creating a slot. Team start checks
+  every launchable member before making slots or posting the kickoff; a real
+  denied team made neither slot, and a valid mixed-provider dry run passed.
+  The precheck
+  reads the files systemd will use, not the launching shell's environment.
+  Also fixed preflight's unconditional Anthropic key, Claude executable and
+  Anthropic egress checks; these now follow the selected provider.
+- [x] Provider-aware dashboard/Launch/Platform status. Proven in the live GUI
+  with all three test accounts; Platform showed the OpenAI key correctly.
+- [x] `agenti admin relay allow host:port`: additive, root-terminal-only,
+  serialized and atomic; keeps the configured list or the cloud defaults.
+  Proven live on the VM: both cloud endpoints remained after an addition.
+  The API bridge refuses the relay verb.
+- [x] Default allowed list includes `anthropic:*` and the old aliases.
+  Existing saved policies stay unchanged. The VM's live lists were correctly
+  filtered by its existing policy; wildcard/name behavior is covered by the
+  engine/registry tests run on the VM.
 
 **B. Everywhere a model is chosen (hand-off point for Codex)**
 
-**In progress, session saved 2026-11-04 at the operator's request:** the first
-two Known gaps have implementations and VM helper-level regression proof
-(two secrets tests and five provider/preflight tests, against installed code
-as `agenti-run`). Changes are deployed directly to the test VM:
-`agent_runtime.py`, `run_coverage.py`, `preflight.py`, and `/usr/bin/agenti`.
-No Phase B checkbox has been ticked; real deployed-unit/GUI launch proof
-and the mixed-provider team run are still required. The VM currently has
-no IAM users (`admin user list --json` returned `[]`); an asynchronous request
-was sent asking the operator to complete first-run setup, with no answer yet.
-Check readiness again next session. No provider keys were read or printed.
+**Implementation and VM cloud proof complete; final checks in progress
+(2026-11-04).** No phase C work has begun. Do not call Phase B done until the
+remaining checkbox below has its proof. The operator approved a small local
+model: Ollama and a tool-capable model are installed on the test VM and the
+real self-hosted run is underway. Its first call used a malformed argument;
+no command ran. The engine now returns an actionable error before a handler
+receives an argument of the wrong type. Scripted-server tests also prove its
+protocol, tools, caps and denied-relay behavior on the VM.
 
-Local targeted suites passed: `test_secrets.py`, `test_provider_precheck.py`,
-`test_run_coverage.py` (31 checks), `test_preflight.py` (56 checks).
-The full `ci.sh all` run needs system Python with `cryptography` and the lint
-tools on PATH. A sandboxed attempt hit socket restrictions; the unrestricted
-rerun was still running when the operator requested this save. Its log is
-`/tmp/agenti-phase-b-ci-unrestricted.log` on the development machine: check
-its final result or rerun before relying on it. No GUI assets were changed.
-Next: finish/prove the remaining Known gaps, then the Phase B checklist;
-do not start phase C or publish to the public repository.
+Proof so far:
+- Full core check: 49 suites passed. Both paid agents overlaid on the new
+  core: 53 suites passed. GUI checks: 114 views passed (including the opened
+  model picker). A pre-existing TOTP test crossed clock windows under load;
+  its replay/unused-code checks now use a fixed clock, with authentication
+  behavior unchanged (228 authd checks passed).
+- VM installed-code checks as `agenti-run`: secrets (2), provider/preflight
+  (5), provider settings (5), engine and real relay integration (74).
+  The complete deployment verification passed, with the paid agents too.
+- Real GUI enum runs: Claude haiku produced 5 findings and obeyed its turn
+  cap; OpenAI `gpt-5.6-terra` completed with 3 findings and a report costing
+  $0.0204 under a $0.10 cap.
+- Mixed-provider GUI team: Claude enum (6 findings) and OpenAI trafficmon
+  (12 findings) both reached their models and obeyed their turn caps.
+  The test narrowed capture to 20 seconds through the existing API field
+  and generated bounded ICMP traffic to the approved lab target. An earlier
+  zero-packet capture was not counted as model proof.
+- Paid cracker: a real GUI OpenAI run on an attached synthetic hash completed
+  with 4 findings in its offline sandbox. Exploit: a live OpenAI dry-run was
+  correctly refused while the engagement's exploit capability was off.
+  No exploitation was enabled or performed.
+- Platform: saved a local address with an optional empty key behind a fresh
+  approval, preserving cloud keys. Engagement: the GUI saved allowed names
+  and preserved the configured model price. The model-price CLI alias was
+  proven with the same existing price. Three test accounts have passwords,
+  TOTP and registered passkeys; passwordless sign-in was also proven.
+- Scaffold generated and compiled on the VM with `agent_tools` and
+  `open_session`. Choosing-model help was installed and read through the CLI.
 
-- [ ] CLI: `start --model openai:gpt-…`, `models` verb (live list),
-      `set-secret` for the new keys, `admin set-policy` for `model_prices`.
-- [ ] API + GUI: launch page provider + model picker (live list); team
-      creation with a provider/model per member; Settings → Platform: keys per
-      provider, the self-hosted endpoint, allowed models (any name, `provider:*`).
-- [ ] Paid agents (`agenti-exploit`, `agenti-cracker`): move their `@tool`
-      imports to `agent_tools`, drop the CVP gate (decision 7), CI on the new core.
-- [ ] `new_agent.py` scaffold on `agent_tools` and `open_session`.
-- [ ] Docs: `docs/help/` pages for choosing a model and connecting each provider.
+Remaining CI work: the operator enabled deploy keys and approved a dedicated
+read-only key for the private development core. GitHub accepted that key, and
+CI secrets are stored in both private paid repos. The paid changes are
+prepared in their own repositories; never overlay or commit their private
+source into this core repository. Hosted checks still need to run against the
+final development-core commit.
+
+- [x] CLI: provider model names, live `models` list, provider keys, model-price
+      policy (`admin set-policy model-price` delegates to the engagement policy).
+      Proof: live cloud discovery, CLI launch/configuration checks above.
+- [x] API + GUI: provider/model picker with live suggestions and typed names;
+      provider/model per team member; provider keys/address and allowed model
+      names/wildcards/prices in Settings. Proof: live GUI and team runs above.
+- [ ] Paid agents: neutral tool imports, no CVP gate, CI on the new core.
+      Code and local CI/VM proof are complete; hosted CI remains. Cracker
+      already uses the neutral shared analysis runner.
+- [x] `new_agent.py` scaffold on `agent_tools` and `open_session`.
+      Proof: generated file compiles on the VM; exception-path tests pass.
+- [x] Docs: `docs/help/choosing-a-model.md`, installation guidance and the paid
+      exploit guide reflect provider selection, keys, prices and the gates.
+      Proof: help tests and the installed VM CLI help reader.
 
 **C. The console (#3)**
 - [ ] Stream engine events to the agent page as a session view; `/model`.

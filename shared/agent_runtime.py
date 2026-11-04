@@ -149,32 +149,43 @@ def read_secrets(paths: list[Path | None], inherited=None) -> dict[str, str]:
         the wrong account can read is not a secret.
       * Values in `inherited` win over files. The run passes its environment;
         the root launch precheck uses the same resolver without exporting keys.
-        Root may read the restricted root-owned tier files before launch;
+        Root may also read private tiers owned by agenti-run before launch;
         an unprivileged reader must belong to their owning group.
     """
     values = dict(inherited or {})
+    import pwd
+    trusted_uids = {os.getuid()}
+    if os.getuid() == 0:
+        try:
+            trusted_uids.add(pwd.getpwnam("agenti-run").pw_uid)
+        except KeyError:
+            pass
     for path in paths:
         if path is None:
             continue
-        if not path.exists():
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except FileNotFoundError:
             continue
-        st = path.stat()
-        mode = stat.S_IMODE(st.st_mode)
-        if st.st_uid == os.getuid() and st.st_uid != 0:
-            if mode & 0o077:
-                sys.exit(f"REFUSING: {path} is mode {oct(mode)} — group/other can read it. "
-                         f"Fix with: sudo chmod 600 {path}")
-        else:
-            other_denied = (mode & 0o007) == 0
-            group_read_only = (mode & 0o070) in (0o040, 0o000)
-            root_owned = st.st_uid == 0
-            in_group = os.getuid() == 0 or st.st_gid in (*os.getgroups(), os.getgid())
-            if not (root_owned and other_denied and group_read_only and in_group):
-                sys.exit(f"REFUSING: {path} is mode {oct(mode)} owned by uid {st.st_uid} — "
-                         f"not readable as this process's own file (0600) nor as the "
-                         f"platform-shared tier (root-owned 0640, this process a member "
-                         f"of the owning group gid {st.st_gid}).")
-        for line in path.read_text().splitlines():
+        with os.fdopen(fd) as stream:
+            st = os.fstat(stream.fileno())
+            if not stat.S_ISREG(st.st_mode):
+                sys.exit(f"REFUSING: {path} is not a regular secrets file")
+            mode = stat.S_IMODE(st.st_mode)
+            if st.st_uid not in trusted_uids or mode & 0o077:
+                other_denied = (mode & 0o007) == 0
+                group_read_only = (mode & 0o070) in (0o040, 0o000)
+                root_owned = st.st_uid == 0
+                in_group = os.getuid() == 0 or st.st_gid in (*os.getgroups(), os.getgid())
+                if not (root_owned and other_denied and group_read_only and in_group):
+                    sys.exit(f"REFUSING: {path} is mode {oct(mode)} owned by uid {st.st_uid} — "
+                             f"not readable as this process's own file (0600) nor as the "
+                             f"platform-shared tier (root-owned 0640, this process a member "
+                             f"of the owning group gid {st.st_gid}).")
+            text = stream.read(65537)
+        if len(text) > 65536:
+            sys.exit(f"REFUSING: {path} exceeds the secrets file size limit (64 KiB)")
+        for line in text.splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue

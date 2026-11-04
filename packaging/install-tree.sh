@@ -61,7 +61,7 @@ CORE_FILES=(
     agent_builder.py agent_contract.py agent_controls.py agent_runtime.py agent_tools.py
     analysis_programs.py analysis_runner.py api_bridge.py authd.py catalog_admin.py context_store.py
     engagement_context.py engagement_store.py gen_capabilities.py help_docs.py iam.py
-    disk_encryption.py egress_relay.py engine_claude.py engine_openai.py model_registry.py model_session.py
+    disk_encryption.py egress_relay.py engine_claude.py engine_openai.py model_registry.py model_session.py provider_settings.py
     network_policy.py new_agent.py outputs.py paths.py preflight.py qr.py
     recon_programs.py
     recon_runner.py

@@ -1,0 +1,64 @@
+# Choosing a model and connecting providers
+
+Every launch needs a model. On **Launch**, choose a provider, then choose
+from its live model list or type a model name. A team has a separate choice
+for each member, so its members can use different providers.
+
+- **Claude (Anthropic):** uses an Anthropic API key.
+- **ChatGPT (OpenAI):** uses an OpenAI API key, billed through the API.
+  A ChatGPT subscription or ChatGPT sign-in cannot be used instead.
+- **Self-hosted:** uses your own OpenAI-compatible model server, such as
+  Ollama or vLLM. Its address is required; its API key is optional.
+
+An administrator connects providers in **Settings → Platform → Model
+providers**. Saving requires a fresh approval. Keys are never shown again;
+replacing one affects future runs. Provider keys resolve independently:
+user, agent, organisation, then shared. Setting a user's Claude key does
+not hide the organisation's OpenAI key.
+
+At the server, keys are entered at a hidden prompt:
+
+```sh
+sudo /usr/lib/agenti/set-secret.sh --provider anthropic
+sudo /usr/lib/agenti/set-secret.sh --provider openai
+sudo /usr/lib/agenti/set-secret.sh --provider local --base-url http://model.example.com:11434/v1
+```
+
+Add `--org`, `--agent enum`, or `--user alice` to choose a narrower key tier.
+Do not put a key on the command line. For a self-hosted server, root must
+also permit its endpoint through the relay:
+
+```sh
+sudo agenti admin relay allow model.example.com:11434
+```
+
+This keeps the existing destinations, or the cloud defaults when no custom
+list exists. It restarts an active relay; let current model requests finish
+before changing it. The web interface cannot add relay destinations.
+
+**Settings → Engagement → Allowed models** accepts one name or wildcard
+per line: `anthropic:*`, `openai:gpt-5.1`, `local:*`. Existing Claude aliases
+`haiku`, `sonnet`, and `opus` still work. A provider's live list is filtered
+by this policy. A typed name still goes through the same server checks.
+
+OpenAI models need a configured price to enforce a run's budget. In
+**Model prices**, enter one `provider:model=input,output` line per model,
+in USD per million tokens. Use the provider's current prices. At a terminal:
+
+```sh
+sudo agenti engagement set --model-price openai:YOUR_MODEL=INPUT,OUTPUT
+sudo agenti models --provider openai --agent enum --json
+sudo agenti enum start -t 192.0.2.50 --model openai:YOUR_MODEL
+```
+
+Claude reports its cost through its engine. Self-hosted models count as
+zero dollars; turn and time limits still apply. A missing cloud price, key,
+or self-hosted address is refused before a solo run's slot is created.
+
+For a team at a terminal, use `--model` for a common default, or repeat
+`--member-model enum=openai:YOUR_MODEL` for individual members.
+
+If the live list fails, check the provider key, server availability and relay
+allow-list. A key does not override allowed models, scope, budgets, tool
+validation, or operator approvals. Exploit runs use the same gates on every
+provider: approved scope, the exploit capability, and per-action approval.

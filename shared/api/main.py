@@ -1591,8 +1591,22 @@ def _session_for_approval(request: Request, caller: "Caller", what: str) -> str:
     return sid
 
 
+@app.get("/models")
+def list_provider_models(provider: Literal["anthropic", "openai", "local"] = "anthropic",
+                         agent: Optional[AgentName] = None, status: bool = False,
+                         caller: Caller = Depends(require("agent:read"))) -> dict:
+    args = ["models", "--provider", provider, *_slot(caller.principal)]
+    if agent:
+        args += ["--agent", agent]
+    if status:
+        args.append("--status")
+    return _call(*args)
+
+
 class ApiKeyRequest(BaseModel):
-    key: Annotated[str, Field(pattern=r"^sk-ant-[A-Za-z0-9_-]{8,500}$")]
+    provider: Literal["anthropic", "openai", "local"] = "anthropic"
+    key: Annotated[str, Field(max_length=512, pattern=r"^\S*$")] = ""
+    base_url: Annotated[str, Field(max_length=512)] = ""
     password: Optional[ArgValue] = None
     totp: Optional[ArgValue] = None
     reauth: Optional[ReauthToken] = None
@@ -1606,13 +1620,22 @@ def set_api_key(body: ApiKeyRequest, request: Request,
     SHA-256; the key goes to root as the request BODY on stdin, never an
     argument, and is never sent back."""
     sid = _session_for_approval(request, caller, "Saving the API key")
-    sha = hashlib.sha256(body.key.encode()).hexdigest()
+    import model_registry
+    if body.provider != "local" and (not body.key or body.base_url):
+        raise HTTPException(400, "A cloud provider needs a key and uses its fixed provider address.")
+    if body.provider == "local":
+        try:
+            model_registry.validate_base_url(body.base_url)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+    sha = model_registry.secret_digest(body.provider, body.key, body.base_url)
     g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
                totp=body.totp or "", action={"op": "set-api-key", "sha256": sha,
                                              "resource": iam.ORG_RESOURCE},
                addr=_client_addr(request))
     try:
-        return run_agenti("admin", "set-api-key", f"--grant={g['grant']}", stdin_text=body.key + "\n")
+        return run_agenti("admin", "set-api-key", f"--provider={body.provider}", f"--base-url={body.base_url}",
+                          f"--grant={g['grant']}", stdin_text=body.key + "\n")
     except AgentiError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
@@ -2017,6 +2040,7 @@ class EngagementSetRequest(BaseModel):
     max_budget_ceiling: Optional[float] = None
     timeout_ceiling: Optional[int] = None
     allowed_models: list[ArgValue] = []
+    model_prices: Optional[dict[ArgValue, tuple[float, float]]] = None
     # A ceiling left blank means "don't touch it" (the number fields above
     # are already None by default) — these are the explicit "revert this
     # ONE ceiling to the platform default" signal, mirroring the CLI's own
@@ -2112,6 +2136,10 @@ def set_engagement(body: EngagementSetRequest, request: Request,
             args += ["--allowed-models", m]
     else:
         args.append("--clear-allowed-models")
+    if body.model_prices is not None:
+        args.append("--clear-model-prices")
+        for model, prices in body.model_prices.items():
+            args += ["--model-price", f"{model}={prices[0]},{prices[1]}"]
     # The grant is bound to the SHA-256 of exactly the arguments the CLI will
     # receive after "engagement set" (it hashes them the same way), so an
     # approval for one change can never be spent on another.
@@ -2818,8 +2846,9 @@ class TeamStartRequest(BaseModel):
     # whatever it already had (cmd_team_start's own fallback) — restarting
     # a team to adjust one agent's role does not erase the others'.
     roles: dict[AgentName, ArgValue] = {}
-    # Mandatory: one team-wide model, forwarded to every member's start.
-    model: ArgValue
+    # A common default or a model per member (mixed providers are allowed).
+    model: Optional[ArgValue] = None
+    models: dict[AgentName, ArgValue] = {}
     budget: Optional[float] = None
     turns: Optional[int] = None
     timeout: Optional[int] = None
@@ -2838,7 +2867,10 @@ def start_team(team: TeamName, body: TeamStartRequest,
         args += ["--target", f"{agent}={value}"]
     for agent, value in body.roles.items():
         args += ["--role", f"{agent}={value}"]
-    args += ["--model", body.model]
+    if body.model:
+        args += ["--model", body.model]
+    for agent, model in body.models.items():
+        args += ["--member-model", f"{agent}={model}"]
     if body.budget is not None:
         args += ["--budget", str(body.budget)]
     if body.turns is not None:
