@@ -1,6 +1,6 @@
 # Any model: one Agenti, many AI providers
 
-Status: design agreed 2026-11-04, phase A in progress. This file is the plan
+Status: design agreed 2026-11-04; phase A done (tests), live runs pending; phase B next. This file is the plan
 and the hand-off brief: whoever continues (a person, Claude Code or Codex)
 starts here, then `AGENTS.md` / `CLAUDE.md`.
 
@@ -124,23 +124,42 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
 
 ## Phases
 
-**A. Foundations (Claude Code, 2026-11-04)**
-- [ ] `agent_tools.py`: provider-neutral `@tool` (same signature as the SDK's),
+**A. Foundations (Claude Code, 2026-11-04) — done, except the live runs**
+- [x] `agent_tools.py`: provider-neutral `@tool` (same signature as the SDK's),
       JSON schema, conversion to SDK tools. Every `from claude_agent_sdk import tool`
-      becomes `from agent_tools import tool`.
-- [ ] `model_registry.py`: providers, `parse()`, old aliases, prices, key
-      names, live model listing.
-- [ ] `model_session.py`: the engine interface, neutral event classes,
+      is now `from agent_tools import tool`.
+- [x] `model_registry.py`: providers, `split()`/`canonical()`, old aliases,
+      prices, key names, live model listing (`list_models`).
+- [x] `model_session.py`: the engine interface, neutral event classes,
       `open_session()`.
-- [ ] `engine_claude.py`: today's SDK path behind the interface (behaviour
-      unchanged; live-checked with a real enum run).
-- [ ] `engine_openai.py`: the loop (tools, guard hook, inbox hook, turns,
+- [x] `engine_claude.py`: today's SDK path behind the interface. The runners
+      no longer build the Claude tool server at start-up; the engine does.
+- [x] `engine_openai.py`: the loop (tools, guard hook, inbox hook, turns,
       budget, interrupt, set-model within the provider, resume), tested against
-      a fake Chat Completions server.
-- [ ] `session_runner.py` on `open_session()`.
-- [ ] Policy accepts any well-formed model; relay default allows OpenAI;
-      `OPENAI_API_KEY` / `LOCAL_LLM_*` in the key tiers and `set-secret`.
-- [ ] A live OpenAI enum run against the lab target (needs the operator's key).
+      a scripted model and through the real relay (`test_engine_openai.py`).
+- [x] `session_runner.py` on `open_session()`.
+- [x] Policy accepts any well-formed model and `provider:*`; `model_prices`
+      (`engagement set --model-price`); relay default allows OpenAI;
+      `set-secret.sh --provider openai|local [--base-url]`; `require_api_key`
+      checks the run's provider.
+- [ ] Live: a Claude enum run (no regression) and an OpenAI enum run against
+      the lab target, on the test VM (the operator sets the keys there).
+- [ ] Live: a self-hosted model (e.g. Ollama with a tool-calling model).
+
+Known gaps found while building A (do these in B):
+- `load_secrets` takes the FIRST tier file that exists, whole: a per-user file
+  holding only a Claude key hides the org's OpenAI key. Make it per key.
+- `run_coverage.py precheck` checks the model is allowed but not its price,
+  key or address: an OpenAI run with no price fails at start (a report says
+  why) instead of being refused before a slot exists. Add those checks there.
+- The "no API key" banners (dashboard, Launch, Settings → Platform) look only
+  at `ANTHROPIC_API_KEY`.
+- `/etc/agenti/relay.conf` replaces the relay's default list: adding a
+  self-hosted endpoint means listing Anthropic and OpenAI too. A root CLI verb
+  (`agenti admin relay allow host:port`) should write it.
+- The default `allowed_models` is still `haiku, sonnet, opus` so the current
+  launch page keeps working; switch it to `anthropic:*` once the launch page
+  lists models live.
 
 **B. Everywhere a model is chosen (hand-off point for Codex)**
 - [ ] CLI: `start --model openai:gpt-…`, `models` verb (live list),
