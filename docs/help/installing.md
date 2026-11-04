@@ -10,7 +10,7 @@ curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 
 It ends by printing the address to open and a **setup code**. Open that
 address in a browser on the Agenti machine or any computer on its network
-(for example `https://192.168.1.20:8420`), accept the certificate warning, enter
+(`https://<its address>:8420`), accept the certificate warning, enter
 the code and create the first admin. Then set up the engagement in
 **Settings → Engagement** and approve it. You can now launch an agent.
 
