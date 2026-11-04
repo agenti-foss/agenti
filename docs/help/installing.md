@@ -8,10 +8,11 @@
 curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 ```
 
-It ends by printing a **setup code**. Open `http://127.0.0.1:8420` in a browser
-on the same machine, enter the code and create the first admin. Then set up the
-engagement in **Settings → Engagement** and approve it. You can now launch an
-agent.
+It ends by printing the address to open and a **setup code**. Open that
+address in a browser on the Agenti machine or any computer on its network
+(for example `https://192.168.1.20:8420`), accept the certificate warning, enter
+the code and create the first admin. Then set up the engagement in
+**Settings → Engagement** and approve it. You can now launch an agent.
 
 ## What you need
 
@@ -56,8 +57,21 @@ Two packages arrive:
 | `agenti-runtime` | Agenti's own Python and libraries, bundled. Installing downloads one more file: Anthropic's Claude Code program, from PyPI, checked against its pinned SHA-256 (it is Anthropic's, so it is fetched rather than shipped). |
 | `agenti` | Agenti itself: the command line, the agents and the web interface. |
 
-When it finishes, the web interface is already running on this machine only
-(`http://127.0.0.1:8420`), and nobody can sign in until setup is done.
+When it finishes, the web interface is already running and reachable from
+your network over HTTPS (port 8420), and nobody can sign in until setup is
+done. The last lines it prints are the address to open and the setup code.
+
+**The certificate warning.** Agenti makes its own certificate at install, so
+each browser warns the first time ("not private" / "not secure"). The
+installer prints the certificate's SHA-256 fingerprint: check that the browser
+shows the same one, then accept. Sign-in with a password and an authenticator
+app works on this address; **passkeys** need a real domain name
+(`sudo agenti gui configure --hostname agenti.example.com`, see
+`sudo agenti gui configure --help`).
+
+**Only this machine?** `sudo agenti gui configure --bind 127.0.0.1 --no-tls`
+keeps the web interface off the network. An upgrade never changes this
+setting.
 
 If the installer says **this machine's clock is wrong**, fix the clock
 (`sudo timedatectl set-ntp true`, check with `date -u`) and run it again. A
@@ -65,11 +79,11 @@ restored virtual machine or a dual-boot PC often has the wrong time.
 
 ## First-run setup in the browser
 
-1. Open `http://127.0.0.1:8420` **on the Agenti machine itself**. On a machine
-   with no screen, forward the port from your own computer first:
-   `ssh -L 8420:127.0.0.1:8420 <the machine>`, then open the same address
-   there. The setup page refuses anything else, including a tunnel or proxy,
-   so nobody else on the network can claim the server first.
+1. Open the address the installer printed (`agenti gui status` shows it
+   again), on the Agenti machine or another computer on its network. The
+   setup page is not offered through a tunnel or proxy, so nobody on the
+   internet can reach it; on your network, only someone with the setup code
+   can claim the server.
 2. Enter the **setup code** the installer printed. To see it again:
    `sudo agenti setup-code`. Twenty wrong tries cancel the code; make a new
    one with `sudo agenti setup-code --new`.
@@ -103,10 +117,10 @@ already done says so and is skipped.
    key is stored inside it from the start.
 3. **The Anthropic API key (optional).** Paste it at the prompt. Nothing appears
    as you type, and it never lands in a log or your shell history.
-4. **Opening the web interface.** Only this machine; other computers on your
-   network (with a self-signed certificate); or from anywhere through a tunnel
-   or proxy such as Cloudflare Tunnel. Change it any time with
-   `sudo agenti gui configure --help`.
+4. **Opening the web interface.** Other computers on your network (the
+   default, with a self-signed certificate); only this machine; or from
+   anywhere through a tunnel or proxy such as Cloudflare Tunnel. Press Enter to
+   keep it as it is. Change it any time with `sudo agenti gui configure --help`.
 
 ## Checking the installation
 
@@ -201,8 +215,10 @@ commands to delete it yourself. A script can answer yes in advance:
 
 | Message | What to do |
 |---|---|
-| The sign-in page says *Agenti isn't set up yet* | Open `http://127.0.0.1:8420` on the server itself and enter the setup code (`sudo agenti setup-code`), or run `sudo agenti setup` there. |
-| The setup page says *setup works only in a browser on the Agenti machine itself* | You opened it from another computer or through a tunnel. Use the machine's own browser, or `ssh -L 8420:127.0.0.1:8420 <the machine>` and open `http://127.0.0.1:8420`. |
+| The sign-in page says *Agenti isn't set up yet* | You opened it through a tunnel or proxy. Open Agenti at its own address (`agenti gui status` shows it) and enter the setup code (`sudo agenti setup-code`), or run `sudo agenti setup` on the server. |
+| The setup page says *setup isn't offered through a tunnel or proxy* | The same: use the machine's own address on your network, or `sudo agenti setup`. |
+| The browser can't reach the address at all | Check the GUI listens on the network: `agenti gui status`. If it shows `127.0.0.1`, run `sudo agenti gui configure --bind 0.0.0.0 --tls`. A firewall on the machine must allow TCP port 8420. |
+| The browser says the connection is *not private* | Expected the first time: Agenti made its own certificate. Compare the fingerprint (`sudo agenti setup-code` while setup is pending, or `openssl x509 -in /var/lib/agenti/tls/api.crt -noout -fingerprint -sha256`), then accept. |
 | *that setup code is not right* | `sudo agenti setup-code` shows the current one. |
 | *there is no setup code right now* | Too many wrong tries cancelled it: `sudo agenti setup-code --new`. |
 | *this machine's clock is wrong* (installer) | `sudo timedatectl set-ntp true`, check with `date -u`, then run the installer again. |

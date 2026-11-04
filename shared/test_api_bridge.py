@@ -236,7 +236,7 @@ for path, want in (("/enrol/AbC-123_xyz", "/enrol/<token>"), ("/password-reset/T
     check(f"access log line for {path}", _rec.getMessage(), f'10.0.0.1:5 - "GET {want} HTTP/1.1" 200')
 check("the filter is installed on uvicorn's access logger", 'logging.getLogger("uvicorn.access").addFilter(_RedactLinkTokens())' in _src, True)
 
-section("first-run setup: the setup page answers only the machine itself")
+section("first-run setup: the setup page answers any direct browser, never a proxy")
 _snip = _src[_src.index("_FORWARDING_HEADERS = ("):_src.index("class SetupAdminRequest")]
 
 
@@ -252,24 +252,33 @@ class _Req:
 
 
 for header_cfg in ("", "CF-Connecting-IP"):
-    _ns = {"CLIENT_IP_HEADER": header_cfg, "Request": object}
+    _ns = {"CLIENT_IP_HEADER": header_cfg, "BEHIND_PROXY": False, "Request": object}
     exec(_snip, _ns)
-    local = _ns["_setup_is_local"]
+    reachable = _ns["_setup_reachable"]
     for label, peer, hdrs, want in (
             ("the box's own browser", "127.0.0.1", {"host": "127.0.0.1:8420"}, True),
             ("...as localhost, with its own Origin", "127.0.0.1",
-             {"host": "localhost:8420", "origin": "http://localhost:8420"}, True),
+             {"host": "localhost:8420", "origin": "https://localhost:8420"}, True),
             ("...over IPv6", "::1", {"host": "[::1]:8420"}, True),
             ("an ssh -L tunnel (loopback, no proxy header)", "127.0.0.1", {"host": "127.0.0.1:18420"}, True),
-            ("another computer", "198.51.100.20", {"host": "198.51.100.5:8420"}, False),
+            ("another computer on the network", "198.51.100.20", {"host": "198.51.100.5:8420"}, True),
+            ("...posting the form from the page itself", "198.51.100.20",
+             {"host": "198.51.100.5:8420", "origin": "https://198.51.100.5:8420"}, True),
+            ("a page on another site posting the form", "198.51.100.20",
+             {"host": "198.51.100.5:8420", "origin": "https://evil.example"}, False),
+            ("an Origin but no Host", "198.51.100.20", {"origin": "https://198.51.100.5:8420"}, False),
             ("a tunnel or proxy on the box (says so in a header)", "127.0.0.1",
              {"host": "127.0.0.1:8420", "x-forwarded-for": "203.0.113.9"}, False),
             ("Cloudflare Tunnel", "127.0.0.1", {"host": "agenti.example.com", "cf-connecting-ip": "203.0.113.9"}, False),
-            ("loopback peer but a public Host (DNS rebinding)", "127.0.0.1", {"host": "evil.example:8420"}, False),
-            ("loopback peer, page posted from another site", "127.0.0.1",
-             {"host": "127.0.0.1:8420", "origin": "https://evil.example"}, False),
+            ("a proxy elsewhere on the network", "198.51.100.30",
+             {"host": "198.51.100.5:8420", "x-real-ip": "203.0.113.9"}, False),
             ("a Forwarded header", "127.0.0.1", {"host": "127.0.0.1", "forwarded": "for=203.0.113.9"}, False)):
-        check(f"[{header_cfg or 'direct'}] {label}", local(_Req(peer, hdrs)), want)
+        check(f"[{header_cfg or 'direct'}] {label}", reachable(_Req(peer, hdrs)), want)
+
+_ns = {"CLIENT_IP_HEADER": "cf-connecting-ip", "BEHIND_PROXY": True, "Request": object}
+exec(_snip, _ns)
+check("proxy mode refuses the setup page even with no forwarding header",
+      _ns["_setup_reachable"](_Req("127.0.0.1", {"host": "127.0.0.1:8420"})), False)
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

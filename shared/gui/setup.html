@@ -43,12 +43,10 @@
 
       <!-- Opened from another computer, or through a proxy. -->
       <div id="setup-remote" hidden>
-        <p>Setup works only in a browser on the Agenti machine itself, so nobody else on the network can claim it first.</p>
-        <p class="hint">On that machine, open:</p>
-        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">http://127.0.0.1:8420</code></div>
-        <p class="hint">From another computer, forward the port over SSH first, then open the same address here:</p>
-        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">ssh -L 8420:127.0.0.1:8420 &lt;the Agenti machine&gt;</code></div>
-        <p class="hint">Or set up in the machine's terminal instead:</p>
+        <p>Setup isn't offered through a tunnel or proxy, so nobody on the internet can claim this server first.</p>
+        <p class="hint">Open Agenti at its own address instead. On the Agenti machine, this shows it:</p>
+        <div class="copyable" style="margin-bottom:12px;"><code class="cmd-block">agenti gui status</code></div>
+        <p class="hint">Or set up in the machine's terminal:</p>
         <div class="copyable"><code class="cmd-block">sudo agenti setup</code></div>
       </div>
 
@@ -121,7 +119,7 @@
         return;
       }
       step(1);
-      if (!st.local) { show("setup-remote"); return; }
+      if (!st.reachable) { show("setup-remote"); return; }
 
       const form = document.getElementById("setup-form");
       const nameInput = document.getElementById("setup-name");

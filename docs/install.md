@@ -9,8 +9,10 @@ Ubuntu 24.04).*
 curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 ```
 
-It prints a one-time **setup code**. Open **http://127.0.0.1:8420** on that
-machine, enter the code and create the first admin.
+It ends with the address to open (HTTPS, port 8420, reachable from your
+network) and a one-time **setup code**. Open it in a browser on that machine or
+another on its network, accept the certificate warning, enter the code and
+create the first admin.
 
 ## What you need
 
@@ -42,18 +44,21 @@ apt also installs the agents' tools (nmap, tshark, suricata and others) as
 *recommended* packages. A tool your distribution does not have, such as netexec
 outside Kali, is skipped without stopping the install.
 
-When the install finishes, the web GUI is already running, **on this machine
-only** (`http://127.0.0.1:8420`), but nobody can sign in yet.
+When the install finishes, the web GUI is already running on port 8420 of
+every network address, over HTTPS with a certificate Agenti made itself (each
+browser warns once; the installer prints the fingerprint to compare), but
+nobody can sign in yet. Keep it on this machine instead:
+`sudo agenti gui configure --bind 127.0.0.1 --no-tls`. Upgrades keep the setting.
 
 ## First-run setup
 
-**In the browser.** Open `http://127.0.0.1:8420` on the machine itself (or
-forward the port first: `ssh -L 8420:127.0.0.1:8420 <the machine>`). Enter the
+**In the browser.** Open the address the installer printed (`agenti gui
+status` shows it again). Enter the
 setup code (`sudo agenti setup-code` shows it again), choose the admin's name, a
 password and an authenticator app. After you sign in, setup offers the API key
 and the vault; both are optional and also in Settings → Platform. The setup page
-answers only the machine itself, never a tunnel or proxy, and the code stops
-working once an admin can sign in.
+answers any browser that reaches the GUI directly, never a tunnel or proxy, and
+the code stops working once an admin can sign in.
 
 **Or in a terminal:**
 
@@ -153,7 +158,8 @@ yourself.
 
 | Symptom | What to do |
 |---|---|
-| The login page says *Agenti isn't set up yet* | Open `http://127.0.0.1:8420` on the machine itself with the setup code (`sudo agenti setup-code`), or `sudo agenti setup` |
+| The login page says *Agenti isn't set up yet* | You came through a tunnel or proxy: open Agenti's own address (`agenti gui status`) with the setup code (`sudo agenti setup-code`), or `sudo agenti setup` |
+| Another computer can't reach the GUI | `agenti gui status`: if it shows `127.0.0.1`, `sudo agenti gui configure --bind 0.0.0.0 --tls`; a firewall must allow TCP 8420 |
 | The installer says *this machine's clock is wrong* | `sudo timedatectl set-ntp true`, then run it again |
 | The GUI does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |
 | *the vault is locked* | `sudo agenti vault unlock` |

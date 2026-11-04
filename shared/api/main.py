@@ -605,46 +605,35 @@ def setup_status(request: Request) -> dict:
     says whether this browser may use the setup page (it works only on the
     Agenti machine itself)."""
     r = _authd("setup_status")
-    return {"setup_needed": bool(r.get("setup_needed")), "local": _setup_is_local(request)}
+    return {"setup_needed": bool(r.get("setup_needed")), "reachable": _setup_reachable(request)}
 
 
 # ---------------------------------------------------------------------------
 # First-run setup from the browser (operator decision 2026-10-26). Like the
 # link routes below, no sign-in: nobody can sign in yet. What stands in for
 # it is the setup code, which only someone at the host's terminal can read
-# (sudo agenti setup-code), checked by agenti-authd; a right code buys a
-# single-use grant for exactly one admin name, spent by the root CLI. On top
-# of that the page works only from the machine itself: a loopback peer with
-# no proxy in between, addressed by a loopback name. A tunnel or proxy on the
-# box (--behind-proxy) connects from loopback too, but always says so in a
-# forwarding header, and is refused.
+# (sudo agenti setup-code), checked by agenti-authd (twenty tries, then it is
+# burnt); a right code buys a single-use grant for exactly one admin name,
+# spent by the root CLI. The page opens from any browser that reaches the GUI
+# directly, this machine or another on its network (operator decision
+# 2026-11-04; before, loopback only), but never through a tunnel or proxy,
+# which could put it on the internet: proxy mode refuses it outright, and a
+# forwarding header anywhere refuses it too. A page posted from another site
+# (an Origin that is not this Host) is refused.
 # ---------------------------------------------------------------------------
 _FORWARDING_HEADERS = ("forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip",
                        "cf-connecting-ip", "true-client-ip")
-_LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
 
 
-def _loopback_host(value: str) -> bool:
-    host = value.strip().lower()
-    if host.startswith("["):
-        host = host[1:host.find("]")] if "]" in host else host
-    elif host.count(":") == 1:
-        host = host.split(":", 1)[0]
-    return host in _LOOPBACK_NAMES or host.startswith("127.")
-
-
-def _setup_is_local(request: Request) -> bool:
-    peer = request.client.host if request.client else ""
-    if not (peer == "::1" or peer.startswith("127.")):
+def _setup_reachable(request: Request) -> bool:
+    if BEHIND_PROXY:
         return False
     if any(request.headers.get(h) for h in (*_FORWARDING_HEADERS, CLIENT_IP_HEADER or "")):
         return False
-    if not _loopback_host(request.headers.get("host", "")):
-        return False
     origin = request.headers.get("origin")
     if origin:
-        rest = origin.split("://", 1)[-1]
-        if not _loopback_host(rest.split("/", 1)[0]):
+        host = request.headers.get("host", "").strip().lower()
+        if not host or origin.split("://", 1)[-1].split("/", 1)[0].strip().lower() != host:
             return False
     return True
 
@@ -659,11 +648,11 @@ def setup_first_admin(body: SetupAdminRequest, request: Request) -> dict:
     """Step 1 of the setup page: the setup code and the first admin's name.
     Returns the admin's one-time enrolment token; the page goes on to the
     enrolment page with it for the password and 2FA."""
-    if not _setup_is_local(request):
+    if not _setup_reachable(request):
         raise HTTPException(status_code=403, detail=(
-            "setup works only in a browser on the Agenti machine itself: open "
-            "http://127.0.0.1:8420 there (from another computer, first: "
-            "ssh -L 8420:127.0.0.1:8420 <the machine>). Or, at its terminal: sudo agenti setup"))
+            "setup is not offered through a tunnel or proxy: open Agenti at its own "
+            "address (on the machine: sudo agenti gui status shows it), or at its "
+            "terminal run: sudo agenti setup"))
     with _LinkGate(request):
         g = _authd("setup_begin", code=body.code, principal=body.name)
         r = _call("admin", "setup-first-admin", body.name, f"--grant={g['grant']}")

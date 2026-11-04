@@ -14,7 +14,7 @@ reference: what goes where, what apt does at each step, and the order of the wor
 | Upgrades | Automatic. Code is outside the vault, so `apt upgrade` replaces all of it; nothing waits for an unlock. |
 | Purge | `apt purge agenti` asks one question (default **No**): delete all Agenti data, including the vault image and the user database? Without a terminal (automation) the answer is No and the data is kept, with the paths and delete commands printed. |
 | Sudoers | The package installs `/etc/sudoers.d/agenti-api` (the API's one-binary grant, with its reasoning in the comments), checked with `visudo -c`. |
-| GUI start | At install: the API and auth service start on `127.0.0.1:8420` and on every boot. Sign-in is refused until `sudo agenti setup` creates the first admin; the login page says so. |
+| GUI start | At install: the API and auth service start on port 8420 of every network address, over HTTPS with a self-signed certificate made then (`/var/lib/agenti/tls/`), and on every boot. Without openssl it stays on `127.0.0.1`. An upgrade keeps `/etc/agenti/api.conf` as it is. Sign-in is refused until the first admin exists (setup page with the setup code, or `sudo agenti setup`). |
 | Security audit | After the `.deb` exists, before anything is published: install the package on a clean machine and review every privilege boundary as a stranger would deploy it. |
 
 Implementation choices (not operator forks):

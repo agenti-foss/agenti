@@ -47,7 +47,8 @@ curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 
 It adds Agenti's signed apt repository (key fingerprint
 `2D6F 55F9 385B 8C76 0C2E 95BD 8111 66F5 1B2D AE49`), installs Agenti and
-prints a one-time setup code. Open `http://127.0.0.1:8420` on the same machine,
+prints the address to open (HTTPS on port 8420, reachable from your network)
+and a one-time setup code. Open it in a browser, accept the certificate warning,
 enter the code and create the first admin. Updates then come with
 `sudo apt upgrade`.
 

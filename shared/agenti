@@ -3858,6 +3858,31 @@ wakes up with its data open. Agents cannot run until you do:
 EOF
 }
 
+# This machine's main network address (the default route's source; `ip route
+# get` sends nothing), for a GUI that listens on every address.
+lan_address() {
+    local a
+    a=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | sed -n 1p)
+    [[ -n "$a" ]] || a=$(hostname -I 2>/dev/null | awk '{print $1}')
+    echo "${a:-127.0.0.1}"
+}
+
+# The address people open, from api.conf: the public name behind a proxy,
+# else <scheme>://<name or address>:<port>, a bind on every address shown as
+# this machine's network address.
+gui_open_url() {
+    local conf="$AGENTI_API_CONF" host port scheme=http name
+    host=$(sed -n 's/^BIND_HOST=//p' "$conf" 2>/dev/null | head -n1)
+    port=$(sed -n 's/^BIND_PORT=//p' "$conf" 2>/dev/null | head -n1)
+    name=$(sed -n 's/^HOSTNAME=//p' "$conf" 2>/dev/null | head -n1)
+    grep -q '^TLS_CERT=.' "$conf" 2>/dev/null && scheme=https
+    if grep -qx 'BEHIND_PROXY=1' "$conf" 2>/dev/null && [[ -n "$name" ]]; then echo "https://$name"; return; fi
+    case "${host:-127.0.0.1}" in 0.0.0.0|::) host=$(lan_address) ;; esac
+    host="${name:-${host:-127.0.0.1}}"
+    [[ "$host" == *:* ]] && host="[$host]"
+    echo "$scheme://$host:${port:-8420}"
+}
+
 gui_show() {   # [action] — the status report, after an action or on its own
     local action="${1:-}" u a e line host="" port="" scheme=http name vault=locked
     local running=1 boots=1 crashed=0
@@ -3875,7 +3900,9 @@ gui_show() {   # [action] — the status report, after an action or on its own
     line=$(grep -m1 '^ExecStart=' "$GUI_API_UNIT_FILE" 2>/dev/null || true)
     [[ "$line" == *--ssl-certfile* ]] && scheme=https
     name=$(sed -n 's/^HOSTNAME=//p' "$AGENTI_API_CONF" 2>/dev/null | head -n1 || true)
-    local url="$scheme://${name:-$host}:$port"
+    local open_host="$host"
+    case "$open_host" in 0.0.0.0|"[::]") open_host=$(lan_address) ;; esac
+    local url="$scheme://${name:-$open_host}:$port"
     # Behind a local proxy/tunnel the address people open is the public domain
     # on the scheme's default port; this service's own loopback port is private.
     if grep -qx 'BEHIND_PROXY=1' "$AGENTI_API_CONF" 2>/dev/null && [[ -n "$name" ]]; then
@@ -3957,9 +3984,10 @@ setup_code_usage() {
 usage: sudo agenti setup-code [--new] [--if-needed]
 
 Shows the one-time setup code. Until the first admin exists, the GUI's setup
-page asks for it, so only someone at this machine can claim the organisation.
-The page works only on this machine itself:  http://127.0.0.1:8420
-(from another computer, tunnel the port first:  ssh -L 8420:127.0.0.1:8420 <this machine>)
+page asks for it, so only someone who can read this machine's terminal can
+claim the organisation. The page opens in any browser that reaches the GUI
+directly (this machine, or another computer on its network), never through a
+tunnel or proxy (agenti gui status shows the address).
 
   --new        replace the code with a fresh one (the old one stops working)
   --if-needed  print nothing, and succeed, when setup is already done
@@ -3997,18 +4025,26 @@ $(setup_code_usage)" ;;
         die "${e:-$out}"
     fi
     if [[ $JSON -eq 1 ]]; then printf '%s\n' "$out"; return 0; fi
-    local port; port=$(sed -n 's/^BIND_PORT=//p' "$AGENTI_API_CONF" 2>/dev/null | head -n1)
-    cat <<EOF
-
-  Finish setting up Agenti in a browser on this machine:
-
-      http://127.0.0.1:${port:-8420}
-
-  Setup code:  $c_b$code$c_0
-
-  (Show it again: sudo agenti setup-code.  Set up in this terminal instead: sudo agenti setup)
-
-EOF
+    local url fp="" where="on this machine" cert port
+    url=$(gui_open_url)
+    port=$(sed -n 's/^BIND_PORT=//p' "$AGENTI_API_CONF" 2>/dev/null | head -n1)
+    if grep -qx 'BEHIND_PROXY=1' "$AGENTI_API_CONF" 2>/dev/null; then
+        # The setup page is never served through a proxy or tunnel.
+        url="http://127.0.0.1:${port:-8420}"
+    elif [[ "$url" != *://127.0.0.1:* && "$url" != *://\[::1\]:* ]]; then
+        where="on this machine or any computer on its network"
+    fi
+    cert=$(sed -n 's/^TLS_CERT=//p' "$AGENTI_API_CONF" 2>/dev/null | head -n1)
+    if [[ -n "$cert" && "$cert" == "$AGENTI_STATE/tls/"* && -r "$cert" ]]; then
+        fp=$(openssl x509 -in "$cert" -noout -fingerprint -sha256 2>/dev/null | sed 's/^.*=//' || true)
+    fi
+    printf '\n  %sNext: finish setting up Agenti in a browser %s:%s\n\n      %s\n\n' "$c_b" "$where" "$c_0" "$url"
+    if [[ -n "$fp" ]]; then
+        printf '  The browser warns once about the certificate (Agenti made its own).\n'
+        printf '  Accept it if the SHA-256 fingerprint it shows is:\n      %s\n\n' "$fp"
+    fi
+    printf '  Setup code:  %s%s%s\n\n' "$c_b" "$code" "$c_0"
+    printf '  (Show this again: sudo agenti setup-code.  Set up in this terminal instead: sudo agenti setup)\n\n' 
 }
 
 # `admin set-api-key`, from Settings → Platform only: the key arrives on stdin,
@@ -4157,23 +4193,22 @@ EOF
     fi
 
     printf '\n%s4. Opening the GUI%s\n' "$c_b" "$c_0"
+    printf '  Now: %s\n' "$(gui_open_url)"
     cat <<'EOF'
   How will people open the GUI?
-    1) only on this machine (as it is now)
-    2) from other computers on this network (a self-signed certificate)
+    1) from other computers on this network (HTTPS, a self-signed certificate)
+    2) only on this machine
     3) from anywhere, through a tunnel or proxy on this machine (Cloudflare
-       Tunnel, nginx, Caddy) — recommended for remote access
+       Tunnel, nginx, Caddy)
 EOF
-    read -r -p "  choose 1, 2 or 3 [1]: " reply
-    case "${reply:-1}" in
-        1) ok "the GUI stays on this machine only" ;;
-        2) local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-           read -r -p "  this machine's address on that network [${ip:-?}]: " reply; ip="${reply:-$ip}"
-           [[ -n "$ip" ]] || die "no address given; nothing changed"
-           "$LIBDIR/configure.sh" gui --bind "$ip" --tls ;;
+    read -r -p "  choose 1, 2 or 3, or press Enter to keep it as it is: " reply
+    case "$reply" in
+        "") ok "the GUI stays as it is" ;;
+        1) "$LIBDIR/configure.sh" gui --bind 0.0.0.0 --tls --no-behind-proxy ;;
+        2) "$LIBDIR/configure.sh" gui --bind 127.0.0.1 --no-tls --no-behind-proxy ;;
         3) read -r -p "  the public domain people will use (e.g. agenti.example.com): " reply
            [[ -n "$reply" ]] || die "no domain given; nothing changed"
-           "$LIBDIR/configure.sh" gui --behind-proxy --hostname "$reply"
+           "$LIBDIR/configure.sh" gui --bind 127.0.0.1 --no-tls --behind-proxy --hostname "$reply"
            echo "  Then point the tunnel or proxy at http://127.0.0.1:8420 (agenti docs has the steps)." ;;
         *) warn "not 1, 2 or 3 — the GUI stays as it is (change it later: sudo agenti gui configure --help)" ;;
     esac

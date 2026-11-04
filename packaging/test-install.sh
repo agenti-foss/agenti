@@ -69,7 +69,13 @@ expect "the run units point at the bundled Python and the code folder" \
     grep -q '^ExecStart=/usr/lib/agenti-runtime/agent/bin/python3 /usr/lib/agenti/agents/enum/enum-agent.py$' /etc/systemd/system/agenti-enum-instance@.service
 expect "no run unit is enabled" sh -c '! ls /etc/systemd/system/*.wants/ 2>/dev/null | grep -q instance'
 expect "the GUI and retention units are rendered" test -f /etc/systemd/system/agenti-api.service -a -f /etc/systemd/system/agenti-retention.timer
-expect "the GUI settings default to this machine only" grep -qx 'BIND_HOST=127.0.0.1' /etc/agenti/api.conf
+expect "a fresh install listens on the network" grep -qx 'BIND_HOST=0.0.0.0' /etc/agenti/api.conf
+expect "...over HTTPS, with its own certificate naming this machine" sh -c \
+    'grep -qx "TLS_CERT=/var/lib/agenti/tls/api.crt" /etc/agenti/api.conf && openssl x509 -in /var/lib/agenti/tls/api.crt -noout -ext subjectAltName | grep -q "IP Address:127.0.0.1"'
+expect "...and its key is readable by the web tier alone" sh -c \
+    'test "$(stat -c %a:%U:%G /var/lib/agenti/tls/api.key)" = 640:root:agenti-api'
+expect "an upgrade keeps the GUI settings" sh -c \
+    'cp /etc/agenti/api.conf /tmp/api.conf.before && /usr/lib/agenti/configure.sh install >/dev/null 2>&1; cmp -s /etc/agenti/api.conf /tmp/api.conf.before'
 expect "the API account cannot run the CLI directly, only the bridge" sh -c \
     '! su -s /bin/sh agenti-api -c "sudo -n /usr/bin/agenti agents" >/dev/null 2>&1'
 expect "the bridge refuses a console-only verb for the API account" sh -c \

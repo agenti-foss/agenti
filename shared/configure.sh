@@ -96,8 +96,27 @@ write_api_conf() {
     chmod 0644 "$AGENTI_API_CONF.tmp"; mv "$AGENTI_API_CONF.tmp" "$AGENTI_API_CONF"
 }
 is_loopback() { case "$1" in 127.0.0.1|::1) return 0 ;; *) return 1 ;; esac; }
+is_wildcard() { case "$1" in 0.0.0.0|::) return 0 ;; *) return 1 ;; esac; }
 # <address> <port> as systemd and URLs want it: an IPv6 address in brackets.
 listen_addr() { if [[ "$1" == *:* ]]; then printf '[%s]:%s' "$1" "$2"; else printf '%s:%s' "$1" "$2"; fi; }
+# This machine's IPv4 addresses on its networks, the default route's first
+# (`ip route get` sends nothing; it only asks the routing table).
+lan_addresses() {
+    local first a
+    first=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | sed -n 1p)
+    [[ -n "$first" ]] && echo "$first"
+    ip -4 -o addr show scope global 2>/dev/null | awk '{sub(/\/.*/, "", $4); print $4}' \
+        | while read -r a; do [[ "$a" == "$first" ]] || echo "$a"; done
+}
+# The address people open: the public name behind a proxy, else this
+# machine's own network address for a bind on every address.
+gui_url() {
+    local scheme=http host="$BIND_HOST"
+    [[ -n "$TLS_CERT" ]] && scheme=https
+    if [[ $BEHIND_PROXY -eq 1 && -n "$HOSTNAME" ]]; then echo "https://$HOSTNAME"; return; fi
+    if is_wildcard "$host"; then host=$(lan_addresses | sed -n 1p); host="${host:-127.0.0.1}"; fi
+    echo "$scheme://$(listen_addr "${HOSTNAME:-$host}" "$BIND_PORT")"
+}
 # A strict domain check: the value reaches openssl's comma-separated SAN list
 # and a systemd Environment= line, so a comma or space is refused, not
 # escaped. A bare IP is refused too: WebAuthn needs a real domain.
@@ -111,6 +130,49 @@ valid_hostname() {
 # A literal address only: a name ('localhost') or an out-of-range IPv4 was
 # accepted before and rendered a socket systemd refused to load, so nothing
 # held the GUI's port (audit run 2).
+# A self-signed certificate at $TLS_CERT/$TLS_KEY naming this machine: its
+# host name, loopback, and the bind address (every network address for a
+# bind on all of them). Returns non-zero, having changed nothing, on failure.
+make_self_signed_cert() {
+    command -v openssl >/dev/null || return 1
+    install -d -o root -g "$API_USER" -m 0750 "$TLS_DIR"
+    local host sans fp a
+    host="$(hostname -s 2>/dev/null || echo agenti)"
+    sans="DNS:$host,DNS:localhost,IP:127.0.0.1"
+    if is_wildcard "$BIND_HOST"; then
+        while read -r a; do [[ -n "$a" ]] && sans="$sans,IP:$a"; done < <(lan_addresses)
+    elif ! is_loopback "$BIND_HOST"; then
+        sans="$sans,IP:$BIND_HOST"
+    fi
+    [[ -n "$HOSTNAME" ]] && sans="$sans,DNS:$HOSTNAME"
+    # 398 days: Safari refuses anything longer.
+    openssl req -x509 -newkey rsa:2048 -nodes -days 398 -keyout "$TLS_KEY.tmp" -out "$TLS_CERT.tmp" \
+        -subj "/CN=agenti-$host" -addext "subjectAltName=$sans" 2>/dev/null \
+        || { rm -f "$TLS_KEY.tmp" "$TLS_CERT.tmp"; return 1; }
+    chown root:"$API_USER" "$TLS_KEY.tmp" "$TLS_CERT.tmp"
+    chmod 0640 "$TLS_KEY.tmp"; chmod 0644 "$TLS_CERT.tmp"
+    mv "$TLS_KEY.tmp" "$TLS_KEY"; mv "$TLS_CERT.tmp" "$TLS_CERT"
+    fp=$(openssl x509 -in "$TLS_CERT" -noout -fingerprint -sha256 2>/dev/null | sed 's/^.*=//' || true)
+    ok "made a self-signed certificate for $sans (valid 398 days)"
+    [[ -n "$fp" ]] && printf '         SHA-256 fingerprint: %s\n         Compare it with what the browser shows the first time.\n' "$fp"
+    return 0
+}
+# A fresh install's settings (operator decision 2026-11-04): every network
+# address, over HTTPS with a self-signed certificate, so other people's
+# browsers can reach it. Without a certificate it stays on this machine only,
+# and says so. An existing api.conf is never touched (upgrades keep theirs).
+write_first_api_conf() {
+    BIND_HOST="0.0.0.0" TLS_CERT="$TLS_DIR/api.crt" TLS_KEY="$TLS_DIR/api.key"
+    if [[ -f "$TLS_CERT" && -f "$TLS_KEY" ]] || make_self_signed_cert; then
+        write_api_conf
+        ok "wrote $AGENTI_API_CONF (every network address, HTTPS, port $BIND_PORT)"
+    else
+        BIND_HOST="127.0.0.1" TLS_CERT="" TLS_KEY=""
+        write_api_conf
+        warn "could not make a certificate, so the GUI stays on this machine only (port $BIND_PORT)."
+        warn "open it to the network later:  sudo agenti gui configure --bind 0.0.0.0 --tls"
+    fi
+}
 valid_bind() {
     local o
     if [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
@@ -498,6 +560,7 @@ EOF
     chmod 0644 "$AUTHD_UNIT" "$API_UNIT" "$API_SOCKET" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET"
     reload
     if is_loopback "$BIND_HOST"; then ok "GUI on $(listen_addr "$BIND_HOST" "$BIND_PORT") (this machine only${HOSTNAME:+; public name $HOSTNAME})"
+    elif is_wildcard "$BIND_HOST"; then ok "GUI on port $BIND_PORT of every network address, over HTTPS (password + 2FA protect it)"
     else ok "GUI on https://$(listen_addr "$BIND_HOST" "$BIND_PORT") — reachable from that network (password + 2FA protect it)"; fi
 }
 
@@ -581,7 +644,7 @@ start_services() {
     sleep 2
     if systemctl is-active --quiet agenti-api.service; then
         read_api_conf
-        ok "the GUI is running: $( [[ -n "$TLS_CERT" ]] && echo https || echo http )://$(listen_addr "$BIND_HOST" "$BIND_PORT")"
+        ok "the GUI is running: $(gui_url)"
     elif [[ $first -eq 1 ]]; then
         warn "the GUI did not start — see:  journalctl -u agenti-api -u agenti-authd -n 40"
     fi
@@ -595,7 +658,9 @@ gui_usage() {
     cat <<EOF
 usage: sudo agenti gui configure [options]     (current settings: $AGENTI_API_CONF)
 
-  --bind <address>        listen on this address instead of 127.0.0.1 (needs TLS)
+  --bind <address>        listen on this address: 0.0.0.0 = every network address
+                          (a fresh install's default), 127.0.0.1 = this machine
+                          only, or one address; anything but loopback needs TLS
   --port <port>           listen on this port (default 8420)
   --tls                   generate a self-signed certificate (reused later)
   --tls-cert <path> --tls-key <path>   use a certificate you already have
@@ -680,20 +745,7 @@ answers to, and what passkeys are bound to)."
     # Generated only when asked AND absent: a fresh certificate makes every
     # device that trusted the old one warn again, with no explanation.
     if [[ $gen_tls -eq 1 && ! -f "$TLS_CERT" ]]; then
-        command -v openssl >/dev/null || die "openssl is needed to make a certificate (apt install openssl)."
-        install -d -o root -g "$API_USER" -m 0750 "$TLS_DIR"
-        local host sans fp
-        host="$(hostname -s 2>/dev/null || echo agenti)"
-        sans="DNS:$host,DNS:localhost,IP:127.0.0.1"
-        is_loopback "$BIND_HOST" || sans="$sans,IP:$BIND_HOST"
-        [[ -n "$HOSTNAME" ]] && sans="$sans,DNS:$HOSTNAME"
-        # 398 days: Safari refuses anything longer.
-        openssl req -x509 -newkey rsa:2048 -nodes -days 398 -keyout "$TLS_KEY" -out "$TLS_CERT" \
-            -subj "/CN=agenti-$host" -addext "subjectAltName=$sans" 2>/dev/null \
-            || die "openssl could not make the certificate."
-        fp=$(openssl x509 -in "$TLS_CERT" -noout -fingerprint -sha256 2>/dev/null | sed 's/^.*=//' || true)
-        ok "made a self-signed certificate for $sans (valid 398 days)"
-        [[ -n "$fp" ]] && printf '         SHA-256 fingerprint: %s\n         Compare it with what the browser shows the first time.\n' "$fp"
+        make_self_signed_cert || die "openssl could not make the certificate (is it installed? apt install openssl)."
     fi
     if [[ -n "$TLS_CERT" ]]; then
         [[ -f "$TLS_CERT" && -f "$TLS_KEY" ]] || die "certificate or key missing ($TLS_CERT / $TLS_KEY). Make one:  sudo agenti gui configure --tls"
@@ -777,7 +829,7 @@ configure_main() {
             local first=0; [[ "${1:-}" == "--first" ]] && first=1
             configure_accounts
             configure_state
-            [[ -f "$AGENTI_API_CONF" ]] || { write_api_conf; ok "wrote $AGENTI_API_CONF (this machine only, port $BIND_PORT)"; }
+            [[ -f "$AGENTI_API_CONF" ]] || write_first_api_conf
             configure_sudoers
             configure_data
             configure_agent_units

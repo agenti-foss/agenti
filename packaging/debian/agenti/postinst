@@ -7,12 +7,12 @@ set -e
 case "$1" in
     configure)
         if [ -z "$2" ]; then
-            # A first install: also start the GUI (on this machine only) and
-            # the retention timer, and enable them on boot.
+            # A first install: also start the GUI and the retention timer,
+            # and enable them on boot.
             /usr/lib/agenti/configure.sh install --first
             cat <<'MSG'
 
-  Agenti is installed. The GUI is running on this machine only.
+  Agenti is installed and its GUI is running.
 MSG
             # The one-time code the GUI's setup page asks for (and where to go).
             /usr/bin/agenti setup-code --if-needed || true

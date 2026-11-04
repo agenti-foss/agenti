@@ -72,3 +72,11 @@ cat "$tmp/update.log"
 apt-get install -y agenti || die "installing agenti failed; see the messages above. Try again with: sudo apt install agenti"
 echo
 echo "Agenti is installed. Updates arrive with the usual: sudo apt update && sudo apt upgrade"
+# apt may set up other packages after Agenti's own message, scrolling the
+# setup code away: say what to do next again, as the very last thing.
+next=$(/usr/bin/agenti setup-code --if-needed 2>/dev/null || true)
+if [ -n "$next" ]; then
+    printf '%s\n\n' "$next"
+else
+    echo "Open the GUI: $(/usr/bin/agenti gui status 2>/dev/null | sed -n 's/^ *open: *\([^ ]*\).*/\1/p')"
+fi

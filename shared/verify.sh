@@ -124,7 +124,10 @@ verify_gui() {
     local rc=0 mode owner
     read_api_conf
     local BASE_URL CURL_TLS=""
-    if [[ -n "$TLS_CERT" ]]; then BASE_URL="https://$(listen_addr "$BIND_HOST" "$BIND_PORT")"; CURL_TLS="-k"; else BASE_URL="http://$(listen_addr "$BIND_HOST" "$BIND_PORT")"; fi
+    # A bind on every address is checked through loopback, which it includes.
+    local probe="$BIND_HOST"
+    case "$probe" in 0.0.0.0) probe=127.0.0.1 ;; ::) probe=::1 ;; esac
+    if [[ -n "$TLS_CERT" ]]; then BASE_URL="https://$(listen_addr "$probe" "$BIND_PORT")"; CURL_TLS="-k"; else BASE_URL="http://$(listen_addr "$probe" "$BIND_PORT")"; fi
     echo "the web GUI and sign-in:"
 
     id "$API_USER" &>/dev/null && ok "service account '$API_USER' exists" \
@@ -603,7 +606,8 @@ PROBES
             fail "nothing is listening on port $BIND_PORT"; rc=1
         elif { [[ "$BIND_HOST" == *:* ]] && grep -qF "[$BIND_HOST]:$BIND_PORT" <<<"$listen"; } \
              || { [[ "$BIND_HOST" != *:* ]] && grep -qE "(^|[^0-9.])($BIND_HOST|\[::1\]):$BIND_PORT" <<<"$listen"; }; then
-            ok "listening on $BIND_HOST:$BIND_PORT only"
+            if is_wildcard "$BIND_HOST"; then ok "listening on port $BIND_PORT of every network address (HTTPS checked below)"
+            else ok "listening on $BIND_HOST:$BIND_PORT only"; fi
         else
             fail "EXPOSED: something is listening on $BIND_PORT beyond $BIND_HOST:"; rc=1
             printf '         %s\n' "$listen" >&2
