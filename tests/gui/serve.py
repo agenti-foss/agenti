@@ -14,7 +14,6 @@ GET /__misses (the visual check fails on any), so a page that starts calling
 something new shows up as "record the fixtures again", not as a blank page.
 """
 import json
-import mimetypes
 import os
 import sys
 import threading
@@ -31,6 +30,13 @@ FIXTURES = {who: json.loads((HERE / "fixtures" / f"{who}.json").read_text())["an
 # page that would break under them breaks here too.
 HEADERS = {"Content-Security-Policy": "frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN",
            "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin"}
+# Every file under GUI, by the URL path that serves it, read once at start: a
+# request is looked up here, never turned into a path itself.
+TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
+         ".png": "image/png", ".woff2": "font/woff2", ".woff": "font/woff", ".json": "application/json",
+         ".ico": "image/x-icon", ".txt": "text/plain"}
+FILES = {"/" + f.relative_to(GUI).as_posix(): f for f in GUI.rglob("*") if f.is_file()}
+FILES["/"] = GUI / "index.html"
 MISSES: list = []
 _lock = threading.Lock()
 
@@ -59,11 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/__misses":
             with _lock:
                 return self._send(200, json.dumps(MISSES).encode(), "application/json")
-        if self.command in ("GET", "HEAD"):
-            rel = "index.html" if path == "/" else path.lstrip("/")
-            f = (GUI / rel).resolve()
-            if f.is_file() and GUI in f.parents:
-                return self._send(200, f.read_bytes(), mimetypes.guess_type(f.name)[0] or "application/octet-stream")
+        if self.command in ("GET", "HEAD") and path in FILES:
+            f = FILES[path]
+            return self._send(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
         answers = FIXTURES[self._who()]
         key = f"{self.command} {path}" + (f"?{url.query}" if url.query else "")
         hit = answers.get(key) or answers.get(f"{self.command} {path}")
