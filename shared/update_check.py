@@ -107,6 +107,32 @@ def fetch_latest(opener=urllib.request.urlopen):
     return tag.lstrip("v"), url
 
 
+CACHE_TTL_S = 60
+
+
+def cached_fetch(path, fetch=fetch_latest, now=time.time, ttl=CACHE_TTL_S):
+    """fetch(), but GitHub's answer is reused for `ttl` seconds from a small file
+    root keeps, so a double-click cannot spend GitHub's unauthenticated rate
+    limit. Only the release is kept, never the policy: whether checking is
+    allowed is decided fresh on every call. Failures are not kept."""
+    p = Path(path)
+    try:
+        kept = json.loads(p.read_text())
+        if 0 <= now() - float(kept["at"]) < ttl and parse_version(kept["latest"]):
+            return str(kept["latest"]), str(kept.get("url", ""))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    latest, url = fetch()
+    try:
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps({"at": now(), "latest": latest, "url": url}))
+        tmp.chmod(0o644)
+        tmp.replace(p)
+    except OSError:
+        pass
+    return latest, url
+
+
 def check(enabled, installed=None, fetch=fetch_latest, now=time.time):
     """The whole answer as a dict (always has 'enabled', 'installed', 'checked').
     Makes NO network request unless `enabled` is true."""
@@ -155,7 +181,11 @@ def render(res):
 
 def main(argv):
     enabled = "--enabled" in argv
-    res = check(enabled, installed_version())
+    fetch = fetch_latest
+    if "--cache" in argv and argv.index("--cache") + 1 < len(argv):
+        cache = argv[argv.index("--cache") + 1]
+        fetch = lambda: cached_fetch(cache)  # noqa: E731
+    res = check(enabled, installed_version(), fetch=fetch)
     if "--json" in argv:
         print(json.dumps(res))
     else:

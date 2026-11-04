@@ -1328,6 +1328,10 @@ button.copy-btn.copied { color: var(--ok); border-color: var(--ok); }
   background: var(--bg-inset); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: var(--space-2) 10px;
 }
+/* Next to its copy button, a command shrinks before the button wraps under
+ * it (a 0 basis, not its one-line width), and breaks at spaces, splitting a
+ * word only when one alone is too wide (--only-upgrade stays whole). */
+.copyable > .cmd-block { flex: 1 1 0; overflow-wrap: break-word; }
 .cmd-steps { padding-left: 1.3em; margin: 10px 0; }
 .cmd-steps li { margin-bottom: 10px; }
 .cmd-steps li:last-child { margin-bottom: 0; }

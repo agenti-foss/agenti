@@ -4435,6 +4435,8 @@ except Exception:
     local args=()
     [[ "$enabled" == "on" ]] && args+=(--enabled)
     [[ $JSON -eq 1 ]] && args+=(--json)
+    # GitHub's answer is kept a minute (root's file), the policy never is.
+    [[ $EUID -eq 0 && -d "$AGENTI_STATE" ]] && args+=(--cache "$AGENTI_STATE/update-check.json")
     local rc=0
     python3 "$uc" "${args[@]}" || rc=$?
     return $rc

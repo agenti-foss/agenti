@@ -837,20 +837,13 @@ def docs_show(page: DocPage, caller: Caller = Depends(authenticated())) -> dict:
 
 # Opt-in, report-only update check. The CLI verb does the work (and makes NO
 # network request unless root switched the `update-check` policy on); this just
-# relays it, with a short cache so a double-click cannot hammer GitHub's
-# unauthenticated rate limit. It never installs anything.
-_UPDATE_CACHE: dict = {"at": 0.0, "value": None}
-
-
+# relays it. Nothing is kept here: the policy is read fresh every time, and
+# the CLI keeps GitHub's answer a minute itself (update_check.cached_fetch),
+# so a double-click cannot hammer GitHub's unauthenticated rate limit. It
+# never installs anything.
 @app.get("/admin/update-check")
 def get_update_check(caller: Caller = Depends(require("iam:read"))) -> dict:
-    now = time.monotonic()
-    cached = _UPDATE_CACHE["value"]
-    if cached is not None and now - _UPDATE_CACHE["at"] < 60:
-        return cached
-    result = _call("admin", "update-check")
-    _UPDATE_CACHE.update(at=now, value=result)
-    return result
+    return _call("admin", "update-check")
 
 
 # ---------------------------------------------------------------------------

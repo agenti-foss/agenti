@@ -74,6 +74,34 @@ check("fetch failure -> plain error", (r["checked"], r["error"], "Could not chec
       (False, "no release has been published yet", True))
 
 
+# --- cached_fetch: GitHub's answer reused for a minute, failures never kept
+import tempfile as _tf
+_d = _tf.mkdtemp()
+_cache = _d + "/update-check.json"
+_calls = []
+
+
+def _counting():
+    _calls.append(1)
+    return ("0.3.0", "https://github.com/agenti-foss/agenti/releases/tag/v0.3.0")
+
+
+check("first call asks GitHub", uc.cached_fetch(_cache, fetch=_counting, now=lambda: 1000)[0], "0.3.0")
+check("...a second within the minute does not", (uc.cached_fetch(_cache, fetch=_counting, now=lambda: 1030)[0], len(_calls)), ("0.3.0", 1))
+uc.cached_fetch(_cache, fetch=_counting, now=lambda: 1061)
+check("...after the minute it asks again", len(_calls), 2)
+check("...a clock that went backwards asks again", (uc.cached_fetch(_cache, fetch=_counting, now=lambda: 10), len(_calls))[1], 3)
+try:
+    uc.cached_fetch(_d + "/x.json", fetch=fail_fetch, now=lambda: 1000)
+except RuntimeError:
+    pass
+import os as _os
+check("a failure is not kept", _os.path.exists(_d + "/x.json"), False)
+open(_cache, "w").write("not json")
+check("an unreadable cache file is ignored", uc.cached_fetch(_cache, fetch=_counting, now=lambda: 2000)[0], "0.3.0")
+_r = uc.check(False, "0.1.0", fetch=lambda: uc.cached_fetch(_cache, fetch=boom))
+check("policy off: the cache is not even read (no request, no answer)", (_r["checked"], _r["latest"]), (False, None))
+
 # --- fetch_latest against fake responses
 class Resp(io.BytesIO):
     def __enter__(self): return self
