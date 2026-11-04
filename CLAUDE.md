@@ -337,8 +337,8 @@ needs the real origin (your deployment URL); plain-loopback
    scoped token (never argv). Agenti is meant to become model-agnostic (any provider,
    self-hosted included): keep the model behind a seam.
    **Licensing decision (2026-10-19):** open core under AGPL-3.0 (shell + harness + enum/research/trafficmon); exploit, cracker and future advanced agents proprietary in a separate private repo/package; CLA + trademark. Plan and coupling table: `docs/open-core-split.md`. Never publish the pre-0.1.0 history.
-   **Pipeline:** `security.yml` (CodeQL gate + pip-audit), `release.yml` (publishing off
-   until repo var `RELEASE_PUBLISH=true`), `package.yml`, `.githooks/pre-commit`; see
+   **Pipeline:** `security.yml` (CodeQL gate + pip-audit), `release.yml` (public repo only;
+   publishes while its repo var `RELEASE_PUBLISH=true`, which it is), `package.yml`, `.githooks/pre-commit`; see
    `docs/ci.md`. The website is its own repo, `agenti-foss/website`
    (Cloudflare Pages builds on push; `build.py --sync <this repo>/docs/help --check`). Still to build: a visual GUI CI
    job. Update check (report-only, off by default) not yet live-checked in the GUI.

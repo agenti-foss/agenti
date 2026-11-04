@@ -1,6 +1,6 @@
 # Automated checks (CI)
 
-Every push to `main` (the public repo; `master` in the private one), and every pull request, is checked automatically on
+Every push to `main`, and every pull request, is checked automatically on
 GitHub before anyone has to remember to. This page says what is checked, how to
 run the same checks yourself, and what to do when one fails.
 
@@ -22,19 +22,19 @@ green result on your own machine.
 
 `.github/workflows/security.yml` (push, pull request, and weekly): `pip-audit`
 on the three runtime lock files, CodeQL (python, javascript, `security-extended`),
-and on pull requests a dependency review that fails on new moderate-or-worse
-vulnerabilities. While the repo is private, GitHub will not store CodeQL's
-results (code scanning is a paid add-on there; the dependency review needs it
-too), so the findings are the job's `codeql-*` artifact and any finding fails
-the job (operator decision 2026-10-21); the workflow comment says what to
-switch back once the repo is public. `.githooks/pre-commit` scans staged changes with gitleaks and
+and on pull requests in the public repo a dependency review that fails on new
+moderate-or-worse vulnerabilities (GitHub offers it only on public repos, so it
+is skipped in agenti-dev). CodeQL's findings are the job's `codeql-*` artifact
+and any finding not reviewed in `.github/codeql-reviewed.json` fails the job
+(operator decision 2026-10-21), in both repos. `.githooks/pre-commit` scans staged changes with gitleaks and
 refuses `secrets.env`, engagement configs and similar files; enable it once per
 clone with `shared/install-hooks.sh`. `--no-verify` skips it; the whole-history
 scan in CI cannot be skipped.
 
-## Release workflow (publishing is OFF)
+## Release workflow
 
-`.github/workflows/release.yml` runs on a `vX.Y.Z` tag: full checks, build and
+`.github/workflows/release.yml` runs on a `vX.Y.Z` tag, in the public repo only
+(tags are pushed there, never to agenti-dev): full checks, build and
 prove the packages (`package.yml`), then sign. Each build job reports its package's
 name and SHA-256 as a job output (`packaging/deb-digest.sh`); the signing job
 downloads exactly those three artifacts by name, writes `SHA256SUMS` from the
@@ -42,9 +42,11 @@ reported digests, refuses any file no build job made, and attests that list
 (`subject-checksums`). It never signs "every .deb in the run": any job, including
 a container job running a pulled image, can upload an artifact (audit run 2). The
 test images are pinned by digest; refresh them with `packaging/image-digests.sh`.
-The result is kept as a workflow artifact. A public GitHub Release is created only when the
-repository variable `RELEASE_PUBLISH` is `true`. Leave it unset until the
-open-source audit is done. `workflow_dispatch` is a dry run and never publishes.
+The result is kept as a workflow artifact, and the GitHub Release is created
+because the public repo's variable `RELEASE_PUBLISH` is `true` (unset it to make
+tags build without publishing). `workflow_dispatch` is a dry run and never
+publishes. The apt repository is updated and signed by hand afterwards
+(`packaging/apt/repo.sh`, `docs/release-signing.md`).
 
 ## Download page
 

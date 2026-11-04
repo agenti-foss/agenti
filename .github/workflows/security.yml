@@ -6,7 +6,7 @@ name: Security
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
   schedule:
     - cron: "17 5 * * 1"
@@ -55,10 +55,9 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
-      # Code scanning is a paid feature on a private repo, so the findings are
-      # kept as a file and any finding fails the job (operator decision
-      # 2026-10-21). Once the repo is public: upload: always, security-events:
-      # write, and drop the two steps after this one.
+      # The findings are kept as a file and any finding fails the job
+      # (operator decision 2026-10-21), the same in agenti-dev (private, where
+      # GitHub would not store them) and the public repo.
       - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           category: /language:${{ matrix.language }}
@@ -78,7 +77,9 @@ jobs:
 
   dependency-review:
     name: New vulnerable dependencies in this pull request
-    if: github.event_name == 'pull_request'
+    # GitHub offers dependency review only on public repos (or with Advanced
+    # Security), so in agenti-dev it could only ever fail.
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -4,11 +4,9 @@
 # provenance attestation -> (only if publishing is switched on) a GitHub
 # Release.
 #
-# PUBLISHING IS OFF. Everything is kept as a workflow artifact for
-# inspection, but nothing becomes public until the repository variable
-# RELEASE_PUBLISH is "true" (Settings > Secrets and variables > Actions >
-# Variables). Do that only after the security audit of the installed package
-# (docs/packaging.md) and once the repo is public.
+# Everything is kept as a workflow artifact, and the GitHub Release is made
+# only while the repository variable RELEASE_PUBLISH is "true" (it is, in the
+# public repo: Settings > Secrets and variables > Actions > Variables).
 # The apt repository's InRelease is signed by hand with the hardware key,
 # never here (docs/open-core-split.md § CI/CD).
 name: Release
