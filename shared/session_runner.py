@@ -431,6 +431,10 @@ async def run_session(s: Session) -> int:
             result.num_turns = max(int(result.num_turns or 0), int(_used["turns"]))
         except (AttributeError, TypeError, ValueError):
             pass
+        # Likewise the cost: an engine that knows the whole session's spend says
+        # so (engine_openai); the report shows that, not the last query's.
+        if getattr(result, "session_cost_usd", None) is not None:
+            result.total_cost_usd = result.session_cost_usd
         cost = ("$%.4f" % result.total_cost_usd
                 if result.total_cost_usd is not None else "unknown")
         print(f"  stop reason : subtype={result.subtype} "

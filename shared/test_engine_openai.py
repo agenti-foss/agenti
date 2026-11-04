@@ -170,7 +170,10 @@ def spec(**kw):
 
 
 def provider(name="openai"):
-    return mr.PROVIDERS[name]
+    """The loop tests speak the chat wire (any provider may); the Responses wire,
+    OpenAI's own, has its own section below."""
+    import dataclasses
+    return dataclasses.replace(mr.PROVIDERS[name], wire="chat")
 
 
 async def run(sess, text="go"):
@@ -307,6 +310,71 @@ check("a resume continues the same conversation",
 s = Script([say("fresh")])
 asyncio.run(run(engine_openai.OpenAISession(spec(state_dir=st, resume="another-id"), provider(), post=s)))
 check("a resume id that is not this conversation starts afresh", len(s.requests[0]["body"]["messages"]), 2)
+
+
+async def two_queries():
+    sess = engine_openai.OpenAISession(spec(), provider(), post=Script([say("a"), say("b")]))
+    out = []
+    async with sess:
+        for t in ("one", "two"):
+            await sess.query(t)
+            async for e in sess.receive_response():
+                if type(e).__name__ == "ResultMessage":
+                    out.append((e.total_cost_usd, e.session_cost_usd))
+    return out
+q = asyncio.run(two_queries())
+one = round((100 * 1.0 + 50 * 2.0) / 1e6, 6)
+check("each result: this query's cost, and the session's so far", q, [(one, one), (one, round(2 * one, 6))])
+
+# ---------------------------------------------------------------------------
+section("OpenAI's own wire: the Responses API (tools on reasoning models)")
+check("OpenAI speaks Responses, a self-hosted server Chat Completions",
+      (mr.PROVIDERS["openai"].wire, mr.PROVIDERS["local"].wire), ("responses", "chat"))
+
+
+def r_call(name, args, *, cid="call_1", pin=100, pout=50):
+    return {"status": "completed", "usage": {"input_tokens": pin, "output_tokens": pout}, "output": [
+        {"type": "reasoning", "id": "rs_1", "encrypted_content": "ENC", "summary": []},
+        {"type": "function_call", "id": "fc_1", "call_id": cid, "name": name, "arguments": args}]}
+
+
+def r_say(text, pin=100, pout=50):
+    return {"status": "completed", "usage": {"input_tokens": pin, "output_tokens": pout}, "output": [
+        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]}]}
+
+
+RAN.clear()
+s = Script([r_call("run_scan", '{"command": "nmap 10.0.0.1"}'), r_say("Found 1 host.")])
+ev = asyncio.run(run(engine_openai.OpenAISession(spec(), mr.PROVIDERS["openai"], post=s)))
+b0 = s.requests[0]["body"]
+check("it posts to /responses with the system prompt as instructions",
+      (s.requests[0]["url"], b0["instructions"], b0["input"]),
+      ("https://api.openai.com/v1/responses", "You are a recon agent.", [{"role": "user", "content": "go"}]))
+check("nothing is stored at OpenAI; reasoning comes back encrypted", (b0["store"], b0["include"]),
+      (False, ["reasoning.encrypted_content"]))
+check("tools in the Responses shape", b0["tools"][0],
+      {"type": "function", "name": "run_scan", "description": "Run one scan.",
+       "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}})
+check("the tool ran", RAN, [{"command": "nmap 10.0.0.1"}])
+nxt = s.requests[1]["body"]["input"]
+check("the next request returns the reasoning, the call and its output",
+      [i.get("type", i.get("role")) for i in nxt], ["user", "reasoning", "function_call", "function_call_output"])
+check("...the output keyed by the call's id", (nxt[-1]["call_id"], nxt[-1]["output"]), ("call_1", "scanned: nmap 10.0.0.1"))
+check("the answer and its cost", (ev[-1].subtype, ev[-1].result, ev[-1].total_cost_usd),
+      ("success", "Found 1 host.", round(2 * (100 * 1.0 + 50 * 2.0) / 1e6, 6)))
+DELIVER[:] = ["[Operator message] stop after this"]
+s = Script([r_call("run_scan", '{"command": "a"}'), r_say("ok")])
+asyncio.run(run(engine_openai.OpenAISession(spec(), mr.PROVIDERS["openai"], post=s)))
+check("an operator message follows the tool output as a user turn", s.requests[1]["body"]["input"][-1],
+      {"role": "user", "content": "[Operator message] stop after this"})
+st2 = Path(tempfile.mkdtemp())
+ev = asyncio.run(run(engine_openai.OpenAISession(spec(state_dir=st2), mr.PROVIDERS["openai"], post=Script([r_say("hi")]))))
+s = Script([r_say("again")])
+asyncio.run(run(engine_openai.OpenAISession(spec(state_dir=st2, resume=ev[0].data["session_id"]), mr.PROVIDERS["openai"], post=s)))
+check("a resume on the Responses wire continues the conversation", len(s.requests[0]["body"]["input"]), 3)
+s = Script([r_say("chat")])
+asyncio.run(run(engine_openai.OpenAISession(spec(state_dir=st2, resume=ev[0].data["session_id"]), provider(), post=s)))
+check("...but a conversation from another wire is not mixed in", len(s.requests[0]["body"]["messages"]), 2)
 
 # ---------------------------------------------------------------------------
 section("the wire: a real request through the actual egress relay")

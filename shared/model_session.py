@@ -82,6 +82,9 @@ class ResultMessage:
     usage: dict | None = None
     duration_ms: int = 0
     duration_api_ms: int = 0
+    # The whole session so far (every query), for the report; total_cost_usd
+    # and num_turns are this query's alone, as the Claude SDK counts them.
+    session_cost_usd: float | None = None
 
 
 # ---- what a session needs --------------------------------------------------

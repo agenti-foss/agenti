@@ -1,7 +1,17 @@
 """
-engine_openai.py — Agenti's own run loop for any model behind the
-OpenAI-compatible Chat Completions API: OpenAI's models, and self-hosted ones
-(Ollama, vLLM, LM Studio, llama.cpp server, LiteLLM). docs/model-providers.md.
+engine_openai.py — Agenti's own run loop for OpenAI's models and for
+self-hosted ones (Ollama, vLLM, LM Studio, llama.cpp server, LiteLLM).
+docs/model-providers.md.
+
+One loop, two wire formats, chosen by the provider (model_registry.Provider.wire):
+
+  responses  OpenAI's Responses API (POST /responses). OpenAI's reasoning
+             models take tools only here (found live 2026-11-04: gpt-5.6-terra
+             refused tools on Chat Completions). Sent with store=false, so the
+             conversation is not kept at OpenAI; the reasoning items come back
+             encrypted and are returned with each request.
+  chat       the OpenAI-compatible Chat Completions API (POST /chat/completions),
+             which every self-hosted server speaks.
 
 The model is offered ONLY the agent's own tools (agent_tools.ToolDef, the same
 ones the Claude engine offers). Before any of them runs, the call goes through
@@ -50,13 +60,12 @@ def _post_json(url: str, body: dict, headers: dict, relay: str, timeout: float) 
     u = urlsplit(url)
     https = u.scheme == "https"
     host, port = u.hostname or "", u.port or (443 if https else 80)
+    cls = http.client.HTTPSConnection if https else http.client.HTTPConnection
     if relay:
         r = urlsplit(relay if "://" in relay else f"http://{relay}")
-        cls = http.client.HTTPSConnection if https else http.client.HTTPConnection
         conn = cls(r.hostname, r.port or 80, timeout=timeout)
         conn.set_tunnel(host, port)
     else:
-        cls = http.client.HTTPSConnection if https else http.client.HTTPConnection
         conn = cls(host, port, timeout=timeout)
     path = (u.path or "/") + (f"?{u.query}" if u.query else "")
     try:
@@ -73,12 +82,105 @@ def _post_json(url: str, body: dict, headers: dict, relay: str, timeout: float) 
     except ValueError:
         data = {}
     if resp.status >= 400:
-        msg = ((data.get("error") or {}).get("message") if isinstance(data.get("error"), dict)
-               else data.get("error")) or raw[:300].decode("utf-8", "replace")
+        err = data.get("error")
+        msg = (err.get("message") if isinstance(err, dict) else err) or raw[:300].decode("utf-8", "replace")
         if resp.status in (401, 403):
             raise EngineError(f"the provider refused the API key (HTTP {resp.status}): {msg}")
         raise EngineError(f"the provider answered HTTP {resp.status}: {msg}")
     return data
+
+
+# ---------------------------------------------------------------------------
+# The two wire formats. Each keeps the conversation in its own item shape and
+# answers the same four questions; the loop below never looks inside.
+# ---------------------------------------------------------------------------
+class _Reply:
+    def __init__(self, text: str, calls: list, pin: int, pout: int, done_reason: str, kept: list):
+        self.text, self.calls, self.pin, self.pout = text, calls, pin, pout
+        self.done_reason, self.kept = done_reason, kept   # kept: items to append to the conversation
+
+
+class ChatWire:
+    name = "chat"
+    endpoint = "/chat/completions"
+
+    def __init__(self, system_prompt: str, tools: list):
+        self.system = {"role": "system", "content": system_prompt}
+        self.tools = [{"type": "function", "function": {
+            "name": t.name, "description": t.description, "parameters": agent_tools.json_schema(t)}}
+            for t in tools]
+
+    def user(self, text: str) -> dict:
+        return {"role": "user", "content": text}
+
+    def tool_result(self, call_id: str, text: str) -> dict:
+        return {"role": "tool", "tool_call_id": call_id, "content": text}
+
+    def body(self, model: str, items: list) -> dict:
+        b = {"model": model, "messages": [self.system, *items]}
+        if self.tools:
+            b["tools"] = self.tools
+        return b
+
+    def parse(self, reply: dict) -> _Reply:
+        choice = (reply.get("choices") or [{}])[0]
+        msg = choice.get("message") or {}
+        text = msg.get("content") or ""
+        calls = [(str(c.get("id") or ""), (c.get("function") or {}).get("name", ""),
+                  (c.get("function") or {}).get("arguments") or "{}")
+                 for c in msg.get("tool_calls") or []]
+        kept = {"role": "assistant", "content": text or None}
+        if msg.get("tool_calls"):
+            kept["tool_calls"] = msg["tool_calls"]
+        u = reply.get("usage") or {}
+        return _Reply(text, calls, int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0),
+                      choice.get("finish_reason") or "stop", [kept])
+
+
+class ResponsesWire:
+    name = "responses"
+    endpoint = "/responses"
+
+    def __init__(self, system_prompt: str, tools: list):
+        self.instructions = system_prompt
+        self.tools = [{"type": "function", "name": t.name, "description": t.description,
+                       "parameters": agent_tools.json_schema(t)} for t in tools]
+
+    def user(self, text: str) -> dict:
+        return {"role": "user", "content": text}
+
+    def tool_result(self, call_id: str, text: str) -> dict:
+        return {"type": "function_call_output", "call_id": call_id, "output": text}
+
+    def body(self, model: str, items: list) -> dict:
+        b = {"model": model, "instructions": self.instructions, "input": items,
+             "store": False, "include": ["reasoning.encrypted_content"]}
+        if self.tools:
+            b["tools"] = self.tools
+        return b
+
+    def parse(self, reply: dict) -> _Reply:
+        texts, calls, kept = [], [], []
+        for item in reply.get("output") or []:
+            kind = item.get("type")
+            if kind == "message":
+                for c in item.get("content") or []:
+                    if c.get("type") in ("output_text", "text"):
+                        texts.append(c.get("text") or "")
+                kept.append(item)
+            elif kind == "function_call":
+                calls.append((str(item.get("call_id") or item.get("id") or ""), item.get("name", ""),
+                              item.get("arguments") or "{}"))
+                kept.append(item)
+            elif kind == "reasoning":
+                kept.append(item)       # returned as it came (encrypted), so the model keeps its thread
+        u = reply.get("usage") or {}
+        done = (reply.get("incomplete_details") or {}).get("reason") or reply.get("status") or "completed"
+        return _Reply("\n".join(t for t in texts if t), calls, int(u.get("input_tokens") or 0),
+                      int(u.get("output_tokens") or 0), done, kept)
+
+
+WIRES = {"chat": ChatWire, "responses": ResponsesWire}
 
 
 class OpenAISession:
@@ -106,14 +208,13 @@ class OpenAISession:
                 f"sudo agenti engagement set --model-price {spec.model}=<input>,<output>")
         self.contract = spec.contract
         self.tools = {t.name: t for t in spec.contract.tools}
-        self.tool_specs = [{"type": "function", "function": {
-            "name": t.name, "description": t.description, "parameters": agent_tools.json_schema(t)}}
-            for t in spec.contract.tools]
-        self.messages: list[dict] = [{"role": "system", "content": spec.system_prompt}]
+        self.wire = WIRES[provider.wire](spec.system_prompt, list(spec.contract.tools))
+        self.items: list[dict] = []
         self.session_id = ""
         self._queued: list[str] = []
         self._interrupted = False
         self._announced = False
+        self._session_cost = 0.0
 
     # -- the conversation on disk (resume) ---------------------------------
     def _path(self) -> Path:
@@ -123,7 +224,7 @@ class OpenAISession:
         p = self._path()
         tmp = p.with_name(p.name + ".tmp")
         tmp.write_text(json.dumps({"session_id": self.session_id, "model": self.spec.model,
-                                   "messages": self.messages[1:]}))
+                                   "wire": self.wire.name, "items": self.items}))
         os.chmod(tmp, 0o600)
         tmp.replace(p)
 
@@ -133,9 +234,10 @@ class OpenAISession:
                 saved = json.loads(self._path().read_text())
             except (OSError, ValueError):
                 saved = {}
-            if saved.get("session_id") == self.spec.resume and isinstance(saved.get("messages"), list):
+            if (saved.get("session_id") == self.spec.resume and saved.get("wire") == self.wire.name
+                    and isinstance(saved.get("items"), list)):
                 self.session_id = self.spec.resume
-                self.messages += saved["messages"]
+                self.items = saved["items"]
         if not self.session_id:
             self.session_id = secrets.token_hex(16)
         return self
@@ -171,12 +273,14 @@ class OpenAISession:
             yield SystemMessage("init", {"session_id": self.session_id, "model": self.spec.model,
                                          "provider": self.provider.name})
         for text in self._queued:
-            self.messages.append({"role": "user", "content": text})
+            self.items.append(self.wire.user(text))
         self._queued.clear()
         self._save()
 
         def result(subtype, *, text=None, error=False, stop=None):
+            self._session_cost += cost
             return ResultMessage(subtype=subtype, is_error=error, num_turns=turns,
+                                 session_cost_usd=round(self._session_cost, 6),
                                  session_id=self.session_id, total_cost_usd=round(cost, 6),
                                  result=text, stop_reason=stop, usage=dict(usage),
                                  duration_ms=int((time.monotonic() - started) * 1000),
@@ -193,50 +297,40 @@ class OpenAISession:
             if cost >= self.spec.max_budget_usd:
                 yield result("error_max_budget_usd", text=last_text or None, error=True)
                 return
-            body = {"model": self.model, "messages": self.messages}
-            if self.tool_specs:
-                body["tools"] = self.tool_specs
             headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
             t0 = time.monotonic()
-            reply = await asyncio.to_thread(self._post, f"{self.base_url}/chat/completions",
-                                            body, headers, self.relay, TIMEOUT_S)
+            raw = await asyncio.to_thread(self._post, self.base_url + self.wire.endpoint,
+                                          self.wire.body(self.model, self.items), headers,
+                                          self.relay, TIMEOUT_S)
             api_ms += int((time.monotonic() - t0) * 1000)
             turns += 1
-            u = reply.get("usage") or {}
-            pin, pout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
-            usage["input_tokens"] += pin
-            usage["output_tokens"] += pout
-            cost += model_registry.cost_usd(self.price, pin, pout)
-            choice = (reply.get("choices") or [{}])[0]
-            msg = choice.get("message") or {}
-            text = msg.get("content") or ""
-            calls = msg.get("tool_calls") or []
-            blocks: list = [TextBlock(text)] if text else []
-            for c in calls:
-                fn = c.get("function") or {}
+            reply = self.wire.parse(raw)
+            usage["input_tokens"] += reply.pin
+            usage["output_tokens"] += reply.pout
+            cost += model_registry.cost_usd(self.price, reply.pin, reply.pout)
+            blocks: list = [TextBlock(reply.text)] if reply.text else []
+            for call_id, name, arguments in reply.calls:
                 try:
-                    args = json.loads(fn.get("arguments") or "{}")
+                    args = json.loads(arguments)
+                    if not isinstance(args, dict):
+                        raise ValueError
                 except ValueError:
-                    args = {"_unparsed": fn.get("arguments")}
-                blocks.append(ToolUseBlock(id=str(c.get("id") or secrets.token_hex(6)),
-                                           name=self._qualified(fn.get("name", "")), input=args))
+                    args = {"_unparsed": arguments}
+                blocks.append(ToolUseBlock(id=call_id or secrets.token_hex(6),
+                                           name=self._qualified(name), input=args))
             yield AssistantMessage(content=blocks, model=self.spec.model)
-            kept = {"role": "assistant", "content": text or None}
-            if calls:
-                kept["tool_calls"] = calls
-            self.messages.append(kept)
-            if text:
-                last_text = text
-            if not calls:
+            self.items += reply.kept
+            if reply.text:
+                last_text = reply.text
+            if not reply.calls:
                 self._save()
-                yield result("success", text=text, stop=choice.get("finish_reason") or "stop")
+                yield result("success", text=reply.text, stop=reply.done_reason)
                 return
 
             context = []
-            for c, block in zip(calls, [b for b in blocks if isinstance(b, ToolUseBlock)]):
+            for (call_id, _, _), block in zip(reply.calls, [b for b in blocks if isinstance(b, ToolUseBlock)]):
                 out, is_error = await self._run_tool(block)
-                self.messages.append({"role": "tool", "tool_call_id": str(c.get("id") or block.id),
-                                      "content": out})
+                self.items.append(self.wire.tool_result(call_id or block.id, out))
                 yield UserMessage(content=[ToolResultBlock(tool_use_id=block.id,
                                                            content=[{"type": "text", "text": out}],
                                                            is_error=is_error)])
@@ -244,7 +338,7 @@ class OpenAISession:
                 if extra:
                     context.append(extra)
             if context:
-                self.messages.append({"role": "user", "content": "\n\n".join(context)})
+                self.items.append(self.wire.user("\n\n".join(context)))
             self._save()
 
     # -- tools ---------------------------------------------------------------

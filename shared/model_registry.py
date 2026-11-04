@@ -34,13 +34,15 @@ class Provider:
     base_url: str          # "" = read from base_url_env
     base_url_env: str = ""
     relay_host: str = ""   # host:port the egress relay must allow by default
+    wire: str = "chat"     # engine_openai's format: "responses" (OpenAI) or "chat" (Chat Completions)
 
 
 PROVIDERS: dict[str, Provider] = {
     "anthropic": Provider("anthropic", "Claude (Anthropic)", "claude", "ANTHROPIC_API_KEY", True,
                           "https://api.anthropic.com/v1", relay_host="api.anthropic.com:443"),
+    # The Responses API: OpenAI's reasoning models take tools only there.
     "openai": Provider("openai", "ChatGPT (OpenAI)", "openai", "OPENAI_API_KEY", True,
-                       "https://api.openai.com/v1", relay_host="api.openai.com:443"),
+                       "https://api.openai.com/v1", relay_host="api.openai.com:443", wire="responses"),
     # Anything speaking the OpenAI-compatible Chat Completions API: Ollama,
     # vLLM, LM Studio, llama.cpp server, LiteLLM. Its address is the
     # organisation's (LOCAL_LLM_BASE_URL); root adds it to the relay.

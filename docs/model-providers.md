@@ -1,6 +1,6 @@
 # Any model: one Agenti, many AI providers
 
-Status: design agreed 2026-11-04; phase A done (tests), live runs pending; phase B next. This file is the plan
+Status: design agreed 2026-11-04; phase A done and live-proven on Claude and OpenAI (2026-11-04); phase B next. This file is the plan
 and the hand-off brief: whoever continues (a person, Claude Code or Codex)
 starts here, then `AGENTS.md` / `CLAUDE.md`.
 
@@ -110,7 +110,11 @@ relay tunnels the TCP connection the same way.
 
 ### Events
 
-`engine_openai` yields objects with the same class names and fields the
+`engine_openai` speaks two wire formats behind one loop: OpenAI's Responses
+API (`provider.wire = "responses"`; its reasoning models take tools only
+there; `store: false`, reasoning items come back encrypted and are returned)
+and Chat Completions for self-hosted servers (`"chat"`). It yields objects
+with the same class names and fields the
 Claude SDK uses (`AssistantMessage` with `TextBlock`/`ToolUseBlock`,
 `UserMessage` with `ToolResultBlock`, `ResultMessage`, `SystemMessage`), so
 `StateTracker`, `journal_line`, `note_result` and `resource_cap_reason` read
@@ -124,7 +128,7 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
 
 ## Phases
 
-**A. Foundations (Claude Code, 2026-11-04) — done, except the live runs**
+**A. Foundations (Claude Code, 2026-11-04) — done**
 - [x] `agent_tools.py`: provider-neutral `@tool` (same signature as the SDK's),
       JSON schema, conversion to SDK tools. Every `from claude_agent_sdk import tool`
       is now `from agent_tools import tool`.
@@ -142,8 +146,17 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
       (`engagement set --model-price`); relay default allows OpenAI;
       `set-secret.sh --provider openai|local [--base-url]`; `require_api_key`
       checks the run's provider.
-- [ ] Live: a Claude enum run (no regression) and an OpenAI enum run against
-      the lab target, on the test VM (the operator sets the keys there).
+- [x] Live, test VM, enum against the lab target (2026-11-04):
+      Claude `haiku`: 6 findings, ended on its turn cap, $0.04 — unchanged.
+      OpenAI `gpt-5.6-terra`: scans through the checked tool (two refused by
+      the validator), 5 findings, stopped and escalated through
+      `ask_operator` on an open root shell, took the operator's reply, wrote a
+      completed report, ~$0.05.
+      Found live: OpenAI's reasoning models refuse tools on Chat Completions,
+      so the `openai` provider speaks the **Responses API** (`store: false`,
+      reasoning returned encrypted); self-hosted keeps Chat Completions
+      (`Provider.wire`). And a multi-query run's report showed only the last
+      query's cost: engines now report `session_cost_usd`.
 - [ ] Live: a self-hosted model (e.g. Ollama with a tool-calling model).
 
 Known gaps found while building A (do these in B):
