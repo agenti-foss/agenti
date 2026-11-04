@@ -300,16 +300,18 @@ needs the real origin (your deployment URL); plain-loopback
 - bwrap applies mounts in order: nothing mounts inside a ro-bind, and anything
   before `--tmpfs /` is hidden. Test sandbox programs through `analyze_file`.
 
-## Current state (2026-10-24)
+## Current state (2026-11-04)
 
 - **Security audits: two full runs done (2026-10-22 → 24)**, 73 confirmed + 23 leads, every
   fix shipped before 0.1.0 and live-checked; public summary in `docs/help/security-testing.md`.
   The CodeQL gate passes (`.github/codeql-reviewed.json` holds the reviewed findings and reasons).
-- **Open core is public** at `agenti-foss/agenti` (from 0.1.0, one fresh commit; earlier
-  history is not public). `agenti-runtime` fetches Anthropic's Claude Code at install
-  (`fetch-claude-code`, pinned by SHA-256), never ships it.
-- CI (`bash shared/ci.sh all`): 49 suites, ruff, shellcheck, `node --check`, old-name guard;
-  gitleaks and `package.yml` (build, lintian, install/purge) run in the workflows.
+- **Released: 0.1.2** (2026-11-04) on GitHub and the hand-signed apt repo
+  apt.agenti-foss.org (runtime 1.0.0). Open core public at `agenti-foss/agenti` (from
+  0.1.0; earlier history never public); this repo's `main` fast-forwards it. `agenti-runtime`
+  fetches Anthropic's Claude Code at install (pinned by SHA-256), never ships it.
+- CI (`bash shared/ci.sh all`): 45 suites, ruff, shellcheck, `node --check`, old-name guard;
+  gitleaks and `package.yml` (build, lintian, install/purge) run in the workflows; see
+  `docs/ci.md` (decisions: `docs/open-core-split.md` § CI/CD).
   `sudo ./shared/deploy.sh` installs the WORKING TREE, so another session's unfinished
   edits ship with yours — check `git status` first.
 - **Package layout** (`docs/packaging.md`): FHS paths, bundled `agenti-runtime`, optional
@@ -320,30 +322,27 @@ needs the real origin (your deployment URL); plain-loopback
   and `gui/docs.html`. FastAPI's explorer and `/openapi.json` are OFF.
 - **IAM:** two hardcoded roles (see Recurring traps). API keys resolve per-user (the
   slot's `userkey.conf`, `admin set-user-key`) → per-agent → org → shared.
-- **Plugins:** exploit and cracker ship as `agenti-exploit` / `agenti-cracker`, one private repo each, described by `packaging/plugins/<agent>.conf` (generic action-pending/approve/reject,
-  engagement `enabled_capabilities`); plugin API v1 in `docs/open-core-split.md`;
-  `test_plugin_isolation.py` proves the open core works alone.
+- **Plugins:** `agenti-exploit` / `agenti-cracker`, described by `packaging/plugins/<agent>.conf`
+  (generic action-pending/approve/reject, engagement `enabled_capabilities`); plugin API v1
+  in `docs/open-core-split.md`; `test_plugin_isolation.py` proves the core works alone.
 - **Every start is its own run:** a fresh slot `<owner>.run-<8 hex>` (`--copy` pins the
   label; the GUI sends `?copy=` always). No `--copy` = the one run going, else the latest;
   `acknowledge`/`action-approve <id>` find the run holding the id. `attach` with no
   `--copy` stages in `<owner>`, which the next unlabelled start moves out of.
-- Remote access: `agenti gui configure --behind-proxy` + Cloudflare Tunnel. The tunnel
-  route must point at `http://127.0.0.1:8420` (hand change; the assistant's
-  Cloudflare token is read-only).
+- Remote access: `agenti gui configure --behind-proxy` + a Cloudflare Tunnel to
+  `http://127.0.0.1:8420` (the user's change; Claude's Cloudflare access is read-only).
 
 ### Open questions / next work
-1. **NEXT:** the hand-signed apt repository (hardware-key ceremony), the pro agents' private
-   repos' CI and their apt host, and a guided Cloudflare setup command taking the user's own
-   scoped token (never argv). Agenti is meant to become model-agnostic (any provider,
-   self-hosted included): keep the model behind a seam.
-   **Licensing decision (2026-10-19):** open core under AGPL-3.0 (shell + harness + enum/research/trafficmon); exploit, cracker and future advanced agents proprietary in a separate private repo/package; CLA + trademark. Plan and coupling table: `docs/open-core-split.md`. Never publish the pre-0.1.0 history.
-   **Pipeline:** `security.yml` (CodeQL gate + pip-audit), `release.yml` (public repo only;
-   publishes while its repo var `RELEASE_PUBLISH=true`, which it is), `package.yml`, `.githooks/pre-commit`; see
-   `docs/ci.md`. The website is its own repo, `agenti-foss/website`
-   (Cloudflare Pages builds on push; `build.py --sync <this repo>/docs/help --check`). Still to build: a visual GUI CI
-   job. Update check (report-only, off by default) not yet live-checked in the GUI.
-   **CI/CD decisions (2026-10-20):** see `docs/open-core-split.md` § CI/CD; apt repo
-   tool: `packaging/apt/repo.sh`, signing: `docs/release-signing.md`.
+1. **NEXT:** an apt host for the paid agents (their repos' CI pins core `CORE_VERSION`), a
+   guided Cloudflare setup command taking the user's own scoped token (never argv), a
+   visual GUI CI job, and a live GUI check of the update check (report-only, off by
+   default). Agenti is meant to become model-agnostic (any provider, self-hosted
+   included): keep the model behind a seam.
+   **Licensing (2026-10-19):** open core AGPL-3.0; exploit, cracker and future advanced
+   agents proprietary, one private repo each; CLA + trademark (`docs/open-core-split.md`).
+   Releases: `release.yml` (public repo only), `packaging/apt/repo.sh`,
+   `docs/release-signing.md`. The website is its own repo, `agenti-foss/website`
+   (`build.py --sync <this repo>/docs/help --check`).
 2. Notifications/escalation on an acknowledged channel; request rate limiting
    beyond the login throttle; aggregate spend caps; MCP access for Claude Code
    over the existing API with a per-user key (`GET /dashboard` is the shape);
