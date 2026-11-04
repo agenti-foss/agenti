@@ -291,24 +291,29 @@ r = H({"op": "login", "principal": "bob", "password": "bob-pw-ok"})
 bob_pending = r["session_id"]
 r = H({"op": "approve_action", "session_id": bob_pending, "password": "bob-pw-ok", "action": act})
 check("a PENDING session cannot approve", r["status"], 401)
-# This window's code was spent by bob's earlier login (replay protection is
-# real), so log in with the NEXT step's code — totp_verify accepts +-1 step.
-next_code = iam.totp_code(bob_secret, at=time.time() + 30)
-r = H({"op": "totp", "session_id": bob_pending, "code": next_code})
-bob_sid = r["session_id"]
-r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok", "action": act})
-check("2FA-enrolled without a code -> 403 naming the need", r["status"] == 403 and "2FA" in r["error"], True)
-r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok",
-       "totp": next_code, "action": act})
-check("2FA-enrolled with the SAME code as login -> replay refused", r["status"], 403)
-prev_code = iam.totp_code(bob_secret, at=time.time() - 30)
-r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok",
-       "totp": prev_code, "action": act})
-check("2FA-enrolled with a fresh, unused code -> grant", bool(r.get("grant")), True)
-check("...approved_by is the session's own principal", r.get("approved_by"), "bob")
-rt = iam.open_runtime(rt_path)
-check("the grant is bound to the action", iam.consume_action_grant(rt, r["grant"], act), "bob")
-rt.close()
+# Keep both accepted TOTP steps in one fixed window, beyond the earlier
+# login's used steps. A slow machine may otherwise cross a boundary and
+# accidentally reuse the "previous" code that this test calls unused.
+_grant_now = time.time() + 90
+from unittest.mock import patch as _patch_clock
+with _patch_clock("time.time", return_value=_grant_now):
+    # Spend one accepted step at login; keep a different step for approval.
+    next_code = iam.totp_code(bob_secret, at=time.time() + 30)
+    r = H({"op": "totp", "session_id": bob_pending, "code": next_code})
+    bob_sid = r["session_id"]
+    r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok", "action": act})
+    check("2FA-enrolled without a code -> 403 naming the need", r["status"] == 403 and "2FA" in r["error"], True)
+    r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok",
+           "totp": next_code, "action": act})
+    check("2FA-enrolled with the SAME code as login -> replay refused", r["status"], 403)
+    prev_code = iam.totp_code(bob_secret, at=time.time() - 30)
+    r = H({"op": "approve_action", "session_id": bob_sid, "password": "bob-pw-ok",
+           "totp": prev_code, "action": act})
+    check("2FA-enrolled with a fresh, unused code -> grant", bool(r.get("grant")), True)
+    check("...approved_by is the session's own principal", r.get("approved_by"), "bob")
+    rt = iam.open_runtime(rt_path)
+    check("the grant is bound to the action", iam.consume_action_grant(rt, r["grant"], act), "bob")
+    rt.close()
 
 section("approve_action: every grant needs the password AND a fresh code "
         "(one universal popup with both fields, 2026-10-04)")
