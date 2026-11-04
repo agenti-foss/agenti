@@ -223,7 +223,9 @@ def list_models(provider: str, *, api_key: str = "", base_url: str = "",
         code = getattr(e, "code", None)
         if code in (401, 403):
             raise RuntimeError(f"{p.label} refused the API key (HTTP {code})") from e
-        raise RuntimeError(f"could not reach {p.label} at {url} ({type(e).__name__}: {e})") from e
+        # URLs and transport exceptions can contain provider credentials.
+        # Never send either back to the CLI or the web tier.
+        raise RuntimeError(f"could not reach {p.label} ({type(e).__name__}); check the server address, API key and relay allow-list") from e
     ids = [str(m.get("id")) for m in (data.get("data") or []) if isinstance(m, dict) and m.get("id")]
     out = []
     for i in ids:

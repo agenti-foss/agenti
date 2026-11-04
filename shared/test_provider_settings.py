@@ -17,7 +17,7 @@ class ProviderSettings(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             for relative, text in (("org/users/alice", "ANTHROPIC_API_KEY=user\n"),
-                                   ("shared", "OPENAI_API_KEY=shared\nLOCAL_LLM_BASE_URL=http://model.example.com:11434/v1\n")):
+                                   ("shared", "OPENAI_API_KEY=shared\nLOCAL_LLM_BASE_URL=http://model.example.com:11434/private-token/v1\n")):
                 file = root / relative / "secrets.env"
                 file.parent.mkdir(parents=True)
                 file.write_text(text)
@@ -25,7 +25,16 @@ class ProviderSettings(unittest.TestCase):
             view = ps.status(root, "alice")
             self.assertTrue(all(info["ready"] for info in view.values()))
             self.assertNotIn("shared", str(view))
+            self.assertNotIn("private-token", str(view))
             self.assertEqual(ps.settings(root, "alice")["OPENAI_API_KEY"], "shared")
+
+    def test_model_list_error_does_not_echo_secret_transport_details(self):
+        def failing_opener(*args, **kwargs):
+            raise ValueError("synthetic-secret-from-transport")
+        with self.assertRaises(RuntimeError) as error:
+            mr.list_models("local", base_url="http://model.example.com/private-token/v1", opener=failing_opener)
+        self.assertNotIn("synthetic-secret", str(error.exception))
+        self.assertNotIn("private-token", str(error.exception))
 
     def test_approval_covers_provider_address_and_key(self):
         digests = {mr.secret_digest(provider, key, address) for provider, key, address in (

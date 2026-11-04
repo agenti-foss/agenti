@@ -283,7 +283,7 @@
             <form id="apikey-form" class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;" autocomplete="off">
               <label for="apikey-provider">Provider</label>
               <select id="apikey-provider"><option value="anthropic">Claude (Anthropic)</option><option value="openai">ChatGPT (OpenAI)</option><option value="local">Self-hosted</option></select>
-              <div id="provider-address-field" class="field" hidden><label for="provider-address">Model server address</label><input id="provider-address" type="url" placeholder="http://model.example.com:11434/v1"><p class="hint">An administrator must also allow this host and port at the server: <code>sudo agenti admin relay allow host:port</code>.</p></div>
+              <div id="provider-address-field" class="field" hidden><label for="provider-address">Model server address</label><input id="provider-address" type="url" placeholder="http://model.example.com:11434/v1"><p class="hint">For privacy, enter the full address when updating this provider. A blank key configures an unauthenticated server. An administrator must also allow the host and port at the server: <code>sudo agenti admin relay allow host:port</code>.</p></div>
               <label for="apikey-input" class="sr-only">API key</label>
               <input type="password" id="apikey-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 240px; min-width:0;">
               <button type="submit" class="btn btn-primary" id="apikey-btn" data-icon="key">Save settings</button>

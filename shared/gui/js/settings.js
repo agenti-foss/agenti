@@ -1377,7 +1377,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (provider !== kProvider.value) return;
         kState.textContent = info.ready ? "Configured. Saving replaces this provider's shared settings for future runs."
           : "Not configured at the shared or organisation level. User and agent keys can be set at the server.";
-        if (provider === "local") kAddress.value = info.base_url || "";
+        if (provider === "local") kAddress.value = "";
       } catch (err) { Agenti.banner(kBanner, "err", Agenti.errorText(err)); }
     }
     kProvider.addEventListener("change", () => { kInput.value = ""; kBanner.className = "banner"; paintKey(); });

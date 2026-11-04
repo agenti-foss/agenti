@@ -31,8 +31,7 @@ def status(root: Path, owner: str, agent: str = "") -> dict:
         except ValueError:
             values["LOCAL_LLM_BASE_URL"] = ""
     return {p.name: {"label": p.label, "key": "set" if values.get(p.key_env) else "missing",
-                     "ready": bool(values.get(p.key_env)) if p.key_required else bool(values.get(p.base_url_env)),
-                     "base_url": values.get(p.base_url_env, "") if p.base_url_env else p.base_url}
+                     "ready": bool(values.get(p.key_env)) if p.key_required else bool(values.get(p.base_url_env))}
             for p in mr.PROVIDERS.values()}
 
 
