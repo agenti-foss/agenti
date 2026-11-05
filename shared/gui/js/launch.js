@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   function wireTargetBank(bankEl, input, entries) {
     const list = (entries || []).filter((e) => scopeValue(e));
     if (!list.length) {
-      bankEl.innerHTML = `<p class="target-bank-empty">Nothing is authorized for this agent's scope yet — an admin sets it in Settings &rarr; Settings.</p>`;
+      bankEl.innerHTML = `<p class="target-bank-empty">Nothing is authorized for this agent's scope yet — an admin sets it in Settings &rarr; Engagement.</p>`;
       return;
     }
     bankEl.innerHTML = list.map((e) => {
@@ -574,6 +574,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     runBtn.disabled = true;
     try {
       try { localStorage.setItem(LAST_MODEL_KEY, model); } catch (e) { /* no persistence */ }
+      AgentiModels.remember(model);
       const body = { model };
       if (target) body.target = target;
       const runName = runNameInput.value.trim();
@@ -657,6 +658,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (runBudgetInput.value) startBody.budget = parseFloat(runBudgetInput.value);
       if (runTimeoutInput.value) startBody.timeout = parseInt(runTimeoutInput.value, 10);
       await Agenti.post(`teams/${encodeURIComponent(name)}/start`, startBody);
+      AgentiModels.remember(models[agents[0]]);
       if (instructions) {
         try {
           await Agenti.post(`teams/${encodeURIComponent(name)}/say`,

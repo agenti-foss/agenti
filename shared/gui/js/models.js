@@ -2,6 +2,11 @@
 // one picker for a solo run and for each member of a mixed-provider team.
 // Settings → AI providers reads the same list (settings.js).
 //
+// Only providers that are set up are offered. With exactly one, the question
+// is not asked at all: the model field just names it ("Claude model"). With
+// several, the last provider this browser launched with is chosen first
+// (remember(), called by launch.js after a start).
+//
 // Readiness comes from GET models?status=true: whether this caller's runs
 // would find a key (or, self-hosted, an address). It never contacts a
 // provider and never returns a key. The model list comes from GET models,
@@ -19,6 +24,19 @@ window.AgentiModels = (() => {
       keyHint: "optional" },
   ];
   const IDS = PROVIDERS.map((p) => p.id);
+  const LAST_PROVIDER_KEY = "agenti-last-provider";
+  const providerOf = (model) => {
+    const prefix = String(model || "").split(":", 1)[0];
+    if (IDS.includes(prefix)) return prefix;
+    return model && (String(model).startsWith("claude-") || ["haiku", "sonnet", "opus"].includes(model)) ? "anthropic" : "";
+  };
+  function remember(model) {
+    const p = providerOf(model);
+    try { if (p) localStorage.setItem(LAST_PROVIDER_KEY, p); } catch (e) { /* no persistence */ }
+  }
+  function lastProvider() {
+    try { return localStorage.getItem(LAST_PROVIDER_KEY) || ""; } catch (e) { return ""; }
+  }
 
   // One readiness request per page, shared by every picker on it.
   let statusRequest = null;
@@ -35,12 +53,12 @@ window.AgentiModels = (() => {
     const esc = Agenti.esc;
     const id = "models-" + crypto.randomUUID();
     const prefix = remembered.split(":", 1)[0];
-    const rememberedProvider = IDS.includes(prefix) ? prefix
-      : (remembered && (remembered.startsWith("claude-") || ["haiku", "sonnet", "opus"].includes(remembered)) ? "anthropic" : "");
+    const rememberedProvider = providerOf(remembered);
+    const preferred = rememberedProvider || lastProvider();
     host.innerHTML = `
       <fieldset class="provider-picker${compact ? " compact" : ""}">
         <legend class="${compact ? "sr-only" : "provider-legend"}">${compact ? "AI provider" : "Which AI should run it?"}</legend>
-        <div class="provider-choices">
+        <div class="provider-choices" hidden>
           ${PROVIDERS.map((p) => `
           <label class="provider-choice" data-provider="${p.id}">
             <input type="radio" name="${id}-provider" value="${p.id}">
@@ -50,7 +68,7 @@ window.AgentiModels = (() => {
           </label>`).join("")}
         </div>
         <div class="field provider-model">
-          <label for="${id}">Model</label>
+          <label for="${id}" data-model-label>Model</label>
           <div class="input-with-button">
             <input id="${id}" type="text" list="${id}-list" required autocomplete="off" spellcheck="false" placeholder="Choose or type a model name">
             <button type="button" class="btn btn-sm icon-only" aria-label="Refresh the model list" title="Refresh the model list">${Agenti.icon("refresh", 14)}</button>
@@ -65,16 +83,20 @@ window.AgentiModels = (() => {
     const refresh = host.querySelector(".input-with-button button");
     let ready = {};          // provider id -> true/false; empty = unknown
     let sequence = 0;
+    const choices = host.querySelector(".provider-choices"), legend = host.querySelector("legend");
+    const modelLabel = host.querySelector("[data-model-label]");
     const chosen = () => (radios.find((r) => r.checked) || radios[0]).value;
     const notReadyText = (p) => p === "local"
       ? "No model server is set up yet. An admin adds its address in Settings → AI providers."
       : `No ${PROVIDERS.find((x) => x.id === p).name} key is set up yet. An admin adds one in Settings → AI providers.`;
 
     function choose(p) { radios.forEach((r) => { r.checked = r.value === p; }); }
-    if (rememberedProvider) {
-      choose(rememberedProvider);
-      input.value = rememberedProvider === prefix ? remembered.slice(prefix.length + 1) : remembered;
-    } else choose("anthropic");
+    choose(IDS.includes(preferred) ? preferred : "anthropic");
+    const fillRemembered = () => {
+      if (rememberedProvider && chosen() === rememberedProvider) {
+        input.value = rememberedProvider === prefix ? remembered.slice(prefix.length + 1) : remembered;
+      }
+    };
 
     async function load() {
       const request = ++sequence, p = chosen();
@@ -117,16 +139,27 @@ window.AgentiModels = (() => {
         const label = host.querySelector(`.provider-choice[data-provider="${p.id}"]`);
         const state = label.querySelector("[data-state]");
         const info = providers && providers[p.id];
-        if (!info) { state.textContent = ""; label.classList.remove("not-ready"); continue; }
+        if (!info) { state.textContent = ""; label.classList.remove("not-ready"); label.hidden = false; continue; }
         ready[p.id] = !!info.ready;
         label.classList.toggle("not-ready", !info.ready);
         state.textContent = info.ready ? "Ready" : "Not set up";
       }
-      // Nothing remembered: start on the first provider that is ready.
-      if (!rememberedProvider && ready[chosen()] === false) {
-        const first = PROVIDERS.find((p) => ready[p.id]);
-        if (first) choose(first.id);
+      const offered = PROVIDERS.filter((p) => ready[p.id]);
+      // Readiness unknown, or nothing set up: show every provider, so the
+      // tiles themselves say what is missing. Otherwise offer only the ready ones.
+      const shown = offered.length ? offered : PROVIDERS;
+      for (const p of PROVIDERS) host.querySelector(`.provider-choice[data-provider="${p.id}"]`).hidden = !shown.includes(p);
+      if (offered.length && !offered.some((p) => p.id === chosen())) {
+        const order = [rememberedProvider, lastProvider()];
+        choose((order.map((id) => offered.find((p) => p.id === id)).find(Boolean) || offered[0]).id);
       }
+      const single = offered.length === 1;
+      choices.hidden = single;
+      host.classList.toggle("single-provider", single);
+      choices.style.setProperty("--n", String(shown.length));
+      legend.classList.toggle("sr-only", single || compact);
+      modelLabel.textContent = single ? `${offered[0].name} model` : "Model";
+      fillRemembered();
     }
     paintReadiness(false).then(load);
 
@@ -139,5 +172,5 @@ window.AgentiModels = (() => {
     };
   }
 
-  return { PROVIDERS, status, mount };
+  return { PROVIDERS, status, mount, remember };
 })();

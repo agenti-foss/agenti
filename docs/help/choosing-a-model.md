@@ -1,9 +1,16 @@
 # Choosing a model and connecting providers
 
-Every launch needs a model. On **Launch**, under **Which AI should run it?**,
-choose Claude, ChatGPT or Self-hosted, then choose from its live model list
-or type a model name. Each choice says **Ready** or **Not set up**. A team has
-a separate choice for each member, so its members can use different providers.
+Every launch needs a model. On **Launch**, choose from the provider's live
+model list or type a model name. Only providers an administrator has set up
+are offered:
+
+- **One provider set up:** Launch does not ask; the field is named after it
+  (for example **Claude model**).
+- **Several:** Launch asks **Which AI should run it?** and starts on the
+  provider you launched with last in this browser.
+
+A team has a separate choice for each member, so its members can use
+different providers.
 
 - **Claude (Anthropic):** uses an Anthropic API key.
 - **ChatGPT (OpenAI):** uses an OpenAI API key, billed through the API.

@@ -2487,7 +2487,8 @@ mark.docs-mark {
  * but reads quieter, the way a disabled agent card does. */
 .provider-picker { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .provider-legend { padding: 0; font-weight: 500; font-size: 0.9rem; margin-bottom: var(--space-2); }
-.provider-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.provider-choices { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: var(--space-3); }
+.provider-choices[hidden], .provider-choice[hidden] { display: none; }
 .provider-choice {
   position: relative; cursor: pointer; margin: 0;
   font-size: 0.95rem; font-weight: 400; color: var(--text);
@@ -2569,3 +2570,4 @@ mark.docs-mark {
 .launch-section { padding: var(--space-4); border-radius: var(--radius); background: var(--bg-inset); }
 .launch-section .provider-legend { font-weight: 600; font-size: 0.95rem; }
 #providers-list > .panel { margin: 0; }
+.launch-section.single-provider { padding: 0; background: none; border-radius: 0; }
