@@ -8,6 +8,7 @@
     {"name": "dashboard", "as": "signed-in", "path": "/dashboard.html", "ready": "#topnav"},
     {"name": "launch", "as": "signed-in", "path": "/launch.html", "ready": "#topnav"},
     {"name": "launch-enum", "as": "signed-in", "path": "/launch.html", "click": "[data-agent=enum]", "ready": "#run-model-picker input"},
+    {"name": "launch-team", "as": "signed-in", "path": "/launch.html", "click": ["[data-mode=team]", "[data-agent=enum]", "[data-agent=research]"], "ready": "#team-roster .provider-picker"},
     {"name": "agent-enum", "as": "signed-in", "path": "/agent.html?agent=enum", "ready": "#topnav"},
     {"name": "outputs", "as": "signed-in", "path": "/outputs.html", "ready": "#topnav"},
     {"name": "docs", "as": "signed-in", "path": "/docs.html", "ready": ".docs-row, .list"},
@@ -17,6 +18,7 @@
     {"name": "settings-security", "as": "signed-in", "path": "/settings.html#security", "ready": "#pane-security:not([hidden])"},
     {"name": "settings-appearance", "as": "signed-in", "path": "/settings.html#appearance", "ready": "#pane-appearance:not([hidden])"},
     {"name": "settings-agents", "as": "signed-in", "path": "/settings.html#agents", "ready": "#pane-agents:not([hidden])"},
+    {"name": "settings-providers", "as": "signed-in", "path": "/settings.html#providers", "ready": "#pane-providers .provider-card"},
     {"name": "settings-engagement", "as": "signed-in", "path": "/settings.html#engagement", "ready": "#pane-engagement:not([hidden])"},
     {"name": "settings-users", "as": "signed-in", "path": "/settings.html#users", "ready": "#pane-users:not([hidden])"},
     {"name": "settings-platform", "as": "signed-in", "path": "/settings.html#platform", "ready": "#pane-platform:not([hidden])"}

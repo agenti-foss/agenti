@@ -27,15 +27,15 @@ document.addEventListener("DOMContentLoaded", async function () {
   const runVia = document.getElementById("run-via");
   const runForm = document.getElementById("run-form");
   const runBanner = document.getElementById("run-banner");
-  // No Anthropic API key at any level: every start would be refused, so say so first.
+  // No provider ready at any level: every start would be refused, so say so first.
   Agenti.get("dashboard").then(async (d) => {
     if (!d || d.api_key !== "missing") return;
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
     const kb = document.getElementById("key-banner");
     kb.innerHTML = `<strong>No model provider is configured yet.</strong> `
-      + (admin ? `Add one in <a href="settings.html#platform">Settings → Platform</a>.`
-               : `Ask an admin to add one (Settings → Platform).`);
+      + (admin ? `Connect one in <a href="settings.html#providers">Settings → AI providers</a>.`
+               : `Ask an admin to connect one (Settings → AI providers).`);
     kb.classList.add("show");
   }).catch(() => { /* the start itself still says why */ });
   const runBtn = document.getElementById("run-btn");
@@ -464,7 +464,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // and says so, rather than the whole roster failing.
     selected.forEach(async (a) => {
       const modelRow = teamRoster.querySelector(`[data-member="${CSS.escape(a.agent)}"]`);
-      memberModels.set(a.agent, AgentiModels.mount(modelRow.querySelector(".team-model-picker"), { agent: a.agent }));
+      memberModels.set(a.agent, AgentiModels.mount(modelRow.querySelector(".team-model-picker"), { agent: a.agent, compact: true }));
       if (a.scope_kind !== "cidr" && a.scope_kind !== "domain") return;
       const row = teamRoster.querySelector(`[data-member="${CSS.escape(a.agent)}"]`);
       if (!row) return;

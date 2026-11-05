@@ -91,9 +91,11 @@ restored virtual machine or a dual-boot PC often has the wrong time.
 3. Choose the admin's username, then a password, and scan the QR code with an
    authenticator app. **Save the recovery codes** it shows.
 4. Sign in. Setup then offers two optional steps, both also in
-   **Settings → Platform**:
-   - **The Anthropic API key.** Paste it; you confirm it's you, and it is
-     stored on the server and never shown again.
+   **Settings**:
+   - **An AI provider key.** Choose Claude or ChatGPT and paste its key; you
+     confirm it's you, and it is stored on the server and never shown again.
+     Other providers, and a self-hosted model server, are in
+     **Settings → AI providers**.
    - **The vault.** An encrypted folder for Agenti's data. Read **The vault**
      first.
 
@@ -184,7 +186,7 @@ Agenti updates with the rest of the system. Your users, settings and data are
 kept. The web interface restarts on the new version; a run already going
 finishes on the code it started with.
 
-To replace the API key: **Settings → Platform → Model providers**, or at the
+To replace the API key: **Settings → AI providers**, or at the
 server `sudo /usr/lib/agenti/set-secret.sh` (it asks before replacing the old one).
 
 **Separate keys, separate spend caps.** Besides the one shared key you can give
@@ -233,12 +235,12 @@ commands to delete it yourself. A script can answer yes in advance:
 | *there is no setup code right now* | Too many wrong tries cancelled it: `sudo agenti setup-code --new`. |
 | *this machine's clock is wrong* (installer) | `sudo timedatectl set-ntp true`, check with `date -u`, then run the installer again. |
 | *this identity store is from an older Agenti (schema v1…)* | Agenti supports fresh installs only. Move the old store aside (the message gives the exact command) and run `sudo agenti setup`. |
-| *no Anthropic API key reached this run* | No key is set at any level. **Settings → Platform → Model providers**, or `sudo agenti setup`, or set one for the agent or the user (above). |
+| *no Anthropic API key reached this run* | No key is set at any level. **Settings → AI providers**, or `sudo agenti setup`, or set one for the agent or the user (above). |
 | The web interface does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |
 | *the vault is locked* | `sudo agenti vault unlock` (see **The vault**) |
 | *…is not approved as it stands* | An admin approves the engagement (Settings → Engagement). |
 | *REFUSING: target … is outside the authorized engagement scope* | The target isn't in the engagement. Pick one inside it, or have an admin add it and approve again. |
-| A run's report says *Invalid API key* | The key was revoked or mistyped. Replace it in **Settings → Platform**, or `sudo /usr/lib/agenti/set-secret.sh` |
+| A run's report says *Invalid API key* | The key was revoked or mistyped. Replace it in **Settings → AI providers**, or `sudo /usr/lib/agenti/set-secret.sh` |
 | A run started from the terminal doesn't show on your dashboard | It belongs to your Linux username. Start it with `--owner <your Agenti name>`, or use the same name for both. |
 | A report's Findings section is empty | The run hit its turn, budget or time limit before writing its summary. The commands it ran and their output are still in the report. |
 | Anything else | `sudo agenti verify`: each FAIL line names the fix. |

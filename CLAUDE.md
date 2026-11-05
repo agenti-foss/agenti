@@ -173,7 +173,7 @@ from `/proc/<pid>/mountinfo`.
   `agenti-api.service` on the same origin (cookie is `SameSite=Strict`, so a
   dev server on another port cannot log in). Pages: login, enrol,
   reset-password, dashboard (Active / Task History / Outputs), launch, agent,
-  team, report, docs, settings (Account, Security, Appearance, Agents, Engagement,
+  team, report, docs, settings (Account, Security, Appearance, Agents, AI providers, Engagement,
   Users, Platform). `js/api.js` holds the fetch wrapper, icons, `Agenti.run`
   status words, and `Agenti.requireApproval()` — the ONE auth popup (password +
   2FA + passkey, DELETE confirmation in its own window). Two skins

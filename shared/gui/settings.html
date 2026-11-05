@@ -28,6 +28,7 @@
         <button type="button" class="settings-tab" role="tab" data-pane="security" aria-selected="false"></button>
         <button type="button" class="settings-tab" role="tab" data-pane="appearance" aria-selected="false"></button>
         <button type="button" class="settings-tab" role="tab" data-pane="agents" aria-selected="false" hidden></button>
+        <button type="button" class="settings-tab" role="tab" data-pane="providers" aria-selected="false" hidden></button>
         <button type="button" class="settings-tab" role="tab" data-pane="engagement" aria-selected="false" hidden></button>
         <button type="button" class="settings-tab" role="tab" data-pane="users" aria-selected="false" hidden></button>
         <button type="button" class="settings-tab" role="tab" data-pane="platform" aria-selected="false" hidden></button>
@@ -257,6 +258,16 @@
         </section>
 
         <!-- ===================== Platform (platform admin) ===================== -->
+        <section class="settings-pane" id="pane-providers" role="tabpanel" hidden>
+          <h1>AI providers</h1>
+          <p class="hint">Connect the AI services agents run on. Whoever launches a run picks one of them. Keys are kept on this server, used only by runs and never shown again.</p>
+          <div id="providers-list" class="stack"></div>
+          <details class="disclosure">
+            <summary>Keys for one person or one agent</summary>
+            <p class="hint">A key saved here is the organisation's. A person or a single agent can have its own key instead; set those on the server: <code>sudo agenti admin set-user-key &lt;user&gt; --provider openai</code> or <code>sudo agenti &lt;agent&gt; set-key --provider openai</code> (or <code>anthropic</code>, <code>local</code>). Which models runs may use is set in <a href="#engagement">Engagement</a>.</p>
+          </details>
+        </section>
+
         <section class="settings-pane" id="pane-platform" role="tabpanel" hidden>
           <h1>Platform</h1>
           <p class="hint">Policies and the deployment.</p>
@@ -273,21 +284,6 @@
             <div id="vault-banner" class="banner"></div>
             <div id="vault-state" class="stack" style="gap:6px;"></div>
             <div class="row" id="vault-on-row" style="margin-top:12px;" hidden><button type="button" class="btn btn-primary" id="vault-on-btn" data-icon="lock">Turn on the vault</button></div>
-          </div>
-
-          <div class="panel" id="apikey-panel" hidden>
-            <h2 class="ih" data-icon="key">Model providers</h2>
-            <p class="hint">Keys are stored on this server and never shown again. Runs use the key for their chosen provider.</p>
-            <div id="apikey-banner" class="banner"></div>
-            <div id="apikey-state" class="stack" style="gap:6px;"></div>
-            <form id="apikey-form" class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;" autocomplete="off">
-              <label for="apikey-provider">Provider</label>
-              <select id="apikey-provider"><option value="anthropic">Claude (Anthropic)</option><option value="openai">ChatGPT (OpenAI)</option><option value="local">Self-hosted</option></select>
-              <div id="provider-address-field" class="field" hidden><label for="provider-address">Model server address</label><input id="provider-address" type="url" placeholder="http://model.example.com:11434/v1"><p class="hint">For privacy, enter the full address when updating this provider. A blank key configures an unauthenticated server. An administrator must also allow the host and port at the server: <code>sudo agenti admin relay allow host:port</code>.</p></div>
-              <label for="apikey-input" class="sr-only">API key</label>
-              <input type="password" id="apikey-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 240px; min-width:0;">
-              <button type="submit" class="btn btn-primary" id="apikey-btn" data-icon="key">Save settings</button>
-            </form>
           </div>
 
           <div class="panel" id="updates-panel" hidden>
@@ -622,6 +618,7 @@
   <script src="js/context-editor.js" defer></script>
   <script src="js/agent-builder.js" defer></script>
   <script src="js/catalog-editor.js" defer></script>
+  <script src="js/models.js" defer></script>
   <script src="js/settings.js" defer></script>
 </body>
 </html>

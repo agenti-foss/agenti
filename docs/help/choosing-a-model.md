@@ -1,8 +1,9 @@
 # Choosing a model and connecting providers
 
-Every launch needs a model. On **Launch**, choose a provider, then choose
-from its live model list or type a model name. A team has a separate choice
-for each member, so its members can use different providers.
+Every launch needs a model. On **Launch**, under **Which AI should run it?**,
+choose Claude, ChatGPT or Self-hosted, then choose from its live model list
+or type a model name. Each choice says **Ready** or **Not set up**. A team has
+a separate choice for each member, so its members can use different providers.
 
 - **Claude (Anthropic):** uses an Anthropic API key.
 - **ChatGPT (OpenAI):** uses an OpenAI API key, billed through the API.
@@ -10,9 +11,12 @@ for each member, so its members can use different providers.
 - **Self-hosted:** uses your own OpenAI-compatible model server, such as
   Ollama or vLLM. Its address is required; its API key is optional.
 
-An administrator connects providers in **Settings → Platform → Model
-providers**. Saving requires a fresh approval. Keys are never shown again;
-replacing one affects future runs. Provider keys resolve independently:
+An administrator connects providers in **Settings → AI providers**: one
+card each for Claude, ChatGPT and a self-hosted server. Saving requires a
+fresh approval. Keys are never shown again; replacing one affects future
+runs. **Check connection** asks the provider which of its models are on the
+allowed list, without starting a run. For a self-hosted server, the card
+shows the relay command for the address you type. Provider keys resolve independently:
 user, agent, organisation, then shared. Setting a user's Claude key does
 not hide the organisation's OpenAI key.
 

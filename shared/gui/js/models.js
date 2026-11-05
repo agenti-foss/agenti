@@ -1,50 +1,143 @@
-// One model picker for a solo run and each member of a mixed-provider team.
-window.AgentiModels = {
-  mount(host, { agent = "", remembered = "" } = {}) {
+// The AI providers a run can use (Claude, ChatGPT, a self-hosted model), and
+// one picker for a solo run and for each member of a mixed-provider team.
+// Settings → AI providers reads the same list (settings.js).
+//
+// Readiness comes from GET models?status=true: whether this caller's runs
+// would find a key (or, self-hosted, an address). It never contacts a
+// provider and never returns a key. The model list comes from GET models,
+// which asks the provider live and keeps only what the policy allows.
+window.AgentiModels = (() => {
+  const PROVIDERS = [
+    { id: "anthropic", name: "Claude", by: "Anthropic", icon: "star",
+      blurb: "Anthropic's Claude models, through the Claude Agent SDK.",
+      keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys" },
+    { id: "openai", name: "ChatGPT", by: "OpenAI", icon: "chat",
+      blurb: "OpenAI's GPT models, through Agenti's own run loop.",
+      keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys" },
+    { id: "local", name: "Self-hosted", by: "Your own model server", icon: "cpu",
+      blurb: "Any server speaking the OpenAI-compatible API: Ollama, vLLM, LM Studio, llama.cpp, LiteLLM.",
+      keyHint: "optional" },
+  ];
+  const IDS = PROVIDERS.map((p) => p.id);
+
+  // One readiness request per page, shared by every picker on it.
+  let statusRequest = null;
+  function status({ fresh = false } = {}) {
+    if (fresh || !statusRequest) {
+      statusRequest = Agenti.get("models?status=true")
+        .then((d) => d.providers || {})
+        .catch(() => null);   // unknown: every provider stays choosable, the launch check still applies
+    }
+    return statusRequest;
+  }
+
+  function mount(host, { agent = "", remembered = "", compact = false } = {}) {
     const esc = Agenti.esc;
     const id = "models-" + crypto.randomUUID();
-    host.innerHTML = `<div class="field"><label for="${id}-provider">Provider</label>
-      <select id="${id}-provider"><option value="anthropic">Claude (Anthropic)</option>
-      <option value="openai">ChatGPT (OpenAI)</option><option value="local">Self-hosted</option></select></div>
-      <div class="field"><label for="${id}">Model</label>
-      <input id="${id}" type="text" list="${id}-list" required autocomplete="off" placeholder="Choose or type a model name">
-      <datalist id="${id}-list"></datalist><p class="hint" aria-live="polite"></p>
-      <button type="button" class="btn btn-sm">Refresh models</button></div>`;
-    const provider = host.querySelector("select"), input = host.querySelector("input");
-    const list = host.querySelector("datalist"), hint = host.querySelector("p"), refresh = host.querySelector("button");
-    const known = ["anthropic", "openai", "local"];
     const prefix = remembered.split(":", 1)[0];
-    provider.value = known.includes(prefix) ? prefix : "anthropic";
-    input.value = known.includes(prefix) ? remembered.slice(prefix.length + 1) : remembered;
+    const rememberedProvider = IDS.includes(prefix) ? prefix
+      : (remembered && (remembered.startsWith("claude-") || ["haiku", "sonnet", "opus"].includes(remembered)) ? "anthropic" : "");
+    host.innerHTML = `
+      <fieldset class="provider-picker${compact ? " compact" : ""}">
+        <legend class="${compact ? "sr-only" : "provider-legend"}">${compact ? "AI provider" : "Which AI should run it?"}</legend>
+        <div class="provider-choices">
+          ${PROVIDERS.map((p) => `
+          <label class="provider-choice" data-provider="${p.id}">
+            <input type="radio" name="${id}-provider" value="${p.id}">
+            <span class="cat-icon" aria-hidden="true">${Agenti.icon(p.icon, compact ? 14 : 16)}</span>
+            <span class="pc-text"><span class="pc-name">${esc(p.name)}</span><span class="pc-by">${esc(p.by)}</span></span>
+            <span class="pc-state" data-state>…</span>
+          </label>`).join("")}
+        </div>
+        <div class="field provider-model">
+          <label for="${id}">Model</label>
+          <div class="input-with-button">
+            <input id="${id}" type="text" list="${id}-list" required autocomplete="off" spellcheck="false" placeholder="Choose or type a model name">
+            <button type="button" class="btn btn-sm icon-only" aria-label="Refresh the model list" title="Refresh the model list">${Agenti.icon("refresh", 14)}</button>
+          </div>
+          <datalist id="${id}-list"></datalist>
+          <p class="hint" aria-live="polite"></p>
+        </div>
+      </fieldset>`;
+    const radios = [...host.querySelectorAll('input[type="radio"]')];
+    const input = host.querySelector(`#${CSS.escape(id)}`);
+    const list = host.querySelector("datalist"), hint = host.querySelector(".provider-model .hint");
+    const refresh = host.querySelector(".input-with-button button");
+    let ready = {};          // provider id -> true/false; empty = unknown
     let sequence = 0;
+    const chosen = () => (radios.find((r) => r.checked) || radios[0]).value;
+    const notReadyText = (p) => p === "local"
+      ? "No model server is set up yet. An admin adds its address in Settings → AI providers."
+      : `No ${PROVIDERS.find((x) => x.id === p).name} key is set up yet. An admin adds one in Settings → AI providers.`;
+
+    function choose(p) { radios.forEach((r) => { r.checked = r.value === p; }); }
+    if (rememberedProvider) {
+      choose(rememberedProvider);
+      input.value = rememberedProvider === prefix ? remembered.slice(prefix.length + 1) : remembered;
+    } else choose("anthropic");
+
     async function load() {
-      const request = ++sequence, chosen = provider.value;
-      list.innerHTML = ""; hint.textContent = "Loading models from this provider…";
+      const request = ++sequence, p = chosen();
+      list.innerHTML = "";
+      if (ready[p] === false) { hint.textContent = notReadyText(p); refresh.disabled = false; return; }
+      hint.textContent = "Loading this provider's models…";
       refresh.disabled = true;
       try {
-        const params = new URLSearchParams({ provider: chosen });
+        const params = new URLSearchParams({ provider: p });
         if (agent) params.set("agent", agent);
         const result = await Agenti.get("models?" + params);
         if (request !== sequence) return;
-        list.innerHTML = (result.models || []).map((name) => {
-          const value = name.startsWith(chosen + ":") ? name.slice(chosen.length + 1) : name;
+        const models = result.models || [];
+        list.innerHTML = models.map((name) => {
+          const value = name.startsWith(p + ":") ? name.slice(p.length + 1) : name;
           return `<option value="${esc(value)}"></option>`;
         }).join("");
-        hint.textContent = result.models.length ? "Live models within the organisation's policy. You can also type a name."
-          : "No models returned within the allowed list. An admin can edit allowed models in Settings → Engagement.";
+        hint.textContent = models.length
+          ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organisation. Pick one, or type a name.`
+          : "This provider offers no model on the organisation's allowed list. An admin can change the list in Settings → Engagement.";
       } catch (err) {
-        if (request === sequence) hint.textContent = Agenti.errorText(err) + " You can type a model name; launch checks still apply.";
+        if (request === sequence) hint.textContent = Agenti.errorText(err) + " You can still type a model name; the launch checks it.";
       } finally { if (request === sequence) refresh.disabled = false; }
     }
+
     input.addEventListener("input", () => {
-      const typedProvider = input.value.trim().split(":", 1)[0];
-      input.setCustomValidity(known.includes(typedProvider) && typedProvider !== provider.value
+      const typed = input.value.trim().split(":", 1)[0];
+      input.setCustomValidity(IDS.includes(typed) && typed !== chosen()
         ? "Choose the provider that matches this model name." : "");
     });
-    provider.addEventListener("change", () => { input.value = ""; input.setCustomValidity(""); load(); });
-    refresh.addEventListener("click", load);
-    load();
-    return { get value() { const value = input.value.trim(); return value ? (value.startsWith(provider.value + ":") ? value : provider.value + ":" + value) : ""; },
-             reportValidity: () => input.reportValidity() };
-  },
-};
+    radios.forEach((r) => r.addEventListener("change", () => {
+      input.value = ""; input.setCustomValidity(""); load();
+    }));
+    refresh.addEventListener("click", async () => { await paintReadiness(true); load(); });
+
+    async function paintReadiness(fresh) {
+      const providers = await status({ fresh });
+      ready = {};
+      for (const p of PROVIDERS) {
+        const label = host.querySelector(`.provider-choice[data-provider="${p.id}"]`);
+        const state = label.querySelector("[data-state]");
+        const info = providers && providers[p.id];
+        if (!info) { state.textContent = ""; label.classList.remove("not-ready"); continue; }
+        ready[p.id] = !!info.ready;
+        label.classList.toggle("not-ready", !info.ready);
+        state.textContent = info.ready ? "Ready" : "Not set up";
+      }
+      // Nothing remembered: start on the first provider that is ready.
+      if (!rememberedProvider && ready[chosen()] === false) {
+        const first = PROVIDERS.find((p) => ready[p.id]);
+        if (first) choose(first.id);
+      }
+    }
+    paintReadiness(false).then(load);
+
+    return {
+      get value() {
+        const value = input.value.trim(), p = chosen();
+        return value ? (value.startsWith(p + ":") ? value : p + ":" + value) : "";
+      },
+      reportValidity: () => input.reportValidity(),
+    };
+  }
+
+  return { PROVIDERS, status, mount };
+})();

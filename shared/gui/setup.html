@@ -52,12 +52,19 @@
 
       <!-- Step 3: signed in as the new admin. Both optional. -->
       <div id="setup-finish" hidden>
-        <p class="sub muted" style="text-align:left; margin-bottom:12px;">Your account is ready. Two optional steps; both can be done later in Settings → Platform.</p>
+        <p class="sub muted" style="text-align:left; margin-bottom:12px;">Your account is ready. Two optional steps; both can be done later in Settings.</p>
 
         <div class="setup-item">
-          <div class="ti-title" id="finish-key-title">Anthropic API key</div>
-          <p class="hint" id="finish-key-hint">Agents need one to run. Add it now, or skip it and add it later in Settings → Platform. Get one at console.anthropic.com (it starts <code>sk-ant-</code>).</p>
+          <div class="ti-title" id="finish-key-title">An AI provider key</div>
+          <p class="hint" id="finish-key-hint">Agents need one to run. Add a Claude or ChatGPT key now, or skip this and add keys later in Settings → AI providers (a self-hosted model server is set up there too).</p>
           <div id="finish-key-banner" class="banner"></div>
+          <fieldset class="provider-picker compact" id="finish-key-provider" style="margin-bottom:8px;">
+            <legend class="sr-only">Provider</legend>
+            <div class="provider-choices" style="grid-template-columns:repeat(2, minmax(0, 1fr));">
+              <label class="provider-choice"><input type="radio" name="finish-provider" value="anthropic" checked><span class="pc-text"><span class="pc-name">Claude</span></span></label>
+              <label class="provider-choice"><input type="radio" name="finish-provider" value="openai"><span class="pc-text"><span class="pc-name">ChatGPT</span></span></label>
+            </div>
+          </fieldset>
           <form id="finish-key-form" class="row" style="gap:8px; flex-wrap:wrap;" autocomplete="off">
             <label for="finish-key-input" class="sr-only">API key</label>
             <input type="password" id="finish-key-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 200px; min-width:0;">
@@ -144,8 +151,8 @@
         }
       });
 
-      // Step 3 helpers: the key inline (same route and approval as
-      // Settings → Platform), the vault by link (it has its own dialog there).
+      // Step 3 helpers: a Claude or ChatGPT key inline (same route and
+      // approval as Settings → AI providers), the vault by link (it has its own dialog there).
       async function finish() {
         const kBanner = document.getElementById("finish-key-banner");
         const kForm = document.getElementById("finish-key-form");
@@ -153,9 +160,10 @@
         const kBtn = document.getElementById("finish-key-btn");
         const paint = (d) => {
           if (d.api_key === "set") {
-            document.getElementById("finish-key-title").textContent = "Anthropic API key ✓";
-            document.getElementById("finish-key-hint").textContent = "A key is saved. You can replace it any time in Settings → Platform.";
+            document.getElementById("finish-key-title").textContent = "AI provider key ✓";
+            document.getElementById("finish-key-hint").textContent = "A key is saved. Add other providers or replace it any time in Settings → AI providers.";
             kForm.hidden = true;
+            document.getElementById("finish-key-provider").hidden = true;
           }
           if (d.vault !== "off" || (d.storage && d.storage.encrypted)) {
             document.getElementById("finish-vault-hint").textContent = d.vault !== "off"
@@ -163,24 +171,31 @@
           }
         };
         try { paint(await Agenti.get("dashboard")); } catch (e) { /* the steps still work */ }
+        document.querySelectorAll('input[name="finish-provider"]').forEach((r) => r.addEventListener("change", () => {
+          kInput.placeholder = r.value === "openai" ? "sk-…" : "sk-ant-…"; kBanner.className = "banner";
+        }));
         kForm.addEventListener("submit", async (e) => {
           e.preventDefault();
           const key = kInput.value.trim();
-          if (!/^sk-ant-[A-Za-z0-9_-]{8,}$/.test(key)) {
-            Agenti.banner(kBanner, "err", "That doesn't look like an Anthropic API key: it should start with sk-ant- and have no spaces.");
+          const provider = document.querySelector('input[name="finish-provider"]:checked').value;
+          const name = provider === "openai" ? "ChatGPT (OpenAI)" : "Claude (Anthropic)";
+          if (provider === "anthropic" ? !/^sk-ant-[A-Za-z0-9_-]{8,}$/.test(key) : !/^sk-[A-Za-z0-9_-]{8,}$/.test(key)) {
+            Agenti.banner(kBanner, "err", provider === "anthropic"
+              ? "That doesn't look like an Anthropic API key: it should start with sk-ant- and have no spaces."
+              : "That doesn't look like an OpenAI API key: it should start with sk- and have no spaces.");
             return;
           }
           kBtn.disabled = true;
           try {
             const r = await Agenti.requireApproval({
               title: "Save the API key",
-              description: "Confirm it's you to save this Anthropic API key for every agent run.",
-              submit: (creds) => Agenti.post("admin/api-key", { key,
+              description: `Confirm it's you to save this ${name} key for the organisation's runs.`,
+              submit: (creds) => Agenti.post("admin/api-key", { key, provider,
                 password: creds.password, totp: creds.totp, reauth: creds.reauth }),
             });
             if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was saved."); return; }
             kForm.reset();
-            Agenti.banner(kBanner, "ok", "API key saved.");
+            Agenti.banner(kBanner, "ok", `${name} key saved.`);
             paint({ api_key: "set", vault: "off" });
           } catch (err) {
             Agenti.banner(kBanner, "err", Agenti.errorText(err));

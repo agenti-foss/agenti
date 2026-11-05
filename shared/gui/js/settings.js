@@ -91,6 +91,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     { id: "security", label: "Security", icon: "shield" },
     { id: "appearance", label: "Appearance", icon: "palette" },
     { id: "agents", label: "Agents", icon: "tools", note: "admin" },
+    { id: "providers", label: "AI providers", icon: "cpu", note: "admin" },
     { id: "engagement", label: "Engagement", icon: "shield", note: "admin" },
     { id: "users", label: "Users", icon: "users", note: "admin" },
     { id: "platform", label: "Platform", icon: "sliders", note: "admin" },
@@ -228,6 +229,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   // centre, building and removing agents.
   const showAgents = canManage || canReadIam;
   tabs.querySelector('[data-pane="agents"]').hidden = !showAgents;
+  tabs.querySelector('[data-pane="providers"]').hidden = !canManage;
   tabs.querySelector('[data-pane="engagement"]').hidden = !showEngagementBtn;
   tabs.querySelector('[data-pane="users"]').hidden = !showUsers;
   tabs.querySelector('[data-pane="platform"]').hidden = !showPlatform;
@@ -1353,62 +1355,127 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
 
-    // The Anthropic API key (the shared tier): whether one is set, and saving
-    // a new one behind a fresh re-authentication. The key goes to the server
-    // in the request body and reaches root on stdin; it is never sent back.
-    const kPanel = document.getElementById("apikey-panel");
-    kPanel.hidden = false;
-    const kState = document.getElementById("apikey-state");
-    const kBanner = document.getElementById("apikey-banner");
-    const kForm = document.getElementById("apikey-form");
-    const kInput = document.getElementById("apikey-input");
-    const kBtn = document.getElementById("apikey-btn");
-    const kProvider = document.getElementById("apikey-provider");
-    const kAddress = document.getElementById("provider-address");
-    async function paintKey() {
-      const provider = kProvider.value;
-      document.getElementById("provider-address-field").hidden = provider !== "local";
-      kAddress.required = provider === "local";
-      kInput.required = provider !== "local";
-      kInput.placeholder = provider === "anthropic" ? "sk-ant-…" : provider === "openai" ? "sk-…" : "API key (optional)";
+    // Settings → AI providers: one card per provider (models.js holds the
+    // list). Saving goes behind a fresh re-authentication bound to the
+    // provider, address and key (model_registry.secret_digest); the key goes to
+    // the server in the request body and reaches root on stdin. Nothing here
+    // ever receives a key back: readiness is a yes/no from GET models?status.
+    const pList = document.getElementById("providers-list");
+    const relayCmd = (address) => {
       try {
-        const d = await Agenti.get("models?status=true");
-        const info = (d.providers || {})[provider] || {};
-        if (provider !== kProvider.value) return;
-        kState.textContent = info.ready ? "Configured. Saving replaces this provider's shared settings for future runs."
-          : "Not configured at the shared or organisation level. User and agent keys can be set at the server.";
-        if (provider === "local") kAddress.value = "";
-      } catch (err) { Agenti.banner(kBanner, "err", Agenti.errorText(err)); }
+        const u = new URL(address);
+        if (!/^https?:$/.test(u.protocol) || !u.hostname) return "";
+        return `sudo agenti admin relay allow ${u.hostname}:${u.port || (u.protocol === "https:" ? 443 : 80)}`;
+      } catch (e) { return ""; }
+    };
+    pList.innerHTML = AgentiModels.PROVIDERS.map((p) => {
+      const local = p.id === "local";
+      return `
+      <div class="panel provider-card" data-provider="${p.id}">
+        <div class="provider-card-head">
+          <span class="cat-icon" aria-hidden="true">${Agenti.icon(p.icon, 18)}</span>
+          <div><h2>${esc(p.name)}</h2><p class="hint">${esc(p.by)}</p></div>
+          <span class="badge incomplete" data-badge>Checking…</span>
+        </div>
+        <p class="hint" style="margin-top:var(--space-3);">${esc(p.blurb)}</p>
+        <form class="provider-form" autocomplete="off">
+          ${local ? `
+          <div class="field wide">
+            <label for="pv-${p.id}-address">Server address</label>
+            <input id="pv-${p.id}-address" type="url" required spellcheck="false" placeholder="http://model.example.com:11434/v1">
+          </div>` : ""}
+          <div class="field">
+            <label for="pv-${p.id}-key">API key${local ? ' <span class="hint">(optional)</span>' : ""}</label>
+            <input id="pv-${p.id}-key" type="password" ${local ? "" : "required"} spellcheck="false" autocomplete="off" placeholder="${esc(p.keyHint)}">
+          </div>
+          <button type="submit" class="btn btn-primary" data-save data-icon="key">Save</button>
+        </form>
+        ${local ? `
+        <div class="field" data-relay hidden style="margin-top:var(--space-3);">
+          <p class="hint">Agents reach a model server only through Agenti's relay. Allow this one once, on the server:</p>
+          <div data-relay-cmd></div>
+        </div>` : ""}
+        <div class="banner" data-banner></div>
+        <div class="provider-foot">
+          <button type="button" class="btn btn-sm" data-check data-icon="refresh">Check connection</button>
+          <span class="check-result" data-result aria-live="polite"></span>
+          ${p.keyUrl ? `<a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer">Get a ${esc(p.name)} API key ${Agenti.icon("open", 12)}</a>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+    if (typeof applyIcons === "function") applyIcons(pList);
+
+    async function paintProviders() {
+      const providers = await AgentiModels.status({ fresh: true });
+      for (const p of AgentiModels.PROVIDERS) {
+        const card = pList.querySelector(`[data-provider="${p.id}"]`);
+        const badge = card.querySelector("[data-badge]");
+        const info = providers && providers[p.id];
+        const save = card.querySelector("[data-save]");
+        if (!info) { badge.className = "badge incomplete"; badge.textContent = "Unknown"; continue; }
+        badge.className = "badge " + (info.ready ? "completed" : "incomplete");
+        badge.textContent = info.ready ? (p.id === "local" ? "Address saved" : "Key saved") : "Not set up";
+        save.lastChild.textContent = info.ready ? (p.id === "local" ? "Replace" : "Replace key") : (p.id === "local" ? "Save" : "Save key");
+        card.querySelector("[data-check]").disabled = !info.ready;
+      }
     }
-    kProvider.addEventListener("change", () => { kInput.value = ""; kBanner.className = "banner"; paintKey(); });
-    tasks.push(paintKey());
-    kForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const key = kInput.value.trim();
-      const provider = kProvider.value;
-      const base_url = provider === "local" ? kAddress.value.trim() : "";
-      if ((provider !== "local" && !key) || /\s/.test(key)) {
-        Agenti.banner(kBanner, "err", "Enter this provider's API key without spaces; self-hosted keys are optional.");
-        return;
-      }
-      kBtn.disabled = true;
-      try {
-        const r = await Agenti.requireApproval({
-          title: "Save the API key",
-          description: `Confirm it's you to save the ${provider} settings for future runs.`,
-          submit: (creds) => Agenti.post("admin/api-key", { key, provider, base_url,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+    tasks.push(paintProviders());
+
+    for (const p of AgentiModels.PROVIDERS) {
+      const card = pList.querySelector(`[data-provider="${p.id}"]`);
+      const form = card.querySelector("form");
+      const keyEl = card.querySelector(`#pv-${p.id}-key`);
+      const addrEl = card.querySelector(`#pv-${p.id}-address`);
+      const banner = card.querySelector("[data-banner]");
+      const result = card.querySelector("[data-result]");
+      const save = card.querySelector("[data-save]");
+      if (addrEl) {
+        const relay = card.querySelector("[data-relay]"), relayHost = card.querySelector("[data-relay-cmd]");
+        addrEl.addEventListener("input", () => {
+          const cmd = relayCmd(addrEl.value.trim());
+          relay.hidden = !cmd;
+          if (cmd) relayHost.innerHTML = `<div class="copyable"><code class="cmd-block">${esc(cmd)}</code>${Agenti.copyButtonHtml(cmd, "Copy command")}</div>`;
         });
-        if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was changed."); return; }
-        kInput.value = "";
-        Agenti.banner(kBanner, "ok", "Provider settings saved. Future runs use them.");
-        await paintKey();
-      } catch (err) {
-        Agenti.banner(kBanner, "err", Agenti.errorText(err));
-      } finally {
-        kBtn.disabled = false;
       }
-    });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const key = keyEl.value.trim();
+        const base_url = addrEl ? addrEl.value.trim() : "";
+        if (/\s/.test(key)) { Agenti.banner(banner, "err", "An API key has no spaces. Paste it again without them."); return; }
+        if (p.id !== "local" && !key) { Agenti.banner(banner, "err", `Paste the ${p.name} API key first.`); keyEl.focus(); return; }
+        if (addrEl && !relayCmd(base_url)) { Agenti.banner(banner, "err", "Enter the server's full address, starting with http:// or https://, e.g. http://model.example.com:11434/v1"); addrEl.focus(); return; }
+        save.disabled = true;
+        try {
+          const r = await Agenti.requireApproval({
+            title: `Save the ${p.name} settings`,
+            description: `Confirm it's you to save the organisation's ${p.name} ${p.id === "local" ? "server" : "key"}. Runs started from now on use it.`,
+            submit: (creds) => Agenti.post("admin/api-key", { key, provider: p.id, base_url,
+              password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          });
+          if (!r) { Agenti.banner(banner, "warn", "Cancelled — nothing was changed."); return; }
+          form.reset();
+          if (addrEl) addrEl.dispatchEvent(new Event("input"));
+          Agenti.banner(banner, "ok", `Saved. Runs started from now on use this ${p.id === "local" ? "server" : "key"}. Use Check connection to confirm it works.`);
+          result.textContent = ""; result.className = "check-result";
+          await paintProviders();
+        } catch (err) {
+          Agenti.banner(banner, "err", Agenti.errorText(err));
+        } finally { save.disabled = false; }
+      });
+      card.querySelector("[data-check]").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true; result.className = "check-result"; result.textContent = "Asking the provider…";
+        try {
+          const d = await Agenti.get("models?" + new URLSearchParams({ provider: p.id }));
+          const n = (d.models || []).length;
+          result.className = "check-result ok";
+          result.textContent = n ? `Working: ${n} model${n === 1 ? "" : "s"} on the allowed list.`
+            : "Working, but none of its models is on the allowed list (Settings → Engagement).";
+        } catch (err) {
+          result.className = "check-result err"; result.textContent = Agenti.errorText(err);
+        } finally { btn.disabled = false; }
+      });
+    }
 
     // Updates: report-only. The button calls GET admin/update-check, which asks GitHub
     // only if root switched the policy on; otherwise it answers with the command to enable it.

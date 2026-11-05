@@ -2420,8 +2420,8 @@ reinstall it:  $REINSTALL"
 cmd_set_user_key() {
     console_only "admin set-user-key"
     local u="${1:-}"
-    [[ -n "$u" && "$u" != -* ]] || die "usage: sudo agenti admin set-user-key <user>
-  Installs <user>'s own Anthropic API key; their runs use it ahead of the agent,
+    [[ -n "$u" && "$u" != -* ]] || die "usage: sudo agenti admin set-user-key <user> [--provider anthropic|openai|local]
+  Installs <user>'s own API key (Anthropic unless --provider says otherwise); their runs use it ahead of the agent,
   organisation and shared keys. Remove it with: sudo rm $AGENTI_ROOT/org/users/<user>/secrets.env"
     python3 "$IAM_PY" --json user-exists "$u" 2>/dev/null \
         | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("exists") else 1)' 2>/dev/null \

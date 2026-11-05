@@ -2479,3 +2479,93 @@ mark.docs-mark {
 }
 @media (prefers-reduced-motion: reduce) { .docs-article .docs-target { animation: none; } }
 @media (max-width: 600px) { .docs-article { padding: var(--space-4); } }
+
+/* ---------- AI providers: the launch picker (models.js) and Settings → AI providers ----------
+ * The picker is three radio tiles in the category-card idiom: a provider is
+ * one deliberate choice per run, so it gets a row of its own, not a select.
+ * A provider nobody has set up stays choosable (the hint says who fixes it)
+ * but reads quieter, the way a disabled agent card does. */
+.provider-picker { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.provider-legend { padding: 0; font-weight: 500; font-size: 0.9rem; margin-bottom: var(--space-2); }
+.provider-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.provider-choice {
+  position: relative; cursor: pointer; margin: 0;
+  font-size: 0.95rem; font-weight: 400; color: var(--text);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto;
+  column-gap: var(--space-3); row-gap: 6px; align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease), background 160ms var(--ease);
+}
+.provider-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.provider-choice:hover { border-color: var(--border-strong); }
+.provider-choice:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 3%, var(--bg-elevated));
+}
+.provider-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.provider-choice .pc-text { display: flex; flex-direction: column; min-width: 0; }
+.provider-choice .pc-name { font-weight: 600; letter-spacing: -0.006em; }
+.provider-choice .pc-by { font-size: 0.82rem; color: var(--text-dim); overflow-wrap: anywhere; }
+.provider-choice .pc-state {
+  grid-column: 1 / -1; font-size: 0.76rem; font-weight: 550; color: var(--ok);
+  display: flex; align-items: center; gap: 6px;
+}
+.provider-choice .pc-state:empty { display: none; }
+.provider-choice .pc-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.provider-choice.not-ready { background: transparent; border-style: dashed; box-shadow: none; }
+.provider-choice.not-ready .cat-icon { background: var(--bg-inset); color: var(--text-faint); }
+.provider-choice.not-ready .pc-state { color: var(--text-faint); }
+.provider-choice.not-ready:has(input:checked) { border-style: solid; }
+.provider-model { margin: 0; }
+.input-with-button { display: flex; gap: var(--space-2); align-items: stretch; }
+.input-with-button input { flex: 1 1 auto; min-width: 0; }
+.btn.icon-only { padding-left: 10px; padding-right: 10px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* A team member's picker: the same radios as a compact segmented row. */
+.provider-picker.compact { gap: var(--space-2); margin-top: var(--space-2); }
+.provider-picker.compact .provider-choices { gap: 6px; }
+.provider-picker.compact .provider-choice {
+  grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto;
+  padding: 6px 10px; border-radius: var(--radius-sm); box-shadow: none; column-gap: 8px;
+}
+.provider-picker.compact .cat-icon { width: 24px; height: 24px; border-radius: 7px; }
+.provider-picker.compact .pc-by, .provider-picker.compact .pc-state { display: none; }
+.provider-picker.compact .pc-name { font-size: 0.88rem; font-weight: 550; }
+
+@media (max-width: 600px) {
+  /* Three tiles side by side leave ~100px each on a phone: stack them as rows,
+   * the state moving to the right edge where a list puts it. */
+  .provider-picker:not(.compact) .provider-choices { grid-template-columns: 1fr; gap: var(--space-2); }
+  .provider-picker:not(.compact) .provider-choice { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto; }
+  .provider-picker:not(.compact) .provider-choice .pc-state { grid-column: auto; }
+  .provider-picker.compact .cat-icon { display: none; }
+  .provider-picker.compact .provider-choice { grid-template-columns: minmax(0, 1fr); text-align: center; padding: 8px 4px; }
+}
+
+/* Settings → AI providers: one panel per provider. */
+.provider-card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; }
+.provider-card-head h2 { margin: 0; font-size: 1.05rem; }
+.provider-card-head .hint { margin: 2px 0 0; }
+.provider-card-head .cat-icon { width: 38px; height: 38px; border-radius: 11px; }
+.provider-card .provider-form { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-top: var(--space-4); }
+.provider-card .provider-form .field { margin: 0; flex: 1 1 18rem; min-width: 0; }
+.provider-card .provider-form .field.wide { flex-basis: 100%; }
+.provider-card .provider-form input { width: 100%; max-width: none; }
+.provider-card .provider-form .btn { flex: 0 0 auto; }
+#providers-list { gap: var(--space-4); }
+.provider-card .provider-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); font-size: 0.86rem; }
+.provider-card .provider-foot .check-result { color: var(--text-dim); }
+.provider-card .provider-foot .check-result.ok { color: var(--ok); }
+.provider-card .provider-foot .check-result.err { color: var(--err); }
+.provider-card .provider-foot a { margin-left: auto; }
+@media (max-width: 600px) {
+  .provider-card .provider-form .field { flex-basis: 100%; }
+  .provider-card .provider-form .btn { justify-self: start; }
+  .provider-card .provider-foot a { margin-left: 0; }
+}
+.launch-section { padding: var(--space-4); border-radius: var(--radius); background: var(--bg-inset); }
+.launch-section .provider-legend { font-weight: 600; font-size: 0.95rem; }
+#providers-list > .panel { margin: 0; }
