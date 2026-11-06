@@ -62,7 +62,7 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 RESERVED = frozenset({
     "shared", "lost+found", "list", "lib", "agents",
     "new", "admin", "vault", "gui", "help", "docs", "setup", "setup-code", "verify",
-    "team", "outputs", "tool-requests",
+    "team", "outputs",
     "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
     "user-history", "rename",
     "context", "instances", "copies",

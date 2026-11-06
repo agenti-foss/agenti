@@ -1227,6 +1227,20 @@ try:
     check("a malformed digest is refused", "accepted", "refused")
 except authd.AuthError:
     check("a malformed digest is refused", True, True)
+for _op in ("engagement-approve-pending", "engagement-reject-pending", "engagement-withdraw-pending"):
+    check(f"{_op} is bound to the pending change's digest",
+          authd.Service._validate_action({"action": {"op": _op, "digest": "e" * 64}}),
+          {"op": _op, "digest": "e" * 64, "resource": "org"})
+    try:
+        authd.Service._validate_action({"action": {"op": _op, "digest": "e" * 63}})
+        check(f"{_op}: a malformed digest is refused", "accepted", "refused")
+    except authd.AuthError:
+        check(f"{_op}: a malformed digest is refused", True, True)
+try:
+    authd.Service._validate_action({"action": {"op": "engagement-anything-else", "digest": "e" * 64}})
+    check("an engagement op not in the table is refused", "accepted", "refused")
+except authd.AuthError:
+    check("an engagement op not in the table is refused", True, True)
 
 section("create-user grant shape (operator decision 2026-10-22)")
 _ok = authd.Service._validate_action({"action": {"op": "create-user", "principal": "newbie",

@@ -750,15 +750,28 @@ def web_approve_create_user(conn, runtime, action: dict, grant_id: str) -> str:
     return approver
 
 
+# What each engagement grant's approver must hold, re-checked fresh when the
+# root CLI spends it. Rejecting or withdrawing a pending change lifts the
+# restrictions it put on runs, so those need a grant too (invariant 9).
+ENGAGEMENT_GRANT_PERMS = {
+    "engagement-set": "engagement:manage",
+    "engagement-approve": "engagement:approve",
+    "engagement-approve-pending": "engagement:approve",
+    "engagement-reject-pending": "engagement:approve",
+    "engagement-withdraw-pending": "engagement:manage",
+}
+
+
 def web_approve_engagement(conn, runtime, action: dict, grant_id: str) -> str:
-    """Consumes an 'engagement-set' or 'engagement-approve' grant for exactly
-    `action` (the CLI rebuilds it: the SHA-256 of the change it received, or
-    the digest the approver reviewed) and re-checks, fresh, that the approver
-    holds engagement:manage or engagement:approve. Returns the approver, who
-    is recorded as the author or approver (audit run 1, F13)."""
-    perm = {"engagement-set": "engagement:manage", "engagement-approve": "engagement:approve"}.get(action.get("op"))
+    """Consumes an engagement grant for exactly `action` (the CLI rebuilds it:
+    the SHA-256 of the change it received, or the digest the approver
+    reviewed — the record's, or the pending change's) and re-checks, fresh,
+    that the approver holds the permission ENGAGEMENT_GRANT_PERMS names.
+    Returns the approver, who is recorded as the author or approver (audit
+    run 1, F13)."""
+    perm = ENGAGEMENT_GRANT_PERMS.get(action.get("op"))
     if perm is None:
-        raise IAMError("not an engagement-set/engagement-approve action")
+        raise IAMError("not an engagement action")
     approver = consume_action_grant(runtime, grant_id, action)
     if not check(conn, approver, perm, action["resource"]).allowed:
         raise IAMError(f"{approver!r} approved this but does not hold {perm} — refusing. "
@@ -1488,6 +1501,26 @@ def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
 # ---------------------------------------------------------------------------
 TWO_FACTOR_POLICY_KEY = "require-2fa"
 
+# Off by default (operator decision 2026-11-06): with it on, an engagement
+# change waits until a DIFFERENT admin approves it (engagement_store.py).
+# Set only at the console, like every policy here.
+SECOND_APPROVER_POLICY_KEY = "engagement-second-approver"
+
+
+def engagement_approvers(conn: sqlite3.Connection) -> list[str]:
+    """Active user accounts that can sign in and hold engagement:approve:
+    who could approve a pending engagement change. Read off the role column
+    (as effective_permissions does), not through check(), so asking does not
+    write an authz_log row per account."""
+    out = []
+    for r in conn.execute("SELECT name, role, kind, password_hash FROM principals WHERE active=1"):
+        if r["kind"] != "user" or "engagement:approve" not in BUILTIN_ROLES.get(r["role"], ()):
+            continue
+        if r["password_hash"] or conn.execute("SELECT 1 FROM passkeys WHERE principal=?",
+                                              (r["name"],)).fetchone():
+            out.append(r["name"])
+    return sorted(out)
+
 
 def two_factor_required(conn: sqlite3.Connection, principal: str) -> tuple[bool, str]:
     """(required, why) — the `why` names the policy row that decided it, so a
@@ -1539,7 +1572,7 @@ def _qr_svg(text: str) -> str | None:
 # made the change, not just what changed.
 # ---------------------------------------------------------------------------
 
-# Outside the vault, like TOOL_REQUESTS_PATH — so a rename or a
+# Outside the vault — so a rename or a
 # hard delete's permanent record survives even a vault re-create, and so the
 # API (which never opens iam.db) can still be handed a read-only accessor to
 # it later without gaining any new reach into identity data.
@@ -2047,6 +2080,10 @@ def consume_enrolment_token(conn, runtime, token: str, new_password: str,
     if totp_secret and totp_code and totp_verify(totp_secret, totp_code) is None:
         raise IAMError("that 2FA code is not valid for the secret you were given — "
                        "check your device's clock and try again")
+    # Checked BEFORE the link is burned: a password the write would refuse
+    # must not spend the link and leave the account with neither (found
+    # 2026-11-06 — four emoji passed the page's count and failed this one).
+    check_password_length(new_password)
     cur = runtime.execute("UPDATE enrolment_tokens SET used_at=? WHERE token_hash=? AND used_at IS NULL",
                           (time.time(), hash_key(token)))
     runtime.commit()
@@ -2061,6 +2098,9 @@ def consume_enrolment_token(conn, runtime, token: str, new_password: str,
 
 
 MIN_PASSWORD_LENGTH = 8
+# authd refuses a longer password field at sign-in (authd.MAX_SECRET), so a
+# longer one must never be set: the account could not sign in with it.
+MAX_PASSWORD_LENGTH = 1024
 
 
 def check_password_length(password: str) -> None:
@@ -2069,6 +2109,9 @@ def check_password_length(password: str) -> None:
     minlength is a convenience, not the check."""
     if len(password) < MIN_PASSWORD_LENGTH:
         raise IAMError(f"password must be at least {MIN_PASSWORD_LENGTH} characters. "
+                       f"Nothing was changed.")
+    if len(password) > MAX_PASSWORD_LENGTH:
+        raise IAMError(f"password must be at most {MAX_PASSWORD_LENGTH} characters. "
                        f"Nothing was changed.")
 
 
@@ -2321,6 +2364,7 @@ def consume_password_reset_token(conn, runtime, token: str, new_password: str) -
                        "(a newer link, a password change or a rename ends it). "
                        "Ask an admin to send a new one.")
     principal = row["principal"]
+    check_password_length(new_password)   # before the burn, as at enrolment
     cur = runtime.execute("UPDATE password_reset_tokens SET used_at=? WHERE token_hash=? AND used_at IS NULL",
                           (time.time(), hash_key(token)))
     runtime.commit()
@@ -2605,74 +2649,6 @@ def delete_outputs(principal: str, names: list[str], by: str, conn=None) -> list
             out.append(delete_output(principal, name, by, conn=conn))
         except IAMError as e:
             out.append({"principal": principal, "name": name, "deleted": False, "error": str(e)})
-    return out
-
-
-# ---------------------------------------------------------------------------
-# Tool requests: "a tool the library lacks is a request, not a button: the GUI
-# files it, a human reviews and adds it, then deploys." There is no
-# notifications channel yet, so this is deliberately just a durable,
-# admin-readable queue — filing needs only agent:read, listing is admin-only
-# (iam:read), and there is no "approve" verb: acting on a request means a
-# developer writing and reviewing real code, or an admin running an install
-# at the server, which stays outside this system on purpose.
-#
-# Stored outside the vault — readable even with the vault locked, and no more
-# sensitive than a request's own free-text description.
-# ---------------------------------------------------------------------------
-TOOL_REQUESTS_PATH = Path(os.environ.get("AGENTI_TOOL_REQUESTS_PATH",
-                                         "/var/lib/agenti/tool-requests.jsonl"))
-TOOL_REQUEST_MAX_CHARS = 2000
-
-
-def _validate_tool_request_text(value: str) -> str:
-    value = (value or "").strip()
-    if not value:
-        raise IAMError("a tool request needs some text describing what's missing")
-    if len(value) > TOOL_REQUEST_MAX_CHARS:
-        raise IAMError(f"tool request text is {len(value)} characters; keep it to "
-                       f"{TOOL_REQUEST_MAX_CHARS} or fewer")
-    if "\x00" in value:
-        raise IAMError("tool request text may not contain a NUL byte")
-    return value
-
-
-def file_tool_request(principal: str, category: str, text: str) -> dict:
-    """Append one request. `category` is free text too (the operator may be
-    asking for something that doesn't exist at all) — it is NEVER checked
-    against the tool registry, because the entire point is to name something
-    that isn't there yet."""
-    text = _validate_tool_request_text(text)
-    category = (category or "").strip()[:64]
-    row = {"id": uuid.uuid4().hex, "by": principal,
-          "category": category, "text": text, "created_at": time.time()}
-    TOOL_REQUESTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(TOOL_REQUESTS_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(row) + "\n")
-    try:
-        TOOL_REQUESTS_PATH.chmod(0o640)
-    except OSError:
-        pass
-    return row
-
-
-def list_tool_requests() -> list[dict]:
-    """Every filed request, newest first — an admin's queue to triage. A
-    malformed line is skipped rather than failing the whole listing, the same
-    tolerance shared/state.py's own JSONL readers already apply."""
-    if not TOOL_REQUESTS_PATH.is_file():
-        return []
-    out: list[dict] = []
-    with open(TOOL_REQUESTS_PATH, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-    out.sort(key=lambda r: r.get("created_at", 0), reverse=True)
     return out
 
 
@@ -3528,8 +3504,9 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     # kind and its role (operator decision 2026-10-22, audit run 1).
     q = add("approve-engagement", "consume a web grant to set or approve the engagement "
             "(called by the CLI, never directly)")
-    q.add_argument("change", choices=("set", "approve"))
-    q.add_argument("bound", help="the change's SHA-256 (set) or the reviewed digest (approve)")
+    q.add_argument("change", choices=("set", "approve", "approve-pending", "reject-pending",
+                                      "withdraw-pending"))
+    q.add_argument("bound", help="the change's SHA-256 (set) or the reviewed digest (the others)")
     q.add_argument("--grant", required=True)
 
     q = add("create-user", "create a new user account")
@@ -3738,15 +3715,6 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("name"); q.add_argument("--by", required=True,
                                            help="the user asking")
 
-    # ---- tool requests (CLAUDE.md "Current plan", decision 4) -------------
-    q = add("tool-request-file", "file a request for a tool the library "
-            "lacks — reviewed by a human, never auto-actioned")
-    q.add_argument("--by", required=True)
-    q.add_argument("--category", default="", help="what it's roughly for, free text")
-    q.add_argument("text")
-    q = add("tool-request-list", "every filed tool request, newest first "
-            "(admin-only at the API layer)")
-
     q = add("can", "explain an authorization decision")
     q.add_argument("principal", metavar="user"); q.add_argument("permission")
     q = add("bootstrap", "first-run setup: roles, an admin user, its first key")
@@ -3755,6 +3723,8 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("key"); q.add_argument("value", choices=("on", "off"))
     add("permissions", "list the permission catalog")
     add("policy", "show current platform policies")
+    add("engagement-policy", "the engagement-second-approver policy and who could approve "
+        "(read-only; the root CLI asks before an engagement write)")
     q = add("authz-log", "recent authorization decisions, allows AND denies")
     q.add_argument("-n", type=int, default=50)
     q.add_argument("--user", dest="principal", metavar="USER")
@@ -3779,7 +3749,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
         readonly = a.cmd in ("bindings", "list-keys", "list-users", "can",
                              "permissions", "policy", "authz-log", "enrol-check",
                              "outputs-usage", "outputs-list", "outputs-delete",
-                             "outputs-path", "tool-request-file", "tool-request-list",
+                             "outputs-path", "engagement-policy",
                              "passkey-list", "user-history",
                              "password-reset-check",
                              "dashboard-access", "user-exists") or (
@@ -4035,6 +4005,12 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                             f"{' +password' if r['has_password'] else ''}"
                             f"{' +2fa' if r['has_totp'] else (' 2FA-REQUIRED' if r['totp_required'] and r['has_password'] else '')}"
                             for r in data])
+
+        if a.cmd == "engagement-policy":
+            data = {"second_approver": get_setting(conn, SECOND_APPROVER_POLICY_KEY, "off"),
+                    "approvers": engagement_approvers(conn)}
+            return emit(data, [f"  {SECOND_APPROVER_POLICY_KEY} = {data['second_approver']}",
+                               f"  could approve: {', '.join(data['approvers']) or '(nobody)'}"])
 
         if a.cmd == "approve-engagement":
             key = "sha256" if a.change == "set" else "digest"
@@ -4421,16 +4397,6 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             p = resolve_output_path(a.principal, a.name, a.by, conn=conn)
             return emit({"path": str(p)}, [f"  {p}"])
 
-        if a.cmd == "tool-request-file":
-            r = file_tool_request(a.by, a.category, a.text)
-            return emit(r, [f"  ✓ filed tool request '{r['id']}'"])
-
-        if a.cmd == "tool-request-list":
-            rows = list_tool_requests()
-            body = [f"  {r['created_at']!r:<18} {r['by']:<16} "
-                    f"{r['category'] or '?':<14} {r['text'][:50]}" for r in rows]
-            return emit(rows, ["tool requests:"] + (body or ["  (none)"]))
-
         if a.cmd == "bind":
             set_principal_role(conn, a.subject, a.role, a.actor)
             return emit({"subject_kind": "user", "subject": a.subject,
@@ -4555,7 +4521,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             return 0
 
         if a.cmd == "set-policy":
-            known = ("require-separate-approver", "update-check")
+            known = ("require-separate-approver", "update-check", SECOND_APPROVER_POLICY_KEY)
             # require-2fa, in its two shapes (see two_factor_required()):
             # organisation-wide, or per account. Per account names a
             # principal that must exist, so a typo cannot create a dangling
@@ -4580,8 +4546,22 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                          "    reports: nothing is downloaded or installed, and no request is",
                          "    made until someone asks"]
             if a.key == "require-separate-approver" and a.value == "on":
-                extra = ["    a commercial run is now refused when the approving user",
-                         "    is the same one starting it — real segregation of duties"]
+                extra = ["    a run is now refused when the user who approved the engagement",
+                         "    is the one starting it — real segregation of duties"]
+            if a.key == SECOND_APPROVER_POLICY_KEY and a.value == "on":
+                approvers = engagement_approvers(conn)
+                extra = ["    an engagement change now waits until a DIFFERENT admin approves it;",
+                         "    until then, runs must fit both the version in force and the change"]
+                if len(approvers) < 2:
+                    extra += [f"    ! only {len(approvers)} account can approve "
+                              f"({', '.join(approvers) or 'nobody'}): nobody else could approve "
+                              f"their changes.",
+                              "      Add a second admin (Settings → Users), or turn this off again:",
+                              f"      sudo agenti admin set-policy {SECOND_APPROVER_POLICY_KEY} off"]
+            if a.key == SECOND_APPROVER_POLICY_KEY and a.value == "off":
+                extra = ["    an engagement save is approved as it is saved, by whoever saves it.",
+                         "    A change already waiting still restricts runs; its author may now",
+                         "    approve it (Settings → Engagement)"]
             return emit({"policy": a.key, "value": a.value},
                         [f"  ✓ policy {a.key} = {a.value}"] + extra)
 
@@ -4617,7 +4597,8 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
 
         if a.cmd == "policy":
             data = {k: get_setting(conn, k, "off") for k in
-                    ("require-separate-approver", WEBAUTHN_ENABLED_KEY, "update-check")}
+                    ("require-separate-approver", SECOND_APPROVER_POLICY_KEY,
+                     WEBAUTHN_ENABLED_KEY, "update-check")}
             # require-2fa defaults ON — the one policy whose absence means the
             # strict answer — then every account override ever set.
             data[TWO_FACTOR_POLICY_KEY] = get_setting(conn, TWO_FACTOR_POLICY_KEY, "on")

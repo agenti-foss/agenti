@@ -109,10 +109,9 @@ Anthropic through a small local relay, **agenti-relay**, that forwards to the
 Anthropic API and nowhere else. It starts with the first such run.
 - **Edit or remove:** only programs an admin added. A removal is refused while
   an agent still has the program switched on. Every change is kept in history.
-- **Not installed?** Anyone can file a request on the Launch page ("A
-  command-line program installed on the server"). Admins see it under
-  Settings → Platform with the install command to run at the server. The
-  website never installs software.
+- **Not installed?** An admin installs the program on the server (for example
+  `sudo apt install whois`), then adds it here. The website never installs
+  software.
 
 ## From a terminal
 

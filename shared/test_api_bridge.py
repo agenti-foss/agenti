@@ -115,6 +115,11 @@ for argv in (["enum", "export"], ["enum", "set-key"], ["enum", "purge"], ["vault
              ["admin", "create-user", "x", "--role=admin"], ["../x", "status"], ["Enum", "status"],
              ["enum", "say", "line\nsecond"], ["engagement", "import"], ["team", "x", "purge"], [],):
     check(f"refused: {argv}", allowed(argv) if argv else False, False)
+check("the pending-change decisions reach root (each carries its own grant)",
+      [allowed(["engagement", v, "--expect-digest=" + "a" * 64, "--grant=G", "--json"])
+       for v in ("approve-pending", "reject-pending", "withdraw-pending")], [True, True, True])
+check("...while the console-only engagement verbs stay refused",
+      [allowed(["engagement", v]) for v in ("import", "history", "digest")], [False, False, False])
 check("create-user with a role passes only together with its approval grant",
       (allowed(["admin", "create-user", "x", "--kind", "user", "--role", "admin", "--grant=G"]),
        allowed(["admin", "create-user", "x", "--kind", "user", "--role", "admin"])), (True, False))
@@ -128,7 +133,7 @@ check("logs with -n N and the run options passes", allowed(["enum", "logs", "-n"
 
 section("audit run 2: only an installed agent's name opens the agent verbs")
 for argv in (["new", "start", "--dir=/etc/x"], ["new", "status"], ["gui", "status"], ["setup", "show"],
-             ["verify", "status"], ["help", "show"], ["outputs", "status"], ["tool-requests", "status"],
+             ["verify", "status"], ["help", "show"], ["outputs", "status"],
              ["half-removed", "status"], ["nosuchagent", "status"]):
     check(f"refused: {argv}", allowed(argv), False)
 check("an installed agent still passes", allowed(["research", "status", "--json"]), True)
@@ -241,6 +246,26 @@ for path, want in (("/enrol/AbC-123_xyz", "/enrol/<token>"), ("/password-reset/T
     _f.filter(_rec)
     check(f"access log line for {path}", _rec.getMessage(), f'10.0.0.1:5 - "GET {want} HTTP/1.1" 200')
 check("the filter is installed on uvicorn's access logger", 'logging.getLogger("uvicorn.access").addFilter(_RedactLinkTokens())' in _src, True)
+
+section("a refused field is never repeated back (found 2026-11-06: a password on screen)")
+_snip = _src[_src.index("def _no_leading_dash"):_src.index("ArgValue = Annotated")]
+_ns = {}
+exec(_snip, _ns)
+try:
+    _ns["_no_leading_dash"]("-Secret-Passw0rd")
+    check("a leading '-' is refused", False, True)
+except ValueError as e:
+    check("a leading '-' is refused, without the value in the message", "Secret" in str(e), False)
+check("422s keep only loc/msg/type (FastAPI's default echoes the input)",
+      '@app.exception_handler(RequestValidationError)' in _src
+      and '("loc", "msg", "type")' in _src, True)
+try:   # the real thing, where FastAPI is installed (the Pi; CI has no FastAPI)
+    from fastapi.testclient import TestClient
+    import main as _main  # noqa: E402
+    _r = TestClient(_main.app).post("/enrol/abcdefghijklmnopqrstuvwxyz012345", json={"new": "-Secret-Passw0rd"})
+    check("a live 422 does not contain the password", (_r.status_code, "Secret" in _r.text), (422, False))
+except ImportError:
+    print("  [skip] FastAPI is not installed here: the source checks above stand in")
 
 section("first-run setup: the setup page answers any direct browser, never a proxy")
 _snip = _src[_src.index("_FORWARDING_HEADERS = ("):_src.index("class SetupAdminRequest")]

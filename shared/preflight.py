@@ -291,8 +291,9 @@ def check_code_immutable() -> None:
     # record when there is one — an agent that could edit approval.json
     # could approve its own engagement.
     to_check = [ORG_DIR / "engagement.json"]
-    if (ORG_DIR / "approval.json").exists():
-        to_check.append(ORG_DIR / "approval.json")
+    for optional in ("approval.json", "engagement-pending.json"):
+        if (ORG_DIR / optional).exists():
+            to_check.append(ORG_DIR / optional)
     for cfg in to_check:
         if not cfg.exists():
             add(False, "code-immutable",
@@ -482,19 +483,16 @@ def check_approval() -> None:
     while the engagement still has that digest. Editing a scope entry,
     a date or the notes after approval therefore fails the next start until
     an admin approves again — the property that makes approval mean
-    something. Whether this gate applies AT ALL is itself a per-organisation
-    policy field now (CLAUDE.md "Current plan": the retired --dev profile's
-    exemption became `policy.require_approval`, read directly off the SAME
-    record this check already has open — no separate profile hint to
-    re-derive). Defaults to required; it may be turned off as its own
-    operational choice. Root-enforced like every other check here:
-    approval.json is written only by `agenti engagement approve`,
-    a root-gated verb, so the agent cannot approve itself.
+    something. Always required (the per-record switch was retired
+    2026-11-06: a save records its own approval, or a second admin approves
+    it). Root-enforced like every other check here: approval.json is written
+    only by the root-gated engagement verbs, so the agent cannot approve
+    itself.
 
-    Segregation of duties (the approver being a DIFFERENT person than the
-    author) is enforced by the CLI's `require-separate-approver` policy at
-    start time, not here — preflight runs as the service account
-    and cannot read iam.db.
+    Segregation of duties is the CLI's: `engagement-second-approver` (a
+    change waits for a DIFFERENT admin) when saving, and
+    `require-separate-approver` (the approver may not start runs) at start
+    time — preflight runs as the service account and cannot read iam.db.
     """
     if agent_scope_kind() == "files":
         add(True, "approval", "not applicable: no engagement scope to approve")
@@ -505,17 +503,13 @@ def check_approval() -> None:
     except Exception:
         add(True, "approval", "engagement failed to load — reported by the engagement check instead")
         return
-    policy = ec.resolve_policy(record)
-    if not policy["require_approval"]:
-        add(True, "approval", "not required — the organisation's policy has it off")
-        return
     status = ec.approval_status(record, ec.read_approval(ORG_DIR / ec.APPROVAL_FILENAME))
     if status["current"]:
         add(True, "approval", f"'{record['engagement_id']}' {status['reason']}")
         return
     add(False, "approval",
         f"'{record['engagement_id']}' is not approved as it stands: {status['reason']}. "
-        f"An admin must run:\n"
+        f"An admin approves it in Settings → Engagement (Save and close), or runs:\n"
         f"       sudo agenti engagement approve")
 
 

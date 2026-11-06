@@ -377,6 +377,17 @@ check("enrolment_token_principal resolves it", iam.enrolment_token_principal(rt,
       "newperson")
 check("garbage token resolves to nothing", iam.enrolment_token_principal(rt, "not-a-token"), None)
 
+# Found 2026-11-06: the link was burned before the length check, so four
+# emoji (8 for the page's count, 4 for Python's) killed it for nothing.
+for _bad, _why in (("\U0001F600" * 4, "too short"), ("x" * (iam.MAX_PASSWORD_LENGTH + 1), "too long")):
+    try:
+        iam.consume_enrolment_token(conn, rt, token, _bad)
+        check(f"a {_why} password is refused", False, True)
+    except iam.IAMError as e:
+        check(f"a {_why} password is refused", "password must be" in str(e), True)
+    check(f"...and the link still works after a {_why} password",
+          iam.enrolment_token_principal(rt, token), "newperson")
+
 principal, _codes = iam.consume_enrolment_token(conn, rt, token, "FirstPassw0rd!")
 check("no 2FA at sign-up: no recovery codes", _codes, [])
 check("consuming sets the password and returns the principal", principal, "newperson")
@@ -670,29 +681,6 @@ check("output:delete and output:promote are real permissions",
       all(x in iam.PERMISSIONS for x in ("output:delete", "output:promote")), True)
 check("operator holds both",
       all(x in iam.BUILTIN_ROLES["operator"] for x in ("output:delete", "output:promote")), True)
-
-section("tool requests: a simple admin-reviewed queue")
-tool_req_path = tmp / "tool-requests.jsonl"
-iam.TOOL_REQUESTS_PATH = tool_req_path
-r1 = iam.file_tool_request("op1", "install-program", "need whatweb installed")
-check("filing returns the stored row", (r1["by"], r1["category"]), ("op1", "install-program"))
-check("...with a fresh id", bool(r1.get("id")), True)
-r2 = iam.file_tool_request("op3", "", "a docx-to-pdf converter, no category in mind")
-check("category is optional", r2["category"], "")
-rows = iam.list_tool_requests()
-check("list_tool_requests sees every request, newest first", [r["id"] for r in rows], [r2["id"], r1["id"]])
-try:
-    iam.file_tool_request("op1", "", "   ")
-    check("whitespace-only text is refused", False, True)
-except iam.IAMError as e:
-    check("whitespace-only text is refused", "needs some text" in str(e), True)
-try:
-    iam.file_tool_request("op1", "", "x" * (iam.TOOL_REQUEST_MAX_CHARS + 1))
-    check("oversized text is refused", False, True)
-except iam.IAMError as e:
-    check("oversized text is refused", "keep it to" in str(e), True)
-tool_req_path.write_text(tool_req_path.read_text() + "not json at all\n")
-check("a malformed line in the file is skipped, not fatal", len(iam.list_tool_requests()), 2)
 
 section("bootstrap")
 conn2 = iam.open_iam(readonly=False, path=tmp / "iam2.db")
@@ -1334,6 +1322,24 @@ try:
     check("an approver without engagement:approve is refused", False, True)
 except iam.IAMError as e:
     check("an approver without engagement:approve is refused", "engagement:approve" in str(e), True)
+for _op, _perm in (("engagement-approve-pending", "engagement:approve"),
+                   ("engagement-reject-pending", "engagement:approve"),
+                   ("engagement-withdraw-pending", "engagement:manage")):
+    _act = {"op": _op, "digest": "d" * 64, "resource": ORG}
+    g = iam.mint_action_grant(rt, "wrp-approver", _act)
+    check(f"{_op}: an admin's grant for exactly this pending change returns the approver",
+          iam.web_approve_engagement(conn, rt, _act, g), "wrp-approver")
+    g = iam.mint_action_grant(rt, "wdp-nonadmin", _act)
+    try:
+        iam.web_approve_engagement(conn, rt, _act, g)
+        check(f"{_op}: a non-admin is refused (needs {_perm})", False, True)
+    except iam.IAMError as e:
+        check(f"{_op}: a non-admin is refused (needs {_perm})", _perm in str(e), True)
+check("an admin who cannot sign in yet (no password, no passkey) could not approve",
+      "wrp-approver" in iam.engagement_approvers(conn), False)
+iam.set_principal_password(conn, "wrp-approver", "Approver-pw-1")
+check("who could approve a pending change: active admins who can sign in",
+      "wrp-approver" in iam.engagement_approvers(conn) and "wdp-nonadmin" not in iam.engagement_approvers(conn), True)
 
 section("F08: no enrolment link for a service account or a passkey-only account")
 iam.add_principal(conn, "f08-svc", "service", "test", role="admin")
@@ -1553,6 +1559,13 @@ link_out = iam.web_mint_password_reset_link(conn, rt, "rpp-target", ORG, g7)
 check("web_mint_password_reset_link mints a real token", bool(link_out["reset_token"]), True)
 check("password_reset_token_principal recognizes it, unused", iam.password_reset_token_principal(
     conn, rt, link_out["reset_token"]), "rpp-target")
+try:
+    iam.consume_password_reset_token(conn, rt, link_out["reset_token"], "short")
+    check("a too-short reset password is refused", False, True)
+except iam.IAMError as e:
+    check("a too-short reset password is refused", "at least 8" in str(e), True)
+check("...and the reset link still works afterwards", iam.password_reset_token_principal(
+    conn, rt, link_out["reset_token"]), "rpp-target")
 principal_out = iam.consume_password_reset_token(conn, rt, link_out["reset_token"], "self-chosen-pw-789")
 check("consume_password_reset_token sets the new password", principal_out, "rpp-target")
 check("...the self-chosen password actually works", iam.verify_login(
@@ -1714,6 +1727,15 @@ with _tf.TemporaryDirectory() as _d:
     check("set-policy accepts update-check", _rc, 0)
     _rc, _out = _cli_db("--json", "policy")
     check("...and policy reports it on", json.loads(_out).get("update-check"), "on")
+    check("engagement-second-approver is off by default", json.loads(_out).get("engagement-second-approver"), "off")
+    _rc, _out = _cli_db("set-policy", "engagement-second-approver", "on")
+    check("set-policy accepts engagement-second-approver, and warns with one admin",
+          (_rc, "nobody else could approve" in _out, "set-policy engagement-second-approver off" in _out),
+          (0, True, True))
+    _rc, _out = _cli_db("--json", "engagement-policy")
+    check("engagement-policy (read by the root CLI) reports it and who could approve",
+          (json.loads(_out)["second_approver"], json.loads(_out)["approvers"]), ("on", []))
+    _cli_db("set-policy", "engagement-second-approver", "off")
 
     # The first thing a fresh install does is make an admin (add + bind), and
     # the role change is logged: user-history must list it, in the same shape

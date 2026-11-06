@@ -27,11 +27,19 @@ are unchanged. Per-agent variation is achieved by narrowing at launch
 
 Approval binds to CONTENT: `org/approval.json` records the digest of
 the record an admin approved, so editing the scope afterwards requires a
-fresh approval — preflight compares (see approval_status()).
+fresh approval — preflight compares (see approval_status()). A run always
+needs it (the old per-record "require approval" switch was retired
+2026-11-06: a save now records its own approval unless the platform's
+second-approver policy asks another admin to approve it).
+
+With that policy on, a saved change waits in `org/engagement-pending.json`
+while the approved record stays in force, and load_engagement() holds runs
+to the STRICTER of the two (stricter_of()): what the change takes away
+applies at once, what it adds only once another admin approves it.
 
 The SAME record also carries an operational `policy` sub-object — caps
-(turns/budget/timeout ceilings), the admin-curated allowed-model list, and
-whether admin approval is required at all — resolved via resolve_policy().
+(turns/budget/timeout ceilings), the admin-curated allowed-model list and
+model prices — resolved via resolve_policy().
 Deliberately excluded from the approval digest above (see record_digest()):
 nudging a cap is not a re-authorization of the engagement. This is what
 replaced the two-profile (--dev/commercial) split (CLAUDE.md "Current
@@ -252,6 +260,7 @@ IMPORTANT
 # ---------------------------------------------------------------------------
 SCOPE_KINDS: tuple[str, ...] = ("cidr", "domain")
 ORG_ENGAGEMENT_FILENAME = "engagement.json"      # org/
+PENDING_FILENAME = "engagement-pending.json"     # org/ — a change awaiting a second admin
 APPROVAL_FILENAME = "approval.json"                 # org/
 ENGAGEMENT_HISTORY_FILENAME = "engagement-history.jsonl"   # org/
 AGENT_SCOPE_FILENAME = "agent-scope.json"           # <agent>/ — per-agent narrowing
@@ -278,16 +287,20 @@ _RECORD_FIELDS: tuple[str, ...] = (
 _REQUIRED_TEXT: tuple[str, ...] = (
     "client", "authorizing_party", "authorizing_title", "authorization_ref")
 
-# Operational policy — caps, model allow-list, whether admin approval is
-# required — living in the SAME organisation record the operator edits scope in
-# (CLAUDE.md "Current plan": one master record, not a second rulebook).
-# Deliberately excluded from the approval digest (see record_digest()):
-# nudging a turn cap is a cost/ops decision, not a re-authorization of the
-# engagement, and must not silently invalidate an existing approval.
+# Operational policy — caps, model allow-list, model prices — living in the
+# SAME organisation record the operator edits scope in (CLAUDE.md "Current
+# plan": one master record, not a second rulebook). Deliberately excluded
+# from the approval digest (see record_digest()): nudging a turn cap is a
+# cost/ops decision, not a re-authorization of the engagement, and must not
+# silently invalidate an existing approval.
 _POLICY_KEYS: tuple[str, ...] = (
-    "require_approval", "max_turns_ceiling", "max_budget_usd_ceiling",
+    "max_turns_ceiling", "max_budget_usd_ceiling",
     "timeout_s_ceiling", "allowed_models", "model_prices",
 )
+# Retired keys: still ACCEPTED in a stored record (and dropped), so a record
+# written before they were retired keeps loading — refusing it would stop
+# every run on the next start. `require_approval` went 2026-11-06.
+RETIRED_POLICY_KEYS: tuple[str, ...] = ("require_approval",)
 
 # Platform-wide fallback, used whenever an organisation's own record leaves a
 # policy field null/empty — the same "platform default, per-agent
@@ -295,7 +308,6 @@ _POLICY_KEYS: tuple[str, ...] = (
 # today's former "commercial" numbers: no regression for anyone who never
 # touches this new field.
 PLATFORM_DEFAULT_POLICY: dict[str, Any] = {
-    "require_approval": True,
     "max_turns_ceiling": 40,
     "max_budget_usd_ceiling": 10.00,
     "timeout_s_ceiling": 3600,
@@ -364,6 +376,24 @@ def valid_scope_entry(entry: Any, scope_kind: str) -> str:
     return entry
 
 
+def check_exclusions(record: dict) -> None:
+    """Save-time rule: every out_of_scope entry starts with a CIDR (cidr kind)
+    or a domain (domain kind), as the scope modules parse them at run time.
+    A free-text exclusion used to be accepted here and then refuse every run
+    of its kind (found 2026-11-06). Reading stays tolerant of old records;
+    only a write is held to this."""
+    for kind in SCOPE_KINDS:
+        for entry in ((record.get("scope") or {}).get(kind) or {}).get("out_of_scope") or []:
+            try:
+                valid_scope_entry(entry, kind)
+            except EngagementError:
+                example = "'10.0.5.0/24 (payroll)'" if kind == "cidr" else "'payroll.acme.example (production)'"
+                raise EngagementError(
+                    f"the {kind} exclusion {entry!r} does not start with "
+                    f"{'an IP or CIDR' if kind == 'cidr' else 'a domain'}, so a run could not honour "
+                    f"it and would refuse to start. Write it like {example}.")
+
+
 def empty_scope() -> dict[str, dict[str, list[str]]]:
     return {kind: {"in_scope": [], "out_of_scope": []} for kind in SCOPE_KINDS}
 
@@ -388,16 +418,10 @@ def _validate_policy(data: Any) -> dict:
         data = {}
     if not isinstance(data, dict):
         raise EngagementError("policy must be an object")
-    extra = sorted(k for k in data if k not in _POLICY_KEYS)
+    extra = sorted(k for k in data if k not in _POLICY_KEYS and k not in RETIRED_POLICY_KEYS)
     if extra:
         raise EngagementError(f"unknown field(s) in policy: {', '.join(extra)}")
     out: dict[str, Any] = {}
-
-    ra = data.get("require_approval")
-    if ra is not None:
-        if not isinstance(ra, bool):
-            raise EngagementError("policy.require_approval must be true or false")
-        out["require_approval"] = ra
 
     for key, label in (("max_turns_ceiling", "turns"), ("timeout_s_ceiling", "seconds")):
         v = data.get(key)
@@ -454,8 +478,6 @@ def resolve_policy(record: dict | None) -> dict:
     limit"."""
     pol = (record or {}).get("policy") or {}
     out = dict(PLATFORM_DEFAULT_POLICY)
-    if pol.get("require_approval") is not None:
-        out["require_approval"] = bool(pol["require_approval"])
     for key in ("max_turns_ceiling", "max_budget_usd_ceiling", "timeout_s_ceiling"):
         if pol.get(key) is not None:
             out[key] = pol[key]
@@ -657,20 +679,127 @@ def engagement_path(*, org_dir: Path) -> Path:
     return Path(org_dir) / ORG_ENGAGEMENT_FILENAME
 
 
+# A change waiting for a second admin (the platform's engagement-second-
+# approver policy): written by engagement_store.py only, root:<service group>
+# 0640 like the record, bound read-only into every run unit.
+#
+#   {"format": 1, "record": {...normalized, no audit fields...},
+#    "digest": "<record_digest(record)>", "base_digest": "<live digest or null>",
+#    "author": "alice", "authors": ["bob", "alice"], "authored_at": 0.0,
+#    "opened_at": 0.0, "via": "api"}
+_PENDING_AUTHOR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$")
+
+
+def read_pending(path: Path) -> dict | None:
+    """The pending change, or None when there is none. A file that exists
+    but cannot be trusted RAISES: until it is withdrawn, rejected or saved
+    again, runs are refused (fail closed) rather than ignoring a change
+    that may have taken something away."""
+    path = Path(path)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        raise EngagementError(f"cannot read the pending engagement change at {path}: {e}")
+    why = ""
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict) or data.get("format") != 1:
+            why = "it is not a pending-change file this version understands"
+        else:
+            record = normalize_record(data.get("record"))
+            if data.get("digest") != record_digest(record):
+                why = "its digest does not match its content"
+            elif not isinstance(data.get("author"), str) or not _PENDING_AUTHOR_RE.match(data["author"]):
+                why = "it does not name who made it"
+    except json.JSONDecodeError as e:
+        why = f"it is not valid JSON ({e})"
+    except EngagementError as e:
+        why = str(e)
+    if why:
+        raise EngagementError(
+            f"the pending engagement change at {path} cannot be used ({why}). Until it is "
+            f"withdrawn, rejected or saved again, runs are refused: Settings → Engagement, or "
+            f"sudo agenti engagement reject-pending")
+    out = dict(data)
+    out["record"] = record
+    return out
+
+
+def stricter_of(live: Engagement, pending: Engagement, scope_kind: str) -> Engagement:
+    """What a run is held to while a change waits for a second admin: only
+    what BOTH versions allow. Scope is the overlap, exclusions and redactions
+    add up, the window is the later start and the earlier end, a switch is
+    on only if both have it on, retention is the shorter one. Names, contact
+    and notes stay the approved record's. So a change that takes something
+    away applies at once; one that adds something waits for approval.
+
+    An empty overlap comes back empty (unlike intersect_scope's agent rule,
+    where an empty list means "no narrowing"): the caller refuses it."""
+    from dataclasses import replace
+    if live.in_scope and pending.in_scope:
+        in_scope = intersect_scope(scope_kind, live.in_scope, pending.in_scope)
+    else:
+        in_scope = []
+    return replace(
+        live,
+        in_scope=in_scope,
+        out_of_scope=list(live.out_of_scope) + [e for e in pending.out_of_scope
+                                                if e not in live.out_of_scope],
+        valid_from=max(live.valid_from, pending.valid_from),
+        valid_until=min(live.valid_until, pending.valid_until),
+        capture_payloads=live.capture_payloads and pending.capture_payloads,
+        retention_days=min(live.retention_days, pending.retention_days),
+        redact=list(live.redact) + [r for r in pending.redact if r not in live.redact],
+        enabled_capabilities=[c for c in live.enabled_capabilities
+                              if c in pending.enabled_capabilities],
+    )
+
+
+def hold_to_pending(eng: Engagement, pending: dict, scope_kind: str) -> Engagement:
+    """`eng` (the approved view) narrowed by a pending change, refusing a
+    result that leaves nothing to act on — naming the change and its author."""
+    who = pending.get("author") or "an admin"
+    merged = stricter_of(eng, engagement_from_record(pending["record"], scope_kind), scope_kind)
+    if not merged.in_scope:
+        raise EngagementError(
+            f"the engagement change by {who}, waiting for another admin's approval, shares "
+            f"none of the approved {scope_kind} scope ({', '.join(eng.in_scope)}). Until it is "
+            f"approved, rejected or withdrawn, a run must fit both versions, so nothing is "
+            f"authorized for this agent. Settings → Engagement.")
+    if merged.valid_from > merged.valid_until:
+        raise EngagementError(
+            f"the engagement change by {who}, waiting for another admin's approval, shares no "
+            f"dates with the approved version. Until it is approved, rejected or withdrawn, a "
+            f"run must fit both versions. Settings → Engagement.")
+    return merged
+
+
 def load_engagement(scope_kind: str, *, org_dir: Path, agent: str = "",
-                    require_approved: bool = False) -> Engagement:
+                    require_approved: bool = False, with_pending: bool = True) -> Engagement:
     """The one call an agent's configure() makes. Every failure names the
     fix: an organisation with no record yet is told which command (and which
     GUI page) creates one; a record with no entries for THIS agent's kind is
     told which flag adds them.
 
     `require_approved` (every runner passes it): the record this run will
-    enforce must itself be the approved one, when the policy requires
-    approval. Preflight checks approval in its own process a moment earlier;
-    an edit saved in between would otherwise be enforced unapproved (audit
-    run 1, N10)."""
+    enforce must itself be the approved one. Preflight checks approval in its
+    own process a moment earlier; an edit saved in between would otherwise be
+    enforced unapproved (audit run 1, N10).
+
+    `with_pending` (default on, and every enforcement point leaves it on):
+    while a change waits for a second admin, the view is the STRICTER of the
+    approved record and the change (stricter_of()). Off only where a caller
+    wants to say which of the two refused something."""
     path = engagement_path(org_dir=org_dir)
+    pending = read_pending(Path(org_dir) / PENDING_FILENAME) if with_pending else None
     if not path.exists():
+        if pending is not None:
+            raise EngagementError(
+                f"there is no engagement in force yet: the first one, proposed by "
+                f"{pending.get('author') or 'an admin'}, is waiting for another admin's approval "
+                f"(Settings → Engagement).")
         raise EngagementError(
             f"there is no engagement yet ({path} does not exist). An admin "
             f"sets one with:\n"
@@ -678,15 +807,15 @@ def load_engagement(scope_kind: str, *, org_dir: Path, agent: str = "",
             f"--{scope_kind}-in '<entry>'\n"
             f"or in the GUI: Settings → Engagement.")
     record = read_record(path)
-    if require_approved and resolve_policy(record)["require_approval"]:
+    if require_approved:
         status = approval_status(record, read_approval(Path(org_dir) / APPROVAL_FILENAME))
         if not status["current"]:
             raise EngagementError(
                 f"engagement '{record.get('engagement_id', '?')}' is not approved as it "
                 f"stands: {status['reason']}. (It may have been edited just as this run "
-                f"started.) An admin approves it with:\n"
-                f"  sudo agenti engagement approve\n"
-                f"or in the GUI: Settings → Engagement.")
+                f"started.) An admin approves it in Settings → Engagement (Save and close), "
+                f"or at the server:\n"
+                f"  sudo agenti engagement approve")
     eng = engagement_from_record(record, scope_kind)
     if not eng.in_scope:
         raise EngagementError(
@@ -696,6 +825,8 @@ def load_engagement(scope_kind: str, *, org_dir: Path, agent: str = "",
             f"  sudo agenti engagement set --{scope_kind}-in '<entry>' "
             f"[--{scope_kind}-in '<entry>' ...]\n"
             f"or in the GUI: Settings → Engagement.")
+    if pending is not None:
+        eng = hold_to_pending(eng, pending, scope_kind)
     if agent:
         eng = apply_agent_scope(
             eng, read_agent_scope(agent_scope_path(org_dir, agent), scope_kind), scope_kind)

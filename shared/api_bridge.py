@@ -57,7 +57,7 @@ agent-build bindings catalog context-memory context-read context-web create-user
 disable-user enable-user enrol-check enrol-consume list-keys list-users mint-enrolment-link
 outputs-cat outputs-delete outputs-list outputs-usage passkey-commit passkey-list
 password-reset-check password-reset-consume policy rename-user reset-user-mfa reset-user-password
-revoke-key self set-api-key set-webauthn setup-first-admin tool-approvals tool-request-file tool-request-list update-check
+revoke-key self set-api-key set-webauthn setup-first-admin tool-approvals update-check
 user-history web-bind web-unbind
 """.split())
 AGENT_VERBS = frozenset("""
@@ -69,7 +69,8 @@ TEAM_VERBS = frozenset("""
 acknowledge add-agent attach consensus delete files inbox note pause remove-agent report resume
 say show start status stop
 """.split())
-ENGAGEMENT_VERBS = frozenset({"show", "set", "approve"})
+ENGAGEMENT_VERBS = frozenset({"show", "set", "approve",
+                              "approve-pending", "reject-pending", "withdraw-pending"})
 DOCS_VERBS = frozenset({"list", "show", "search"})
 
 # Options whose value is a secret: moved to the environment. Positional link

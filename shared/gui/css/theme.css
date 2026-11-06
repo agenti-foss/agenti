@@ -774,6 +774,7 @@ textarea { line-height: 1.5; resize: vertical; }
  * were visibly narrower than the button beneath them at every width. */
 .field input[type=text],
 .field input[type=password],
+.field input[type=number],
 .field select,
 .field textarea { width: 100%; }
 /* A password or a six-digit code is never long, and a box the width of the
@@ -1051,8 +1052,8 @@ td.actions { text-align: right; white-space: nowrap; }
 
 .stack { display: flex; flex-direction: column; gap: var(--space-4); }
 /* .stack stretches its children, which made every submit button inside a form
- * render full-width like another input — "Request a tool" looked like a text
- * field. A button should size to its label. */
+ * render full-width like another input, so it looked like a text field. A
+ * button should size to its label. */
 .stack > button,
 .stack > .btn,
 .stack > .btn-row { align-self: flex-start; }

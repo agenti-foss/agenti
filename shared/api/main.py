@@ -45,6 +45,8 @@ from pathlib import Path
 from typing import Annotated, AsyncIterator, Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response as RawResponse, StreamingResponse
 from pydantic import AfterValidator, AliasChoices, BaseModel, Field, model_validator
 
@@ -101,8 +103,10 @@ def _slot(owner: str, copy: "str | None" = None) -> list:
 # shape that survives that; rejecting it up front turns it into a clear 422
 # instead of a confusing failure three layers down.
 def _no_leading_dash(v: str) -> str:
+    # The value is never repeated in the message: this field may be a
+    # password (found 2026-11-06 — the 422 put it on screen).
     if v.startswith("-"):
-        raise ValueError(f"{v!r} may not start with '-' — it would be read as a flag")
+        raise ValueError("may not start with '-' (it would be read as a flag)")
     return v
 
 
@@ -200,6 +204,16 @@ async def _gui_cache_policy(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "same-origin")
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """A 422 names the field and what is wrong with it, and never repeats
+    what was sent. FastAPI's default echoes each value back (`input`), and
+    a field may be a password, a 2FA code or an API key (found 2026-11-06:
+    a password starting with '-' came back on screen)."""
+    detail = [{k: err[k] for k in ("loc", "msg", "type") if k in err} for err in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(detail)})
 
 
 @app.exception_handler(Exception)
@@ -1231,7 +1245,7 @@ def consume_password_reset(token: LinkToken, body: ConsumePasswordResetRequest,
 
 
 # ---------------------------------------------------------------------------
-# The Outputs store and the tool-request queue. Same discipline as every
+# The Outputs store. Same discipline as every
 # route above — one permission check, one `agenti` call — plus a binary
 # download (bytes OUT), documented where it happens below.
 # ---------------------------------------------------------------------------
@@ -1313,31 +1327,6 @@ def delete_outputs_route(principal: PrincipalName, body: DeleteOutputsBody,
                 "--user", principal, "--by", caller.principal)
     return {"user": principal,
             "results": rows if isinstance(rows, list) else []}
-
-
-class ToolRequestBody(BaseModel):
-    text: ArgValue
-    category: ArgValue = ""
-
-
-@app.post("/tool-requests")
-def file_tool_request(body: ToolRequestBody,
-                      caller: Caller = Depends(require("agent:read"))) -> dict:
-    """Decision 4: "a tool the library lacks is a request, not a button."
-    Needs only agent:read — anyone who can see an agent may ask for
-    something it lacks; there is deliberately no way to act on one from
-    here (see GET /admin/tool-requests's own docstring)."""
-    return _call("admin", "tool-request-file", "--by", caller.principal,
-                "--category", body.category or "", body.text)
-
-
-@app.get("/admin/tool-requests")
-def list_tool_requests(caller: Caller = Depends(require("iam:read"))) -> list:
-    """Admin-only and read-only, on purpose: acting on a request means a
-    human writing and reviewing real code, which stays outside this system
-    — see the module-wide "Deliberately NOT exposed" note at the top of
-    this file for the same reasoning applied to `purge`/`export`/etc."""
-    return _call("admin", "tool-request-list")
 
 
 # ---------------------------------------------------------------------------
@@ -1917,8 +1906,7 @@ def list_tool_approvals(agent: AgentName,
                         caller: Caller = Depends(require("agent:chat"))) -> dict:
     """Programs an agent asked to use during the CALLER's own runs and that
     nobody has answered yet. Only the owner sees or decides them: it is their
-    run, their call. (Not the admin queue for adding tools to the library —
-    that is /tool-requests.)"""
+    run, their call."""
     return _call("admin", "tool-approvals", "pending", f"--agent={agent}", f"--user={caller.principal}")
 
 
@@ -2034,8 +2022,8 @@ class EngagementSetRequest(BaseModel):
     # --dev/commercial split): full-replace like the scope fields above —
     # the Settings dialog always sends its complete current state, an empty
     # allowed_models clears back to the platform default set (--clear-
-    # allowed-models), never "leave it as it was".
-    require_approval: bool = True
+    # allowed-models), never "leave it as it was". (`require_approval` was
+    # retired 2026-11-06: a run always needs an approved engagement.)
     max_turns_ceiling: Optional[int] = None
     max_budget_ceiling: Optional[float] = None
     timeout_ceiling: Optional[int] = None
@@ -2049,11 +2037,23 @@ class EngagementSetRequest(BaseModel):
     clear_max_turns_ceiling: bool = False
     clear_max_budget_ceiling: bool = False
     clear_timeout_ceiling: bool = False
+    # What the admin was editing (the pending change's digest, else the
+    # record's, or "none"): the save is refused if it changed meanwhile, so a
+    # concurrent save is never silently overwritten. And the second-approver
+    # policy they saw — whether this save also approves is part of what they
+    # confirmed. Both go into the hashed arguments.
+    base_digest: Optional[Annotated[str, Field(pattern=r"^([0-9a-f]{64}|none)$")]] = None
+    expect_second_approver: Optional[Literal["on", "off"]] = None
     # The saving admin re-authenticates (audit run 1, F13): the engagement is
     # the legal boundary, so writing it is an admin action like any other.
     password: Optional[ArgValue] = None
     totp: Optional[ArgValue] = None
     reauth: Optional[ReauthToken] = None
+
+
+# The capabilities the Settings engagement form has a box for: each is sent as
+# enabled or disabled on every save, so unticking one really removes it.
+ENGAGEMENT_FORM_CAPABILITIES = ("exploit",)
 
 
 def _engagement_grant(request: Request, caller: Caller, body, action: dict, cli_hint: str) -> str:
@@ -2103,22 +2103,30 @@ def set_engagement(body: EngagementSetRequest, request: Request,
         args += ["--domain-in", entry]
     for entry in body.domain_out:
         args += ["--domain-out", entry]
-    if body.emergency_contact:
-        args += ["--emergency-contact", body.emergency_contact]
-    if body.notes:
-        args += ["--notes", body.notes]
-    if body.capture_payloads:
-        args.append("--capture-payloads")
+    # Every field is sent every time, including "off" and "empty": the store
+    # merges, so a field left out keeps its old value. Until 2026-11-06 an
+    # unticked exploit or payload box, or a cleared contact, notes or
+    # redaction list, was silently kept (found reviewing the engagement flow).
+    args += ["--emergency-contact", body.emergency_contact, "--notes", body.notes,
+             "--capture-payloads" if body.capture_payloads else "--no-capture-payloads",
+             "--retention-days", str(body.retention_days)]
     caps = list(body.enabled_capabilities)
     if body.exploitation_enabled and "exploit" not in caps:
         caps.append("exploit")
+    for c in ENGAGEMENT_FORM_CAPABILITIES:
+        args += ["--enable-capability" if c in caps else "--disable-capability", c]
     for c in caps:
-        args += ["--enable-capability", c]
-    if body.retention_days:
-        args += ["--retention-days", str(body.retention_days)]
-    for entry in body.redact:
-        args += ["--redact", entry]
-    args.append("--require-approval" if body.require_approval else "--no-require-approval")
+        if c not in ENGAGEMENT_FORM_CAPABILITIES:
+            args += ["--enable-capability", c]
+    if body.redact:
+        for entry in body.redact:
+            args += ["--redact", entry]
+    else:
+        args.append("--clear-redact")
+    if body.base_digest:
+        args += ["--base-digest", body.base_digest]
+    if body.expect_second_approver:
+        args += ["--expect-second-approver", body.expect_second_approver]
     if body.clear_max_turns_ceiling:
         args.append("--clear-max-turns-ceiling")
     elif body.max_turns_ceiling is not None:
@@ -2175,6 +2183,85 @@ def approve_engagement(body: EngagementApproveRequest, request: Request,
     if body.engagement_id:
         args += ["--engagement-id", body.engagement_id]
     return _call(*args)
+
+
+# ---------------------------------------------------------------------------
+# A change waiting for a second admin (platform policy
+# engagement-second-approver). Each decision is its own single-use grant bound
+# to the pending change's digest; the store decides, but these routes look
+# first, so a request the store would refuse costs nobody a 2FA code.
+# ---------------------------------------------------------------------------
+class PendingDecision(BaseModel):
+    digest: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    engagement_id: ArgValue | None = None
+    reason: Optional[Annotated[str, Field(max_length=500), AfterValidator(_no_leading_dash)]] = None
+    password: Optional[ArgValue] = None
+    totp: Optional[ArgValue] = None
+    reauth: Optional[ReauthToken] = None
+
+
+def _pending_precheck(caller: Caller, digest: str, decision: str) -> dict:
+    shown = _call("engagement", "show")
+    pending = shown.get("pending") if isinstance(shown, dict) else None
+    if not pending:
+        raise HTTPException(409, "there is no engagement change waiting for approval any more — reload")
+    if pending.get("digest") != digest:
+        raise HTTPException(409, "the pending change was replaced after you opened it — reload and "
+                                 "review the current version")
+    author = pending.get("author")
+    if decision == "approve":
+        if pending.get("stale"):
+            raise HTTPException(409, f"{author}'s change was made against an older version — it must be "
+                                     f"saved again, or rejected")
+        if shown.get("second_approver") == "on" and author == caller.principal:
+            raise HTTPException(403, "you made this change, so another admin approves it "
+                                     "(the engagement-second-approver policy is on)")
+    if decision == "reject" and author == caller.principal:
+        raise HTTPException(403, "you made this change: withdraw it instead")
+    if decision == "withdraw" and author != caller.principal:
+        raise HTTPException(403, f"only {author}, who made this change, can withdraw it — "
+                                 f"another admin rejects it instead")
+    return pending
+
+
+@app.post("/engagement/pending/approve")
+def approve_pending_engagement(body: PendingDecision, request: Request,
+                               caller: Caller = Depends(require("engagement:approve"))) -> dict:
+    """Approve the change waiting for a second admin: it becomes the
+    engagement, approved, in one step."""
+    _pending_precheck(caller, body.digest, "approve")
+    grant = _engagement_grant(request, caller, body, {"op": "engagement-approve-pending",
+                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
+                              "sudo agenti engagement approve-pending")
+    args = ["engagement", "approve-pending", f"--expect-digest={body.digest}", f"--grant={grant}"]
+    if body.engagement_id:
+        args += ["--engagement-id", body.engagement_id]
+    return _call(*args)
+
+
+@app.post("/engagement/pending/reject")
+def reject_pending_engagement(body: PendingDecision, request: Request,
+                              caller: Caller = Depends(require("engagement:approve"))) -> dict:
+    """Reject another admin's pending change (its author withdraws instead)."""
+    _pending_precheck(caller, body.digest, "reject")
+    grant = _engagement_grant(request, caller, body, {"op": "engagement-reject-pending",
+                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
+                              "sudo agenti engagement reject-pending")
+    args = ["engagement", "reject-pending", f"--expect-digest={body.digest}", f"--grant={grant}"]
+    if body.reason:
+        args += ["--reason", body.reason]
+    return _call(*args)
+
+
+@app.post("/engagement/pending/withdraw")
+def withdraw_pending_engagement(body: PendingDecision, request: Request,
+                                caller: Caller = Depends(require("engagement:manage"))) -> dict:
+    """Withdraw your own pending change."""
+    _pending_precheck(caller, body.digest, "withdraw")
+    grant = _engagement_grant(request, caller, body, {"op": "engagement-withdraw-pending",
+                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
+                              "sudo agenti engagement withdraw-pending")
+    return _call("engagement", "withdraw-pending", f"--expect-digest={body.digest}", f"--grant={grant}")
 
 
 @app.get("/agents/{agent}/tools")

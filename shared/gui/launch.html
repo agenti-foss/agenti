@@ -89,7 +89,7 @@
           </div>
 
           <details class="disclosure" id="run-caps-disclosure">
-            <summary>Advanced: turns / budget / timeout</summary>
+            <summary>Advanced</summary>
             <div class="field-row">
               <div class="field">
                 <label for="run-turns">Max turns</label>
@@ -104,37 +104,10 @@
                 <input type="number" id="run-timeout" min="1" placeholder="ceiling">
               </div>
             </div>
-            <p class="hint">Blank = the organisation's ceiling. You can only go lower.</p>
           </details>
 
           <div id="run-banner" class="banner err"></div>
           <button type="submit" class="btn btn-primary" id="run-btn" data-icon="play"><span>Run</span></button>
-        </form>
-      </div>
-
-      <div class="panel">
-        <h2 class="ih" data-icon="wrench">Don't see what you need?</h2>
-        <p class="hint">A person reviews every request before it appears here.</p>
-        <form id="tool-request-form" class="stack">
-          <div class="field-row">
-            <div class="field">
-              <label for="tr-kind">What do you need?</label>
-              <select id="tr-kind">
-                <option value="tool">A tool or capability</option>
-                <option value="program">A command-line program installed on the server</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="tr-category" id="tr-category-label">Roughly which agent</label>
-              <input type="text" id="tr-category" placeholder="e.g. a mobile-app scanner">
-            </div>
-          </div>
-          <div class="field">
-            <label for="tr-text" id="tr-text-label">What's missing</label>
-            <textarea id="tr-text" rows="2" placeholder="describe the tool or capability you need" required></textarea>
-          </div>
-          <div id="tr-banner" class="banner err"></div>
-          <button type="submit" class="btn" data-icon="wrench"><span>Request a tool</span></button>
         </form>
       </div>
 

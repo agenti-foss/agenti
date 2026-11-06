@@ -73,7 +73,7 @@ def validate_name(name: str) -> None:
     reserved = {
         "shared", "lost+found", "list",
         "new", "admin", "vault", "gui", "help", "docs", "agents", "setup", "setup-code", "verify",
-        "team", "outputs", "tool-requests",
+        "team", "outputs",
         "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
         "user-history", "rename",
     }

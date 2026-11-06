@@ -121,10 +121,19 @@ for bad in ("--by=mallory", "--by", "--via=cli", "--via"):
 check("...a console admin may still name --by",
       "PASSED" in subprocess.run(["bash", "-c", PRELUDE + ident, "t", "--by=alice"], capture_output=True,
                                  text=True, env={**os.environ, "SUDO_USER": "alice"}).stdout, True)
-for fn in ("cmd_org_engagement_set", "cmd_org_engagement_approve"):
+for fn in ("cmd_org_engagement_set", "cmd_org_engagement_approve", "cmd_org_engagement_decide"):
     body = func(fn)
     check(f"{fn} checks every argument for a caller identity", "_refuse_identity_from_api" in body, True)
-    check(f"{fn} passes the CLI's own --by/--via LAST", bool(re.search(r'"\$\{args\[@\]\}" --by "\$by" --via "\$via"', body)), True)
+    # The CLI's own values come after the caller's arguments: the policy it
+    # read itself (when the verb needs it), then --by/--via.
+    check(f"{fn} passes the CLI's own --by/--via LAST", bool(re.search(
+        r'"\$\{args\[@\]\}"(?: (?:\\\n\s*)?--second-approver "\$ENG_SECOND_APPROVER")?\s*(?:\\\n\s*)?--by "\$by" --via "\$via"',
+        body)), True)
+for fn in ("cmd_org_engagement_set", "cmd_org_engagement_approve"):
+    check(f"{fn} refuses a caller-supplied --second-approver",
+          "--second-approver|--second-approver=*" in func(fn), True)
+check("engagement decisions name the pending change's digest from the web",
+      'die "REFUSING: from the web, $verb must name the digest' in func("cmd_org_engagement_decide"), True)
 for fn in ("cmd_team_say", "cmd_team_note", "cmd_say", "cmd_note", "cmd_set_model", "cmd_acknowledge",
            "cmd_action_approve", "cmd_action_reject", "cmd_tool_settings"):
     body = func(fn)

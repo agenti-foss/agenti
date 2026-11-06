@@ -255,9 +255,9 @@ for name in os.listdir(dfd):
         os.close(fd)
 os.close(dfd)
 PYFIX
-    # Free-form operator text for an admin to triage: root only. Never truncated.
-    [[ -f "$AGENTI_STATE/tool-requests.jsonl" ]] \
-        || install -o root -g root -m 0640 /dev/null "$AGENTI_STATE/tool-requests.jsonl"
+    # The "request a tool" queue was removed in 0.1.4 (operator decision
+    # 2026-11-06): its file goes with it.
+    rm -f "$AGENTI_STATE/tool-requests.jsonl"
     ok "user database 0640 root:$AUTHD_USER, sessions 0700 $AUTHD_USER"
 }
 

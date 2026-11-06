@@ -229,8 +229,7 @@ def build(args) -> dict:
     out["sections"].append({
         "id": "limits", "title": "Run limits (set for the organisation)", "editable": True,
         "edit_where": "Settings → Engagement",
-        "rows": [["Admin approval required", "yes" if pol.get("require_approval") else "no"],
-                 ["Max turns", str(pol.get("max_turns_ceiling"))],
+        "rows": [["Max turns", str(pol.get("max_turns_ceiling"))],
                  ["Max spend per run", f"${pol.get('max_budget_usd_ceiling')}"],
                  ["Max run time", f"{pol.get('timeout_s_ceiling')} s"],
                  ["Allowed models", ", ".join(pol.get("allowed_models") or []) or "—"]]})

@@ -1514,42 +1514,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
   }
-  // ---------- Tool requests (admin, read-only — phase 7 of the
-  // generic-launcher arc, decision 4) ----------
-  if (canReadIam) {
-    const panel = document.getElementById("tool-requests-panel");
-    panel.hidden = false;
-    const list = document.getElementById("tool-requests-list");
-    const banner = document.getElementById("tool-requests-banner");
-    list.innerHTML = `<p class="list-empty">Loading…</p>`;
-    tasks.push((async () => { try {
-      const rows = await Agenti.get("admin/tool-requests");
-      // A "program" request: show the install command to run at a terminal
-      // (the website never installs software), only for a plain program name.
-      const installCmd = (r) => {
-        if (r.category !== "install-program") return "";
-        const prog = String(r.text || "").split(":")[0].trim();
-        return /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/.test(prog) ? `sudo apt install ${prog}` : "";
-      };
-      list.innerHTML = rows.length
-        ? rows.map((r) => {
-          const cmd = installCmd(r);
-          return `
-          <div class="list-row">
-            <span class="list-icon">${Agenti.icon(r.category === "install-program" ? "download" : "wrench")}</span>
-            <div class="list-main">
-              <div class="list-title">${r.category === "install-program" ? `<span class="wiz-tag">Install a program</span> ` : ""}${esc(r.text)}</div>
-              <div class="list-sub">${esc(r.by)}${r.category && r.category !== "install-program" ? ` · ${esc(r.category)}` : ""} · ${esc(Agenti.when(r.created_at))}</div>
-              ${cmd ? `<div class="list-sub">Run on the server: <code>${esc(cmd)}</code> ${Agenti.copyButtonHtml(cmd, "Copy the install command")}
-                — then add it under Agents → Controls → Program catalog.</div>` : ""}
-            </div>
-          </div>`; }).join("")
-        : `<p class="list-empty">Nothing filed yet.</p>`;
-      if (Agenti.wireCopyButtons) Agenti.wireCopyButtons(list);
-    } catch (err) {
-      Agenti.banner(banner, "err", Agenti.errorText(err));
-    } })());
-  }
   // ---------- Users (admin) ----------
   if (showUsers) {
     const panel = document.getElementById("users-panel");

@@ -114,7 +114,7 @@ deliberate).
 /etc/agenti/                      api.conf (bind/TLS/domain/proxy), vault.conf (= vault on)
 /etc/sudoers.d/agenti-api         agenti-api may run api_bridge.py with NO args, nothing else
 /var/lib/agenti/                  works while the vault is locked: iam.db (0640
-  root:agenti-authd), authd/runtime.db (0700 agenti-authd), tls/, tool-requests.jsonl
+  root:agenti-authd), authd/runtime.db (0700 agenti-authd), tls/
 /var/lib/agenti/data/             THE DATA ROOT ($AGENTI_ROOT); the vault's mount point
 ├── shared/                       secrets.env (last of 4 key tiers: org/users/<u>/ (via
 │                                 the slot's userkey.conf), org/<agent>/, org/, shared/), context/ (instruction

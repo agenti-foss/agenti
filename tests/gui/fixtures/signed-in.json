@@ -463,10 +463,6 @@
     "require-2fa": "on"
    }
   },
-  "GET /admin/tool-requests": {
-   "status": 200,
-   "body": []
-  },
   "GET /admin/tool-settings/enum": {
    "status": 200,
    "body": {

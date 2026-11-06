@@ -147,11 +147,13 @@ try:
     partial = ec.resolve_policy({"policy": {"max_turns_ceiling": 5}})
     check("a partial override narrows just that field", partial["max_turns_ceiling"], 5)
     check("...and leaves every other field at the platform default",
-          (partial["max_budget_usd_ceiling"], partial["timeout_s_ceiling"], partial["allowed_models"],
-           partial["require_approval"]),
+          (partial["max_budget_usd_ceiling"], partial["timeout_s_ceiling"], partial["allowed_models"]),
           (ec.PLATFORM_DEFAULT_POLICY["max_budget_usd_ceiling"], ec.PLATFORM_DEFAULT_POLICY["timeout_s_ceiling"],
-           ec.PLATFORM_DEFAULT_POLICY["allowed_models"], True))
-    check("require_approval=False is honoured", ec.resolve_policy({"policy": {"require_approval": False}})["require_approval"], False)
+           ec.PLATFORM_DEFAULT_POLICY["allowed_models"]))
+    check("the retired require_approval is not part of the effective policy",
+          "require_approval" in ec.resolve_policy({"policy": {"require_approval": False}}), False)
+    check("...but a stored record carrying it still loads, and drops it",
+          "require_approval" in ec.normalize_record(base(policy={"require_approval": False}))["policy"], False)
     check("an empty allowed_models list is treated as unset (falls back to the platform default)",
           ec.resolve_policy({"policy": {"allowed_models": []}})["allowed_models"], ec.PLATFORM_DEFAULT_POLICY["allowed_models"])
     check("canonical_model resolves a curated alias", ec.canonical_model("haiku"), "claude-haiku-4-5-20251001")
@@ -172,7 +174,6 @@ try:
     refuses("non-numeric max_budget_usd_ceiling refused", lambda: ec.normalize_record(base(policy={"max_budget_usd_ceiling": "a lot"})), "positive")
     refuses("a bool is not a valid ceiling (bool is a subclass of int in Python)",
             lambda: ec.normalize_record(base(policy={"max_turns_ceiling": True})), "positive")
-    refuses("non-bool require_approval refused", lambda: ec.normalize_record(base(policy={"require_approval": "yes"})), "true or false")
     refuses("an unrecognized model name is refused, naming the curated list",
             lambda: ec.normalize_record(base(policy={"allowed_models": ["gpt-4"]})), "unrecognized", "haiku")
     ok_rec = ec.normalize_record(base(policy={"allowed_models": ["haiku", "haiku", "sonnet"]}))
@@ -242,8 +243,8 @@ try:
           ec.load_engagement("cidr", org_dir=org_dir).in_scope, ["0.0.0.0/0"])
     _off = base(scope={"cidr": {"in_scope": ["0.0.0.0/0"]}}, policy={"require_approval": False})
     (org_dir / ec.ORG_ENGAGEMENT_FILENAME).write_text(json.dumps(_off))
-    check("with approval switched off by policy, no approval is needed",
-          ec.load_engagement("cidr", org_dir=org_dir, require_approved=True).in_scope, ["0.0.0.0/0"])
+    refuses("a stored (retired) require_approval:false no longer lets an unapproved record run",
+            lambda: ec.load_engagement("cidr", org_dir=org_dir, require_approved=True), "not approved")
     (org_dir / ec.APPROVAL_FILENAME).unlink()
 
     section("approval_status(): bound to content")
@@ -277,7 +278,17 @@ try:
     t2 = tmp / "root2"; (t2 / "shared").mkdir(parents=True); (t2 / "beta").mkdir()
     tdir = t2 / "beta"
 
+    def with_policy(argv, policy="off"):
+        """The CLI always passes the platform policy (--second-approver); a
+        test that does not name it gets "off", the default."""
+        argv = list(argv)
+        verbs = [i for i, a in enumerate(argv) if a in ("set", "approve", "approve-pending")]
+        if verbs and "--second-approver" not in argv:
+            argv[verbs[0] + 1:verbs[0] + 1] = ["--second-approver", policy]
+        return argv
+
     def run(*argv, expect=0):
+        argv = with_policy(argv)
         p = subprocess.run([sys.executable, str(store), "--org-dir", str(tdir), *argv],
                            capture_output=True, text=True)
         try:
@@ -302,7 +313,8 @@ try:
     check("create with core fields but NO scope refused (authorizes nothing)", "authorizes nothing" in out["error"], True)
     out = run("set", "--by", "alice", *core, "--cidr-in", "10.9.0.0/24 (dmz)", "--cidr-out", "10.9.9.0/24 (prod)")
     check("create succeeds", (out["ok"], out["created"], out["engagement_id"]), (True, True, "BETA-01"))
-    check("...reports not approved yet", out["approval_status"]["approved"], False)
+    check("...and with the second-approver policy off, the save approved it as alice",
+          (out["approval_status"]["current"], out["approval_status"].get("approved_by")), (True, "alice"))
     rec_path = tdir / ec.ORG_ENGAGEMENT_FILENAME
     check("record file mode 0640", stat.S_IMODE(rec_path.stat().st_mode), 0o640)
     check("no tmp file left behind", [p.name for p in tdir.iterdir() if p.name.endswith(".tmp")], [])
@@ -333,8 +345,11 @@ try:
     check("adding a domain kind: changed names scope.domain only", out["changed"], ["scope.domain"])
     check("...cidr lists untouched by a domain-only edit",
           json.loads(rec_path.read_text())["scope"]["cidr"], {"in_scope": ["10.9.0.0/24 (dmz)"], "out_of_scope": ["10.9.9.0/24 (prod)"]})
-    check("...APPROVAL IS NOW STALE (edit after approval)", (out["approval_status"]["approved"], out["approval_status"]["current"]), (True, False))
-    check("...reason names the approver and that it changed", "alice" in out["approval_status"]["reason"] and "changed after" in out["approval_status"]["reason"], True)
+    check("...the save approved the NEW version (policy off: saved = approved)",
+          (out["approval_status"]["current"], out.get("approved")), (True, True))
+    _appr = json.loads((tdir / ec.APPROVAL_FILENAME).read_text())
+    check("...approval.json names the saver and kind 'save', bound to the new digest",
+          (_appr["approved_by"], _appr["kind"], _appr["digest"]), ("alice", "save", out["digest"]))
     check("...file actually rewritten", rec_path.stat().st_mtime_ns != before, True)
     out = run("set", "--by", "alice", "--cidr-in", "10.9.1.0/24 (new)")
     check("--cidr-in alone replaces cidr in_scope but keeps cidr out_of_scope",
@@ -359,10 +374,14 @@ try:
     out = run("set", "--by", "alice", "--no-capture-payloads", "--clear-redact")
     check("tri-state capture flag + clear-redact", (json.loads(rec_path.read_text())["capture_payloads"], json.loads(rec_path.read_text())["redact"]), (False, []))
     out = run("set", "--by", "alice", "--engagement-id", "BETA-02")
-    check("renaming the engagement id: approval stale, reason names both ids",
-          (out["approval_status"]["current"], "BETA-01" in out["approval_status"]["reason"] and "BETA-02" in out["approval_status"]["reason"]), (False, True))
+    check("renaming the engagement id: approved as saved, under the new id",
+          (out["approval_status"]["current"], json.loads((tdir / ec.APPROVAL_FILENAME).read_text())["engagement_id"]),
+          (True, "BETA-02"))
     out = run("approve", "--by", "bob")
-    check("fresh approval after edits: current again", out["approval_status"]["current"], True)
+    check("a direct approval of the record in force still works", out["approval_status"]["current"], True)
+    out = run("set", "--by", "alice", "--cidr-out", "free text, not a CIDR", expect=2)
+    check("a free-text exclusion is refused at save (it would refuse every run)",
+          "does not start with an IP or CIDR" in out.get("error", ""), True)
 
     section("engagement_store.py: operational policy flags, the real CLI "
             "(CLAUDE.md \"Current plan\" — replaces the retired --dev/commercial split)")
@@ -381,15 +400,9 @@ try:
     check("a second, independent ceiling field: the first one is untouched (per-field merge)",
           (out["effective_policy"]["max_turns_ceiling"], out["effective_policy"]["max_budget_usd_ceiling"]),
           (15, 3.5))
-    out = run("set", "--by", "alice", "--no-require-approval")
-    check("require-approval turned off", out["effective_policy"]["require_approval"], False)
-    out = run("set", "--by", "alice", "--require-approval")
-    check("require-approval turned back on", out["effective_policy"]["require_approval"], True)
-    out = run("set", "--by", "alice", "--via", "api", "--no-require-approval", expect=2)
-    check("F10: from the web, approval cannot be turned off", "console-only" in out.get("error", ""), True)
-    check("...and the record still requires it", run("show")["effective_policy"]["require_approval"], True)
-    out = run("set", "--by", "alice", "--via", "api", "--require-approval")
-    check("...but re-saving it ON from the web is fine", out["effective_policy"]["require_approval"], True)
+    for _flag in ("--no-require-approval", "--require-approval"):
+        out = run("set", "--by", "alice", _flag, expect=2)
+        check(f"the retired {_flag} is refused with a sentence, nothing changed", "retired" in out.get("error", ""), True)
     d_now = run("show")["digest"]
     out = run("approve", "--by", "bob", "--expect-digest", "0" * 64, expect=2)
     check("F25: an approval of a version that is no longer on disk is refused",
@@ -478,12 +491,13 @@ try:
           ("cannot be read" in out["error"] and "--engagement-id" in out["error"]), True)
     out = run("set", "--by", "alice", *core, "--cidr-in", "10.9.0.0/24 (dmz)")
     check("the full create command REPLACES the corrupt file", (out["ok"], out["created"], "not valid JSON" in out.get("replaced_invalid", "")), (True, True, True))
-    check("...history records the replacement", "replaced_invalid" in run("history", "-n", "1")["history"][-1], True)
+    check("...history records the replacement",
+          any("replaced_invalid" in r for r in run("history", "-n", "2")["history"]), True)
     rec_path.write_text(good_before)
 
     p = subprocess.run([sys.executable, str(store), "--org-dir", str(t2 / "nope"), "show"], capture_output=True, text=True)
     check("nonexistent tenant dir refused with exit 2", (p.returncode, "does not exist" in json.loads(p.stdout)["error"]), (2, True))
-    p = subprocess.run([sys.executable, str(store), "--org-dir", str(tdir), "--group", "no-such-group-xyz", "set", "--by", "x", "--notes", "n"], capture_output=True, text=True)
+    p = subprocess.run([sys.executable, str(store), "--org-dir", str(tdir), "--group", "no-such-group-xyz", "set", "--second-approver", "off", "--by", "x", "--notes", "n"], capture_output=True, text=True)
     check("unknown --group refused before anything is written", (p.returncode, "unknown group" in json.loads(p.stdout)["error"]), (2, True))
     check("...record untouched by the refused call", json.loads(rec_path.read_text())["notes"], "window 18:00-06:00")
 
@@ -514,6 +528,9 @@ atmp = Path(tempfile.mkdtemp())
 try:
     (atmp / "enum").mkdir()
     def store(*a):
+        a = list(a)
+        if a and a[0] == "set":
+            a[1:1] = ["--second-approver", "off"]
         r = subprocess.run([sys.executable, str(HERE / "engagement_store.py"), "--org-dir", str(atmp), *a],
                            capture_output=True, text=True)
         return json.loads(r.stdout)
@@ -546,6 +563,181 @@ try:
 finally:
     import shutil
     shutil.rmtree(atmp, ignore_errors=True)
+
+# ---------------------------------------------------------------------------
+# A change waiting for a second admin (platform policy engagement-second-
+# approver, operator decision 2026-11-06): the stricter of the two applies.
+section("stricter_of(): a run must fit BOTH the approved record and the pending change")
+_live = ec.engagement_from_record(base(scope={"cidr": {"in_scope": ["10.0.0.0/24 (lab)", "10.1.0.0/24"],
+                                                       "out_of_scope": ["10.0.0.9/32 (printer)"]}},
+                                       capture_payloads=True, retention_days=30, redact=["Cookie"],
+                                       enabled_capabilities=["exploit"],
+                                       valid_from="2026-01-01", valid_until="2026-12-31"), "cidr")
+_pend = ec.engagement_from_record(base(scope={"cidr": {"in_scope": ["10.0.0.0/24", "10.9.0.0/24"],
+                                                       "out_of_scope": ["10.0.0.7/32"]}},
+                                       capture_payloads=False, retention_days=0, redact=["Authorization"],
+                                       valid_from="2026-03-01", valid_until="2027-06-30"), "cidr")
+_m = ec.stricter_of(_live, _pend, "cidr")
+check("scope: only the overlap (a removed range goes, an added one waits)", _m.in_scope, ["10.0.0.0/24"])
+check("exclusions from both add up", _m.out_of_scope, ["10.0.0.9/32 (printer)", "10.0.0.7/32"])
+check("window: the later start and the earlier end", (_m.valid_from, _m.valid_until), ("2026-03-01", "2026-12-31"))
+check("payload capture only if both allow it", _m.capture_payloads, False)
+check("a capability only if both enable it (exploit switched off applies at once)", _m.enabled_capabilities, [])
+check("retention: the shorter (0 = destroy on close)", _m.retention_days, 0)
+check("redactions add up", _m.redact, ["Cookie", "Authorization"])
+check("names and contact stay the approved record's", (_m.client, _m.engagement_id), (_live.client, _live.engagement_id))
+check("no overlap comes back empty (the caller refuses it)",
+      ec.stricter_of(_live, ec.engagement_from_record(base(scope={"cidr": {"in_scope": ["192.0.2.0/24"]}}), "cidr"),
+                     "cidr").in_scope, [])
+_dom_live = ec.engagement_from_record(base(), "domain")
+_dom_pend = ec.engagement_from_record(base(scope={"domain": {"in_scope": ["shop.acme.example"]}}), "domain")
+check("domains: a narrower pending entry narrows", ec.stricter_of(_dom_live, _dom_pend, "domain").in_scope,
+      ["shop.acme.example"])
+
+ptmp = Path(tempfile.mkdtemp())
+try:
+    pdir = ptmp / "org"; pdir.mkdir()
+    _store = HERE / "engagement_store.py"
+
+    def pst(*argv, expect=0, policy="on"):
+        argv = list(argv)
+        if argv[0] in ("set", "approve", "approve-pending") and "--second-approver" not in argv:
+            argv[1:1] = ["--second-approver", policy]
+        p = subprocess.run([sys.executable, str(_store), "--org-dir", str(pdir), *argv],
+                           capture_output=True, text=True)
+        out = json.loads(p.stdout)
+        check(f"exit {expect}: {' '.join(argv)[:70]}" + (f" [{out.get('error', '')[:90]}]" if p.returncode != expect else ""),
+              p.returncode, expect)
+        return out
+
+    def pending_file():
+        f = pdir / ec.PENDING_FILENAME
+        return json.loads(f.read_text()) if f.exists() else None
+
+    _core = ["--engagement-id", "P-01", "--client", "Pending Ltd", "--authorizing-party", "Sam",
+             "--authorizing-title", "CISO", "--authorization-ref", "SOW-P", "--valid-from", "2026-01-01",
+             "--valid-until", "2026-12-31"]
+
+    section("policy on, no engagement yet: the first one waits too")
+    out = pst("set", "--by", "alice", *_core, "--cidr-in", "10.20.0.0/24", "--replace-scope", "cidr")
+    check("nothing in force yet, the save is pending", ((pdir / ec.ORG_ENGAGEMENT_FILENAME).exists(),
+                                                        out["pending"]["author"]), (False, "alice"))
+    try:
+        ec.load_engagement("cidr", org_dir=pdir); got = "ran"
+    except ec.EngagementError as e:
+        got = "refused" if "waiting for another admin" in str(e) else str(e)
+    check("a run is refused, naming the proposer and the wait", got, "refused")
+    out = pst("approve-pending", "--by", "alice", expect=2)
+    check("its author cannot approve it", "another admin approves it" in out["error"], True)
+    out = pst("approve-pending", "--by", "bob", "--expect-digest", pending_file()["digest"])
+    check("another admin approves it: it is in force and approved, by bob, proposed by alice",
+          (out["approval_status"]["current"], out["approval"]["approved_by"], out["approval"]["proposed_by"]),
+          (True, "bob", "alice"))
+    check("...the pending file is gone", pending_file(), None)
+    check("...the record names its author", json.loads((pdir / ec.ORG_ENGAGEMENT_FILENAME).read_text())["updated_by"], "alice")
+
+    section("policy on: a change waits, the version in force stays, runs fit both")
+    live_digest = pst("show")["digest"]
+    out = pst("set", "--by", "carol", "--cidr-in", "10.20.0.0/25", "--cidr-in", "10.30.0.0/24",
+              "--replace-scope", "cidr", "--enable-capability", "exploit")
+    pf = pending_file()
+    check("the change is pending, by carol, against the version in force",
+          (pf["author"], pf["base_digest"], pf["format"]), ("carol", live_digest, 1))
+    check("pending file mode 0640", stat.S_IMODE((pdir / ec.PENDING_FILENAME).stat().st_mode), 0o640)
+    check("the record in force is untouched", pst("show")["digest"], live_digest)
+    eng = ec.load_engagement("cidr", org_dir=pdir)
+    check("runs are held to the overlap: the cut applies, the addition waits", eng.in_scope, ["10.20.0.0/25"])
+    check("...and exploit stays off until approved", eng.enabled_capabilities, [])
+    check("...a plain view without the pending change still shows the approved one",
+          ec.load_engagement("cidr", org_dir=pdir, with_pending=False).in_scope, ["10.20.0.0/24"])
+    sh = pst("show", "--second-approver", "on", "--approver", "carol", "--approver", "bob")
+    check("show: the pending change, its author, what changed, not stale",
+          (sh["pending"]["author"], sorted(sh["pending"]["changed"]), sh["pending"]["stale"]),
+          ("carol", ["enabled_capabilities", "scope.cidr"], False))
+    check("show: another admin is available to approve it", (sh["pending"]["approvers_available"], sh["approvers_count"]), (True, 2))
+    check("show: in force now = the stricter of both", sh["pending"]["in_force_now"]["scope"]["cidr"]["in_scope"], ["10.20.0.0/25"])
+    sh1 = pst("show", "--second-approver", "on", "--approver", "carol")
+    check("show: with carol the only approver, nobody can approve her change (dead end shown)",
+          sh1["pending"]["approvers_available"], False)
+    check("show: the platform default policy is reported (the GUI's Reset placeholder)",
+          sh["platform_default_policy"], ec.PLATFORM_DEFAULT_POLICY)
+
+    out = pst("set", "--by", "dave", "--max-turns-ceiling", "12")
+    check("caps apply at once even while a change waits",
+          json.loads((pdir / ec.ORG_ENGAGEMENT_FILENAME).read_text())["policy"]["max_turns_ceiling"], 12)
+    check("...and do not touch the pending change's author", pending_file()["author"], "carol")
+
+    out = pst("set", "--by", "dave", "--notes", "keep it quiet", "--base-digest", "0" * 64, expect=2)
+    check("a save against a version that moved on is refused (base digest)", "changed after you opened it" in out["error"], True)
+    out = pst("set", "--by", "dave", "--notes", "keep it quiet", "--expect-second-approver", "off", expect=2)
+    check("a save made under the other policy setting is refused", "second-approver policy is now on" in out["error"], True)
+    out = pst("set", "--by", "dave", "--notes", "keep it quiet", "--base-digest", pf["digest"])
+    pf2 = pending_file()
+    check("a further save replaces the pending change; dave is now its author (carol listed too)",
+          (pf2["author"], pf2["authors"], pf2["opened_at"] == pf["opened_at"]), ("dave", ["carol", "dave"], True))
+    check("...it builds on the pending change, not on the version in force",
+          (pf2["record"]["notes"], pf2["record"]["enabled_capabilities"]), ("keep it quiet", ["exploit"]))
+    out = pst("withdraw-pending", "--by", "carol", expect=2)
+    check("only the latest author withdraws", "only dave" in out["error"], True)
+    out = pst("reject-pending", "--by", "dave", expect=2)
+    check("an author rejects nothing; they withdraw", "withdraw it instead" in out["error"], True)
+    out = pst("approve-pending", "--by", "bob", "--expect-digest", pf["digest"], expect=2)
+    check("approving a version that was replaced is refused", "replaced after you opened it" in out["error"], True)
+    out = pst("approve-pending", "--by", "carol", "--expect-digest", pf2["digest"])
+    check("carol may approve dave's version (the rule is: not its latest author)", out["approval"]["approved_by"], "carol")
+    rec = json.loads((pdir / ec.ORG_ENGAGEMENT_FILENAME).read_text())
+    check("approved: the change is in force, caps kept, exploit on now",
+          (rec["policy"]["max_turns_ceiling"], rec["enabled_capabilities"], rec["notes"]), (12, ["exploit"], "keep it quiet"))
+
+    section("policy on: reject, withdraw, saving back, stale")
+    pst("set", "--by", "erin", "--notes", "change one")
+    out = pst("reject-pending", "--by", "bob", "--reason", "not agreed")
+    check("another admin rejects it", (out["rejected"], out["author"], pending_file()), (True, "erin", None))
+    pst("set", "--by", "erin", "--notes", "change two")
+    out = pst("withdraw-pending", "--by", "erin")
+    check("its author withdraws it", (out["withdrawn"], pending_file()), (True, None))
+    pst("set", "--by", "erin", "--notes", "change three")
+    out = pst("set", "--by", "erin", "--notes", "keep it quiet")
+    check("saving back to exactly the version in force clears the pending change",
+          (out.get("cleared"), pending_file()), (True, None))
+    pst("set", "--by", "erin", "--notes", "change four")
+    _last = json.loads((pdir / ec.ORG_ENGAGEMENT_FILENAME).read_text())["updated_by"]
+    out = pst("approve", "--by", _last, expect=2)
+    check(f"policy on: {_last}, the last saver of the record in force, cannot approve it directly either",
+          "another admin approves it" in out["error"], True)
+    _pf = pending_file()
+    _pf_stale = dict(_pf); _pf_stale["base_digest"] = "f" * 64
+    (pdir / ec.PENDING_FILENAME).write_text(json.dumps(_pf_stale))
+    out = pst("approve-pending", "--by", "bob", expect=2)
+    check("a change made against an older version cannot be approved (stale)", "older version" in out["error"], True)
+    (pdir / ec.PENDING_FILENAME).write_text(json.dumps(_pf))
+
+    section("an unusable pending file: runs refused, never a dead end")
+    (pdir / ec.PENDING_FILENAME).write_text("{broken")
+    try:
+        ec.load_engagement("cidr", org_dir=pdir); got = "ran"
+    except ec.EngagementError as e:
+        got = "refused" if "cannot be used" in str(e) else str(e)
+    check("a broken pending file refuses runs (fail closed), naming the fix", got, "refused")
+    check("show reports it", "cannot be used" in (pst("show").get("pending_invalid") or ""), True)
+    out = pst("reject-pending", "--by", "anyone")
+    check("any admin may reject a broken pending file", (out["rejected"], pending_file()), (True, None))
+
+    section("policy off: a direct save supersedes a change that was left waiting")
+    pst("set", "--by", "erin", "--notes", "left waiting")
+    out = pst("set", "--by", "frank", "--notes", "direct", policy="off")
+    check("the direct save is in force and approved by frank; the waiting change is cleared",
+          (out["approval_status"]["current"], out["approval_status"]["approved_by"], pending_file()), (True, "frank", None))
+
+    hist = pst("history")["history"]
+    acts = [r["action"] for r in hist]
+    for a in ("propose", "approve-pending", "reject-pending", "withdraw-pending", "pending-cleared"):
+        check(f"history records '{a}'", a in acts, True)
+    check("a propose row carries the full proposed record (every approved version can be rebuilt)",
+          all("record" in r for r in hist if r["action"] == "propose"), True)
+finally:
+    import shutil
+    shutil.rmtree(ptmp, ignore_errors=True)
 
 print(f"\n{'=' * 52}\n  {PASS} passed, {FAIL} failed\n{'=' * 52}")
 sys.exit(1 if FAIL else 0)

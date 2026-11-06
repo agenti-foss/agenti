@@ -398,6 +398,7 @@ ensure_slot_userkey_dropin() {
 record_run_exclusions() {
     local agent="$1"
     local dir; dir=$(agent_dir "$agent")
+    record_run_payloads "$agent" "$dir"
     if [[ "$(_agent_scope_kind "$agent")" != domain ]]; then
         [[ $DRY_RUN -eq 1 ]] || rm -f "$dir/run-excluded"
         return 0
@@ -413,6 +414,29 @@ $out"
     rm -f "$dir/run-excluded"
     printf '%s\n' "$out" > "$dir/run-excluded"
     chown root:"$SVC_USER" "$dir/run-excluded"; chmod 0640 "$dir/run-excluded"
+}
+
+# Whether this run may capture payload contents, as of its start (root-owned,
+# like run-excluded): switching payload capture off later stops a run that
+# started with it on, through _stop_uncovered_runs (operator decision
+# 2026-11-06 — taking a permission away applies at once).
+record_run_payloads() {
+    local agent="$1" dir="$2" kind out
+    kind=$(_agent_scope_kind "$agent")
+    if [[ "$kind" != cidr && "$kind" != domain ]]; then
+        [[ $DRY_RUN -eq 1 ]] || rm -f "$dir/run-payloads"
+        return 0
+    fi
+    out=$(python3 "$LIBDIR/run_coverage.py" payloads --org-dir "$(org_dir)" --agent "$agent" \
+            --kind "$kind" 2>/dev/null) || out=off
+    [[ "$out" == on ]] || out=off
+    if [[ $DRY_RUN -eq 1 ]]; then
+        note '  %s$ write %s/run-payloads <- %s%s\n' "$c_d" "$dir" "$out" "$c_0"
+        return 0
+    fi
+    rm -f "$dir/run-payloads"
+    printf '%s\n' "$out" > "$dir/run-payloads"
+    chown root:"$SVC_USER" "$dir/run-payloads"; chmod 0640 "$dir/run-payloads"
 }
 
 ensure_slot_scope_dropin() {
@@ -703,19 +727,29 @@ agenti — control surface for scoped AI agents
       --authorization-ref <ref> --valid-from <YYYY-MM-DD> --valid-until <YYYY-MM-DD>
       [--cidr-in <entry> ...] [--cidr-out <entry> ...] [--domain-in <entry> ...] [--domain-out <entry> ...]
       [--replace-scope cidr|domain] [--clear-scope cidr|domain]
-      [--emergency-contact <text>] [--notes <text>] [--capture-payloads]
-      [--retention-days <N>] [--redact <field> ...]
+      [--emergency-contact <text>] [--notes <text>] [--capture-payloads|--no-capture-payloads]
+      [--enable-capability exploit|--disable-capability exploit]
+      [--retention-days <N>] [--redact <field> ...|--clear-redact]
+      [--max-turns-ceiling N] [--max-budget-ceiling USD] [--timeout-ceiling S]
+      [--allowed-models <name> ...] [--model-price <model>=<in>,<out> ...]
                                               create or edit the engagement; metadata
                                               not given is kept. A scope list you give
                                               REPLACES that list (--cidr-in 10.0.0.0/24
                                               alone drops every other CIDR in scope):
                                               give the whole list each time. Lists you
-                                              don't mention are kept.
+                                              don't mention are kept. Saved = approved
+                                              by you, unless the engagement-second-
+                                              approver policy is on: then it waits for
+                                              another admin, and runs must fit both
   agenti engagement approve [--engagement-id <id>]
-                                              approve it AS IT STANDS (required unless
-                                              the policy has approval off) — bound to
-                                              its content; editing it again needs a
-                                              fresh approval (§3g)
+                                              approve the record in force AS IT STANDS
+                                              (an older unapproved one) — bound to its
+                                              content (§3g)
+  agenti engagement approve-pending | reject-pending | withdraw-pending
+      [--expect-digest <d>] [--reason <text>]
+                                              decide the change waiting for a second
+                                              admin: approve (another admin), reject,
+                                              or withdraw (its author)
   agenti engagement history [-n N] [--json]   who changed or approved what, when
   agenti engagement digest [--json]           the record's content digest
 
@@ -807,9 +841,10 @@ on stdout with a non-zero exit code, so a caller only has to check one stream.
 Per-run options reset to the engagement policy after every run —
 they never carry over.
 
-ADMIN APPROVAL (§3g): a run refuses to start unless the engagement has been
-approved, UNLESS the policy has approval turned off
-(agenti engagement set --no-require-approval; default is on).
+ADMIN APPROVAL (§3g): a run refuses to start unless the engagement in force
+is approved. Saving it approves it as saved, unless the engagement-second-
+approver policy is on (sudo agenti admin set-policy engagement-second-approver
+on): then a change waits until a different admin approves it.
 
 'agenti new --help' has its own, more detailed help (it's a separate tool,
 new_agent.py, under the hood). For one part of this page only:
@@ -907,9 +942,8 @@ checked correctly). Nothing was $past."
     # Enforced HERE, not in preflight.py: preflight runs as the unprivileged
     # service account and cannot read iam.db (0640 root:agenti-api);
     # cmd_start already runs as root via sudo, which can read it regardless
-    # of group. Applies whenever an approval is actually on record — a
-    # organisation whose policy has require_approval off (and therefore never
-    # gets one) has nothing here to be gated on either.
+    # of group. Applies whenever an approval is on record (every engagement
+    # has one once saved: a save approves it, or a second admin does).
     local approval; approval="$(org_dir)/approval.json"
     if [[ -r "$approval" && -f "$IAM_PY" ]]; then
         local _policy; _policy=$(python3 "$IAM_PY" --json policy 2>/dev/null \
@@ -1542,9 +1576,12 @@ cmd_org_engagement() {
         show)    cmd_org_engagement_show "$@" ;;
         set)     cmd_org_engagement_set "$@" ;;
         approve) cmd_org_engagement_approve "$@" ;;
+        approve-pending|reject-pending|withdraw-pending)
+                 cmd_org_engagement_decide "$sub" "$@" ;;
         history) cmd_org_engagement_history "$@" ;;
         digest)  cmd_org_engagement_digest "$@" ;;
-        *) die "unknown engagement subcommand '$sub'. Use: show | set | approve | history | digest
+        *) die "unknown engagement subcommand '$sub'. Use: show | set | approve | approve-pending |
+  reject-pending | withdraw-pending | history | digest
   sudo agenti engagement show" ;;
     esac
 }
@@ -1600,7 +1637,15 @@ print(json.load(sys.stdin).get("error", sys.stdin))' 2>/dev/null)
 }
 
 cmd_org_engagement_show() {
-    _run_engagement_store show "$@"
+    local -a extra=() a
+    case " $* " in *" --second-approver"*|*" --approver"*)
+        die "engagement show does not take --second-approver/--approver: it reads them itself" ;; esac
+    _engagement_policy soft
+    if [[ -n "$ENG_SECOND_APPROVER" ]]; then
+        extra+=(--second-approver "$ENG_SECOND_APPROVER")
+        for a in "${ENG_APPROVERS[@]}"; do extra+=(--approver "$a"); done
+    fi
+    _run_engagement_store show "$@" "${extra[@]}"
 }
 
 cmd_org_engagement_history() {
@@ -1646,10 +1691,14 @@ _engagement_change_sha() {    # the SHA-256 of the change's arguments, as the AP
 
 # After an engagement or agent-scope change: stop every live run the record no
 # longer covers (audit run 1, F04; operator decision 2026-10-23 — only what
-# lost cover: target out of scope or excluded, window over, exploit switched
-# off). Runs the record still covers keep going. Prints one JSON array of
+# lost cover: target out of scope or excluded, window over, exploit or payload
+# capture switched off; a pending change counts for what it takes away).
+# Runs the record still covers keep going. Prints one JSON array of
 # {agent, slot, reason}; each stop writes the run's partial report and is
 # logged to the journal. [agent] limits it to one agent's runs.
+# Units still starting count too ("activating": preflight can take seconds,
+# and a unit already past building its mount namespace would otherwise miss
+# the change — found 2026-11-06).
 _stop_uncovered_runs() {
     local only="${1:-}" u agent slot kind tf reason rc
     local -a rows=()
@@ -1662,12 +1711,13 @@ _stop_uncovered_runs() {
         tf="$(org_dir)/$agent/instances/$slot/run-target"
         rc=0
         reason=$(python3 "$LIBDIR/run_coverage.py" check --org-dir "$(org_dir)" --agent "$agent" \
-                    --kind "$kind" --target-file "$tf" --excluded-file "${tf%/run-target}/run-excluded" 2>&1) || rc=$?
+                    --kind "$kind" --target-file "$tf" --excluded-file "${tf%/run-target}/run-excluded" \
+                    --payloads-file "${tf%/run-target}/run-payloads" 2>&1) || rc=$?
         [[ $rc -eq 3 ]] || continue          # covered (0), or the check itself broke: leave it
         systemctl stop --no-block "$u" 2>/dev/null || true
         logger -t agenti "RUN_STOPPED | $agent | $slot | the engagement no longer covers it: $reason" 2>/dev/null || true
         rows+=("$(python3 -c 'import json,sys; print(json.dumps({"agent":sys.argv[1],"slot":sys.argv[2],"reason":sys.argv[3]}))' "$agent" "$slot" "$reason")")
-    done < <(systemctl list-units --plain --no-legend --state=active 'agenti-*-instance@*.service' 2>/dev/null)
+    done < <(systemctl list-units --plain --no-legend --state=active,activating 'agenti-*-instance@*.service' 2>/dev/null)
     local IFS=,; printf '[%s]\n' "${rows[*]}"
 }
 
@@ -1704,6 +1754,42 @@ how it came in from sudo, never from '$2'. Nothing was changed." ;;
     esac
 }
 
+# The platform's engagement-second-approver policy and who could approve, read
+# fresh from iam.db before every engagement write. Sets ENG_SECOND_APPROVER
+# (on|off) and ENG_APPROVERS (array). Nobody else may supply them: the store
+# requires --second-approver, and only this function's answer is appended.
+# Called directly, never inside $(...), so a die() ends the command with its
+# message. "soft" (show only): an unreadable store leaves them empty.
+_engagement_policy() {
+    local out rc=0
+    ENG_SECOND_APPROVER=""; ENG_APPROVERS=()
+    out=$(python3 "$IAM_PY" --json engagement-policy 2>&1) || rc=$?
+    if [[ $rc -ne 0 ]]; then
+        [[ "${1:-}" == soft ]] && return 0
+        die "could not read the engagement-second-approver policy, so nothing was changed:
+$out"
+    fi
+    ENG_SECOND_APPROVER=$(printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["second_approver"])' 2>/dev/null) || true
+    mapfile -t ENG_APPROVERS < <(printf '%s' "$out" | python3 -c 'import json,sys
+for a in json.load(sys.stdin)["approvers"]: print(a)' 2>/dev/null)
+    if [[ "$ENG_SECOND_APPROVER" != on && "$ENG_SECOND_APPROVER" != off ]]; then
+        ENG_SECOND_APPROVER=""
+        [[ "${1:-}" == soft ]] || die "the engagement-second-approver policy reads as neither on nor off, so nothing was changed.
+  set it:  sudo agenti admin set-policy engagement-second-approver off"
+    fi
+}
+
+# With the policy on, a change nobody else can approve is a dead end: say how out.
+_engagement_deadlock_hint() {    # <author>
+    [[ "$ENG_SECOND_APPROVER" == on && $JSON -eq 0 ]] || return 0
+    local a
+    for a in "${ENG_APPROVERS[@]}"; do [[ "$a" == "$1" ]] || return 0; done
+    warn "nobody but $1 can approve engagement changes, and the second-approver policy is on.
+    Add a second admin (Settings → Users), or turn the policy off and approve it yourself:
+      sudo agenti admin set-policy engagement-second-approver off
+    or withdraw the change:  sudo agenti engagement withdraw-pending"
+}
+
 cmd_org_engagement_set() {
     local -a args=(); local by_override="" grant=""
     while [[ $# -gt 0 ]]; do
@@ -1716,6 +1802,9 @@ cmd_org_engagement_set() {
             --grant=*)  grant="${1#*=}"; shift ;;
             --grant)    [[ $# -ge 2 ]] || die "--grant needs a value"; grant="$2"; shift 2 ;;
             --dry-run)  DRY_RUN=1; shift ;;
+            --second-approver|--second-approver=*|--approver|--approver=*)
+                die "REFUSING: '$1' is not given by a caller — the CLI reads the
+engagement-second-approver policy from the identity store itself. Nothing was changed." ;;
             *)          args+=("$1"); shift ;;
         esac
     done
@@ -1726,13 +1815,81 @@ cmd_org_engagement_set() {
         _engagement_web_grant set "$sha" "$grant"
         by="$ENG_APPROVER"
     fi
+    _engagement_policy
+    # With the policy off a save also approves, so from the web the saver must
+    # hold engagement:approve too (the grant re-checked engagement:manage).
+    if [[ "$via" == api && $DRY_RUN -ne 1 && "$ENG_SECOND_APPROVER" == off ]] \
+            && ! _iam_can "$by" engagement:approve; then
+        die "REFUSING: with the engagement-second-approver policy off, saving the engagement also
+approves it, and '$by' may not approve engagements. Nothing was changed."
+    fi
     if [[ $DRY_RUN -eq 1 ]]; then
-        note '  %s$ engagement_store.py --org-dir %s set --by %s %s%s\n' \
-            "$c_d" "$(org_dir)" "$by" "${args[*]}" "$c_0"
-        [[ $JSON -eq 1 ]] && printf '{"dry_run":true,"verb":"set"}\n' 
+        note '  %s$ engagement_store.py --org-dir %s set --second-approver %s --by %s %s%s\n' \
+            "$c_d" "$(org_dir)" "$ENG_SECOND_APPROVER" "$by" "${args[*]}" "$c_0"
+        [[ $JSON -eq 1 ]] && printf '{"dry_run":true,"verb":"set"}\n'
         return 0
     fi
-    _engagement_change_then_enforce "" set "${args[@]}" --by "$by" --via "$via"
+    _engagement_change_then_enforce "" set "${args[@]}" --second-approver "$ENG_SECOND_APPROVER" \
+        --by "$by" --via "$via"
+    _engagement_deadlock_hint "$by"
+}
+
+# approve-pending | reject-pending | withdraw-pending: a decision on the change
+# waiting for a second admin. From the web each needs a fresh grant bound to
+# the pending change's digest (the admin reviewed exactly that version), and
+# who acts comes from the grant, never from --by. Approving may stop runs the
+# new record no longer covers; rejecting or withdrawing only lifts the
+# change's restrictions.
+cmd_org_engagement_decide() {    # <verb> [args...]
+    local verb="$1"; shift
+    local -a args=(); local by_override="" grant="" expect=""
+    while [[ $# -gt 0 ]]; do
+        _refuse_identity_from_api "$verb" "$1"
+        case "$1" in
+            --by)       [[ $# -ge 2 ]] || die "--by needs a value"; by_override="$2"; shift 2 ;;
+            --by=*)     by_override="${1#*=}"; shift ;;
+            --via)      [[ $# -ge 2 ]] || die "--via needs a value: cli or api"; shift 2 ;;   # ignored: derived below
+            --via=*)    shift ;;
+            --grant=*)  grant="${1#*=}"; shift ;;
+            --grant)    [[ $# -ge 2 ]] || die "--grant needs a value"; grant="$2"; shift 2 ;;
+            --expect-digest=*) [[ -z "$expect" ]] || die "--expect-digest is given more than once"
+                               expect="${1#*=}"; shift ;;
+            --expect-digest)   [[ $# -ge 2 ]] || die "--expect-digest needs a value"
+                               [[ -z "$expect" ]] || die "--expect-digest is given more than once"
+                               expect="$2"; shift 2 ;;
+            --reason=*|--reason)
+                [[ "$verb" == reject-pending ]] || die "--reason is only for reject-pending"
+                if [[ "$1" == *=* ]]; then args+=(--reason "${1#*=}"); shift
+                else [[ $# -ge 2 ]] || die "--reason needs a value"; args+=(--reason "$2"); shift 2; fi ;;
+            --engagement-id=*|--engagement-id)
+                [[ "$verb" == approve-pending ]] || die "--engagement-id is only for approve-pending"
+                if [[ "$1" == *=* ]]; then args+=(--engagement-id "${1#*=}"); shift
+                else [[ $# -ge 2 ]] || die "--engagement-id needs a value"; args+=(--engagement-id "$2"); shift 2; fi ;;
+            --dry-run)  DRY_RUN=1; shift ;;
+            *)          die "engagement $verb does not take '$1'.
+  sudo agenti engagement $verb [--expect-digest <digest>]" ;;
+        esac
+    done
+    local via; via=$(_via)
+    local by; by="${by_override:-$(invoking_user)}"
+    if [[ "$via" == api && $DRY_RUN -ne 1 ]]; then
+        [[ "$expect" =~ ^[0-9a-f]{64}$ ]] || die "REFUSING: from the web, $verb must name the digest of the
+change the admin reviewed (--expect-digest). Nothing was changed."
+        _engagement_web_grant "$verb" "$expect" "$grant"
+        by="$ENG_APPROVER"
+    fi
+    [[ -z "$expect" ]] || args+=(--expect-digest "$expect")
+    if [[ "$verb" == approve-pending ]]; then
+        _engagement_policy
+        args+=(--second-approver "$ENG_SECOND_APPROVER")
+    fi
+    if [[ $DRY_RUN -eq 1 ]]; then
+        note '  %s$ engagement_store.py --org-dir %s %s --by %s %s%s\n' \
+            "$c_d" "$(org_dir)" "$verb" "$by" "${args[*]}" "$c_0"
+        [[ $JSON -eq 1 ]] && printf '{"dry_run":true,"verb":"%s"}\n' "$verb"
+        return 0
+    fi
+    _engagement_change_then_enforce "" "$verb" "${args[@]}" --by "$by" --via "$via"
 }
 
 cmd_org_engagement_approve() {
@@ -1753,6 +1910,9 @@ cmd_org_engagement_approve() {
                                expect="$2"; shift 2 ;;
             --dry-run)  DRY_RUN=1; shift ;;
             --engagement-id|--engagement-id=*) args+=("$1"); [[ "$1" == *=* ]] || { [[ $# -ge 2 ]] || die "--engagement-id needs a value"; args+=("$2"); shift; }; shift ;;
+            --second-approver|--second-approver=*)
+                die "REFUSING: '$1' is not given by a caller — the CLI reads the
+engagement-second-approver policy from the identity store itself. Nothing was approved." ;;
             *)          [[ "$(_via)" == api ]] && die "REFUSING: from the web, an approval takes only --expect-digest and
 --engagement-id, not '$1'. Nothing was approved."
                         args+=("$1"); shift ;;
@@ -1773,7 +1933,8 @@ digest of the version the admin reviewed (--expect-digest). Nothing was approved
         return 0
     fi
     [[ -z "$expect" ]] || args+=(--expect-digest "$expect")
-    _run_engagement_store approve "${args[@]}" --by "$by" --via "$via"
+    _engagement_policy
+    _run_engagement_store approve "${args[@]}" --second-approver "$ENG_SECOND_APPROVER" --by "$by" --via "$via"
 }
 
 cmd_engagement() {
@@ -5094,7 +5255,6 @@ except Exception: print("")' 2>/dev/null)
         setup-code|setup-first-admin|\
         set-limit|\
         outputs-usage|outputs-list|outputs-delete|outputs-path|\
-        tool-request-file|tool-request-list|\
         passkey-commit|passkey-list|set-webauthn)
             refuse_iam_writes_from_api "$1"
             [[ -f "$IAM_PY" ]] || die "$IAM_PY is missing, so identity management is unavailable.
@@ -5107,6 +5267,14 @@ reinstall it:  $REINSTALL"
             local iam_args=()
             [[ $JSON -eq 1 ]] && iam_args+=(--json)
             iam_args+=("$@")
+            if [[ "$1" == set-policy ]]; then
+                # A policy change is an authorization decision: it goes to the
+                # journal with who made it, like every other one.
+                local rc=0
+                python3 "$IAM_PY" --actor "$(invoking_user)" "${iam_args[@]}" || rc=$?
+                [[ $rc -eq 0 ]] && logger -t agenti "POLICY_SET | ${2:-?}=${3:-?} | by=$(invoking_user)" 2>/dev/null
+                exit "$rc"
+            fi
             # SUDO_USER is passed explicitly rather than read from the
             # environment inside iam.py: sudo may or may not preserve it
             # depending on env_reset, and "who made this change" is not
@@ -5126,9 +5294,6 @@ reinstall it:  $REINSTALL"
   outputs-list [--user U]                      promoted outputs in the permanent store
   outputs-delete <name>... --user U --by <who>   delete one or more
   outputs-cat <name> --user U                  print one's raw bytes (a download route's source)
-  tool-request-file <text> --by <who> [--category C]
-                                file a request for a tool the library lacks
-  tool-request-list                            every filed tool request, newest first
 
 identity & access (CLAUDE.md §3g):
   bootstrap --user <name>      first-run setup: an admin user and its first key

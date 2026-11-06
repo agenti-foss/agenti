@@ -8,10 +8,10 @@ manifest-driven exemption from phase 5 of the generic-launcher arc.
 
 Narrow on purpose: it does NOT re-test clock, encryption, secrets, tools
 or egress — none of that changed. It pins the checks whose failure would
-be SILENT and dangerous: a start passing without a required approval, an
-approval surviving an edit to the scope it approved, the organisation's own
-require_approval policy field not actually being consulted, or a
-manifest-driven agent refusing to start over an engagement it never had.
+be SILENT and dangerous: a start passing without an approval, an approval
+surviving an edit to the scope it approved, a retired "approval off" switch
+still skipping it, a writable pending change, or a manifest-driven agent
+refusing to start over an engagement it never had.
 
 No root, no vault: preflight.py's module-level paths are plain attributes
 computed from environment variables at import time — reassigned here to a
@@ -87,6 +87,9 @@ try:
     preflight.MASTER_DIR = master_dir
 
     def store(*argv):
+        argv = list(argv)
+        if argv[0] in ("set", "approve"):          # the CLI always passes the platform policy
+            argv[1:1] = ["--second-approver", "off"]
         p = subprocess.run([sys.executable, str(STORE), "--org-dir", str(org_dir),
                             "--shared-dir", str(shared_dir), *argv], capture_output=True, text=True)
         assert p.returncode == 0, p.stdout + p.stderr
@@ -146,6 +149,11 @@ try:
           "--replace-scope", "domain", "--domain-in", "acme.example (web)")
 
     section("check_approval(): bound to the record's content")
+    # Every save approves what it saved (the second-approver policy off), so
+    # an unapproved record is an older one, or one changed behind the store's
+    # back — written here directly, which is exactly what approval guards.
+    rec_file = org_dir / ec.ORG_ENGAGEMENT_FILENAME
+    (org_dir / ec.APPROVAL_FILENAME).unlink(missing_ok=True)
     ok, _, detail = run_check(preflight.check_approval)
     check("no approval: FAILS", ok, False)
     check("...naming the approve command", "sudo agenti engagement approve" in detail, True)
@@ -153,32 +161,28 @@ try:
     store("approve", "--by", "alice")
     ok, _, detail = run_check(preflight.check_approval)
     check("approved: PASSES naming the approver", (ok, "alice" in detail), (True, True))
-    store("set", "--by", "alice", "--notes", "one more host is fragile")
+    _rec = json.loads(rec_file.read_text())
+    rec_file.write_text(json.dumps({**_rec, "notes": "one more host is fragile"}))
     ok, _, detail = run_check(preflight.check_approval)
     check("AN EDIT AFTER APPROVAL: FAILS", ok, False)
     check("...saying it changed after alice approved it", ("changed after" in detail and "alice" in detail), True)
-    store("set", "--by", "alice", "--notes", "")
+    rec_file.write_text(json.dumps(_rec))
     ok, _, detail = run_check(preflight.check_approval)
     check("reverting the edit restores the exact content: PASSES again (digest, not timestamp)", ok, True)
-    store("set", "--by", "alice", "--cidr-in", "10.0.0.0/24 (lab)", "--cidr-in", "10.0.1.0/24 (new)")
-    ok, _, _ = run_check(preflight.check_approval)
-    check("widening the scope after approval: FAILS", ok, False)
-    store("approve", "--by", "bob")
+    store("set", "--by", "bob", "--cidr-in", "10.0.0.0/24 (lab)", "--cidr-in", "10.0.1.0/24 (new)")
     ok, _, detail = run_check(preflight.check_approval)
-    check("a fresh approval of the widened scope: PASSES naming bob", (ok, "bob" in detail), (True, True))
+    check("a save approves what it saved: the widened scope PASSES, naming bob", (ok, "bob" in detail), (True, True))
     (org_dir / ec.APPROVAL_FILENAME).write_text("garbage")
     ok, _, detail = run_check(preflight.check_approval)
     check("an unreadable approval file: FAILS closed", (ok, "unreadable" in detail), (False, True))
     store("approve", "--by", "bob")
 
-    section("check_approval(): the organisation's own require_approval policy field (CLAUDE.md \"Current plan\" — replaces the retired --dev exemption)")
-    store("set", "--by", "alice", "--no-require-approval")
+    section("check_approval(): the retired require_approval switch no longer skips it")
+    _rec = json.loads(rec_file.read_text())
+    rec_file.write_text(json.dumps({**_rec, "policy": {**(_rec.get("policy") or {}), "require_approval": False}}))
     (org_dir / ec.APPROVAL_FILENAME).unlink()
     ok, _, detail = run_check(preflight.check_approval)
-    check("policy off: PASSES with NO approval at all", (ok, "not required" in detail), (True, True))
-    store("set", "--by", "alice", "--require-approval")
-    ok, _, detail = run_check(preflight.check_approval)
-    check("policy back on, still no approval: FAILS again", ok, False)
+    check("a stored require_approval:false with no approval: FAILS", ok, False)
     store("approve", "--by", "bob")
     ok, _, detail = run_check(preflight.check_approval)
     check("approved again: PASSES", (ok, "bob" in detail), (True, True))
@@ -203,6 +207,13 @@ try:
             ok, _, detail = run_check(preflight.check_code_immutable)
             check("a WRITABLE approval.json: FAILS", (ok, "approval.json" in detail), (False, True))
             (org_dir / ec.APPROVAL_FILENAME).chmod(0o400)
+            pend = org_dir / ec.PENDING_FILENAME
+            pend.write_text("{}")
+            pend.chmod(0o600)
+            ok, _, detail = run_check(preflight.check_code_immutable)
+            check("a WRITABLE pending change: FAILS (it narrows what the run may touch)",
+                  (ok, "engagement-pending.json" in detail), (False, True))
+            pend.unlink()
         finally:
             master_dir.chmod(0o700)
             for f in (org_dir / ec.ORG_ENGAGEMENT_FILENAME, org_dir / ec.APPROVAL_FILENAME):

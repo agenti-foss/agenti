@@ -54,9 +54,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   const runTurnsInput = document.getElementById("run-turns");
   const runBudgetInput = document.getElementById("run-budget");
   const runTimeoutInput = document.getElementById("run-timeout");
-  const trForm = document.getElementById("tool-request-form");
-  const trBanner = document.getElementById("tr-banner");
-  const trCategory = document.getElementById("tr-category");
 
   // Every start is its own isolated run, so a launch reserves that run's label
   // up front: files attached before "Run" is pressed wait in THAT run's own
@@ -332,16 +329,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  // Model is mandatory (CLAUDE.md "Current plan": the --dev/commercial split
-  // is retired) and caps left blank default to the organisation's own ceiling, so
-  // this fills the Model <select> from the organisation's CURRENT allowed-model
-  // list and shows each cap's ceiling as its placeholder. Reuses fetchCeiling()'s own
-  // per-(kind) cache, so calling both for the same kind costs one
-  // request, not two.
+  // Model is mandatory, and caps left blank default to the organisation's own
+  // ceiling, so this mounts the model picker (models.js) and shows each cap's
+  // ceiling as its placeholder ("up to 40"). Reuses fetchCeiling()'s own
+  // per-(kind) cache, so calling both for the same kind costs one request.
   const LAST_MODEL_KEY = "agenti-last-model";
-  const MODEL_LABELS = { haiku: "Haiku — fastest, cheapest",
-                         sonnet: "Sonnet — balanced",
-                         opus: "Opus — most capable, slowest, priciest" };
   async function paintModelAndCaps(agent, kind) {
     modelHost.hidden = mode !== "single";
     if (mode !== "single") modelHost.querySelectorAll("input,select").forEach((el) => { el.disabled = true; });
@@ -355,11 +347,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       const policy = data.effective_policy || {};
       currentPolicy = policy;
       const ceil = (v) => (v === undefined || v === null) ? "" : String(v);
-      runTurnsInput.placeholder = `up to ${ceil(policy.max_turns_ceiling)} (ceiling)`;
+      runTurnsInput.placeholder = `up to ${ceil(policy.max_turns_ceiling)}`;
       runTurnsInput.max = ceil(policy.max_turns_ceiling) || "";
-      runBudgetInput.placeholder = `up to $${ceil(policy.max_budget_usd_ceiling)} (ceiling)`;
+      runBudgetInput.placeholder = `up to $${ceil(policy.max_budget_usd_ceiling)}`;
       runBudgetInput.max = ceil(policy.max_budget_usd_ceiling) || "";
-      runTimeoutInput.placeholder = `up to ${ceil(policy.timeout_s_ceiling)}s (ceiling)`;
+      runTimeoutInput.placeholder = `up to ${ceil(policy.timeout_s_ceiling)} s`;
       runTimeoutInput.max = ceil(policy.timeout_s_ceiling) || "";
     } catch (err) {
       currentPolicy = null;
@@ -677,38 +669,4 @@ document.addEventListener("DOMContentLoaded", async function () {
       runBtn.disabled = false;
     }
   }
-
-  // "A command-line program" asks an admin to INSTALL something on the
-  // server (they run the apt command themselves; the website never does).
-  const trKind = document.getElementById("tr-kind");
-  trKind.addEventListener("change", () => {
-    const prog = trKind.value === "program";
-    document.getElementById("tr-category-label").textContent = prog ? "Program name" : "Roughly which agent";
-    trCategory.placeholder = prog ? "e.g. whois" : "e.g. a mobile-app scanner";
-    document.getElementById("tr-text-label").textContent = prog ? "Why you need it" : "What's missing";
-    document.getElementById("tr-text").placeholder = prog ? "what you want an agent to do with it" : "describe the tool or capability you need";
-  });
-  trForm.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    trBanner.className = "banner";
-    let body = {
-      text: document.getElementById("tr-text").value.trim(),
-      category: trCategory.value.trim(),
-    };
-    if (trKind.value === "program") {
-      const prog = trCategory.value.trim();
-      if (!/^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/.test(prog)) {
-        Agenti.banner(trBanner, "err", "Enter just the program's name, like whois (letters, digits, . + - only).");
-        return;
-      }
-      body = { category: "install-program", text: `${prog}: ${body.text}` };
-    }
-    try {
-      await Agenti.post(`tool-requests`, body);
-      Agenti.banner(trBanner, "ok", "Filed — an admin will review it. Thanks!");
-      trForm.reset(); trKind.dispatchEvent(new Event("change"));
-    } catch (err) {
-      Agenti.banner(trBanner, "err", Agenti.errorText(err));
-    }
-  });
 });

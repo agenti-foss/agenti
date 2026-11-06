@@ -475,7 +475,9 @@ class Service:
     # A grant is hashed to its whole action dict, so an op not in this table
     # cannot be approved at all, and a grant minted for one action can never
     # be spent on another.
-    GRANT_OPS = ("create-user", "engagement-set", "engagement-approve", "bind", "rename-principal", "delete-principal", "enable-principal",
+    GRANT_OPS = ("create-user", "engagement-set", "engagement-approve",
+                 "engagement-approve-pending", "engagement-reject-pending", "engagement-withdraw-pending",
+                 "bind", "rename-principal", "delete-principal", "enable-principal",
                  "reset-password", "reset-mfa",
                  "edit-context", "build-agent", "remove-agent", "update-agent", "edit-catalog",
                  "action-approve", "action-reject", "vault-enable", "set-api-key",
@@ -530,11 +532,12 @@ class Service:
                 raise AuthError(400, str(e))
             return {"op": op, "principal": principal, "role": role, "resource": resource}
 
-        if op in ("engagement-set", "engagement-approve"):
+        if op.startswith("engagement-"):
             # Writing or approving the engagement from the web (audit run 1,
             # F13): a set is bound to the SHA-256 of the exact change the CLI
-            # receives, an approval to the digest of the version the admin
-            # reviewed. Neither can be spent on anything else.
+            # receives; an approval, rejection or withdrawal to the digest of
+            # the version the admin reviewed (the record, or the change
+            # waiting for a second admin). None can be spent on anything else.
             key = "sha256" if op == "engagement-set" else "digest"
             bound = cls._grant_field(action, key, kind="raw", max_len=64)
             if not re.fullmatch(r"[0-9a-f]{64}", bound):

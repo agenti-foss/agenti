@@ -426,9 +426,8 @@ except c.AuthdError as e:
         # permission — plus, from phase 7 of
         # the generic-launcher arc,
         # outputs-path (a download route's resolve, read-only, same
-        # ownership check outputs-delete already had) and
-        # tool-request-file/tool-request-list, decision 4's admin-reviewed
-        # queue) are the ONLY identity-store actions the API may
+        # ownership check outputs-delete already had)) are the ONLY
+        # identity-store actions the API may
         # reach; every one of them was chosen because it can only remove
         # authority or grant none at all (CLAUDE.md's "authority rule").
         # rename-user/delete-user (§4 item 59) and
@@ -508,8 +507,6 @@ password-reset-check|not-a-real-token|invalid or has expired
 password-reset-consume|not-a-real-token --new=x|invalid or has expired
 bindings|--user __deploy_verify_no_such_user__|^\[\]$
 policy||require-separate-approver
-tool-request-file|--by __deploy_verify_no_such_user__|required
-tool-request-list||^\[
 passkey-commit|__deploy_verify_no_such_user__ --credential-id=x --alg=ES256 --x=abc --y=def --sign-count 0 --grant=not-a-real-grant|no user named
 passkey-list|__deploy_verify_no_such_user__|^\[\]$
 set-webauthn|off|webauthn_enabled

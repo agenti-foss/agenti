@@ -145,24 +145,18 @@ PAGES = [
 ]
 
 # The admin-only sections (Agents; Engagement; Users; Platform, with policies,
-# the passkey domain wizard and tool requests) exist only for a user
+# and the passkey domain wizard) exist only for a user
 # holding iam:manage — so they are checked when the harness is told it is
 # logging in as one. main() checks the actual permissions after logging in
 # and skips these rather than crying wolf; ADMIN_PAGE_NAMES is how it knows
 # which ones to drop.
 ADMIN_PAGE_NAMES = {"settings-users", "settings-policies", "settings-engagement",
-                    "settings-tool-requests",
                     "settings-agents", "settings-agents-controls"}
 if os.environ.get("AGENTI_GUI_ADMIN") == "1":
     PAGES += [
         ("settings-users", "settings.html#users", "#users-tbody tr"),
         ("settings-policies", "settings.html#platform", "#policy-list .list-row"),
         ("settings-engagement", "settings.html#engagement", "#eng-summary dl, #eng-summary p"),
-        # The tool-requests panel renders SOME content even when nothing
-        # has been filed (the "Nothing filed yet." hint), so its marker is
-        # the panel becoming visible, not a row — an empty admin-reviewed
-        # queue is a real, valid state, not a loading failure.
-        ("settings-tool-requests", "settings.html#platform", "#tool-requests-panel:not([hidden])"),
         # Settings -> Agents (§4 items 45, 74): the agent-type list (hand-built
         # and built agents) and the control centre. The tab is shown to a
         # platform admin or reader only (settings.js: canManage || canReadIam);

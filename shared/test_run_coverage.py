@@ -49,6 +49,30 @@ def save(rec):
     (org / ec.ORG_ENGAGEMENT_FILENAME).write_text(json.dumps(rec))
 
 
+def save_approved(rec):
+    """A record and its approval (what every save writes now, policy off)."""
+    save(rec)
+    (org / ec.APPROVAL_FILENAME).write_text(json.dumps(
+        {"engagement_id": rec["engagement_id"], "digest": ec.record_digest(ec.normalize_record(rec)),
+         "approved_by": "alice", "approved_at": 1700000000}))
+
+
+def unapprove():
+    (org / ec.APPROVAL_FILENAME).unlink(missing_ok=True)
+
+
+def pending(rec, author="carol"):
+    """A change waiting for a second admin (engagement_store.py's file)."""
+    norm = ec.normalize_record(rec)
+    (org / ec.PENDING_FILENAME).write_text(json.dumps(
+        {"format": 1, "record": norm, "digest": ec.record_digest(norm), "base_digest": None,
+         "author": author, "authors": [author], "authored_at": 1.0, "opened_at": 1.0, "via": "api"}))
+
+
+def no_pending():
+    (org / ec.PENDING_FILENAME).unlink(missing_ok=True)
+
+
 def why(agent, kind, target):
     return run_coverage.why_uncovered(org, agent, kind, target)
 
@@ -120,7 +144,7 @@ check("...and stopped with no marker (fails closed)",
 section("precheck: a start that would be refused is refused before a run slot exists")
 pre = lambda kind, target, model: run_coverage.why_refused(org, "enum" if kind == "cidr" else "research",
                                                            kind, target, model)
-save(record(policy={"require_approval": False}))
+save_approved(record())
 check("in scope, an allowed model: nothing to say", pre("cidr", "10.0.0.5", "sonnet"), [])
 check("a domain run in scope: nothing to say", pre("domain", "www.acme.example", "sonnet"), [])
 check("out of scope: one reason, phrased for a start",
@@ -131,12 +155,12 @@ check("a model off the list: refused, naming the allowed ones",
       "Allowed:" in " ".join(pre("cidr", "10.0.0.5", "gpt-4")), True)
 check("both wrong: both reasons", len(pre("cidr", "192.0.2.1", "gpt-4")), 2)
 check("a file-analysis agent: only the model is checked", run_coverage.why_refused(org, "cracker", "files", "", "sonnet"), [])
-save(record(valid_until="2021-01-01", policy={"require_approval": False}))
+save_approved(record(valid_until="2021-01-01"))
 check("outside the engagement's dates: refused", len(pre("cidr", "10.0.0.5", "sonnet")), 1)
-save(record())
+save(record()); unapprove()
 check("approval required and missing: refused, naming the command",
       "sudo agenti engagement approve" in " ".join(pre("cidr", "10.0.0.5", "sonnet")), True)
-save(record(policy={"require_approval": False}))
+save_approved(record())
 r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "--org-dir", str(org),
                     "--owner", "tester", "--agent", "enum", "--kind", "cidr", "--target", "192.0.2.1", "--model", "gpt-4"],
                    capture_output=True, text=True)
@@ -148,6 +172,51 @@ r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "precheck", "
                     "--owner", "tester", "--agent", "enum", "--kind", "cidr", "--target", "10.0.0.5", "--model", "sonnet"],
                    capture_output=True, text=True)
 check("...exit 0 and 'ok'", (r.returncode, r.stdout.strip()), (0, "ok"))
+
+section("a change waiting for a second admin: what it takes away applies at once")
+save_approved(record(scope={"cidr": {"in_scope": ["10.0.0.0/24"], "out_of_scope": []},
+                            "domain": {"in_scope": ["acme.example"], "out_of_scope": []}},
+                     enabled_capabilities=["exploit"], capture_payloads=True))
+pending(record(scope={"cidr": {"in_scope": ["10.0.0.0/25"], "out_of_scope": []},
+                      "domain": {"in_scope": ["acme.example"], "out_of_scope": []}},
+               enabled_capabilities=["exploit"], capture_payloads=True))
+w = why("enum", "cidr", "10.0.0.200")
+check("a target the change cuts out: stopped, the reason names the change and its author",
+      ("carol" in w and "waiting for another admin" in w and "both versions" in w), True)
+check("a target both versions cover: still covered", why("enum", "cidr", "10.0.0.5"), "")
+pending(record(scope={"cidr": {"in_scope": ["10.0.0.0/16"], "out_of_scope": ["10.0.0.7/32"]},
+                      "domain": {"in_scope": ["acme.example"], "out_of_scope": []}},
+               enabled_capabilities=["exploit"], capture_payloads=True))
+check("a change that only widens does not stop anything", why("enum", "cidr", "10.0.0.5"), "")
+check("...but an exclusion it adds applies at once", why("enum", "cidr", "10.0.0.7") != "", True)
+check("...and a start in the widened part waits for approval",
+      "the target is not in scope" in " ".join(run_coverage.why_refused(org, "enum", "cidr", "10.0.200.1", "sonnet")), True)
+pending(record(enabled_capabilities=[], capture_payloads=True))
+check("exploit switched off by the change: an exploit run stops",
+      "no longer enables 'exploit'" in run_coverage.why_uncovered(org, "exploit", "cidr", "10.0.0.5"), True)
+pending(record(enabled_capabilities=["exploit"], capture_payloads=False))
+check("payload capture switched off by the change: a capture that started with payloads stops",
+      "payload contents" in run_coverage.why_uncovered(org, "trafficmon", "cidr", "10.0.0.5", started_payloads="on"), True)
+check("...one that started without payloads keeps going",
+      run_coverage.why_uncovered(org, "trafficmon", "cidr", "10.0.0.5", started_payloads="off"), "")
+pl = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "payloads", "--org-dir", str(org),
+                     "--agent", "trafficmon", "--kind", "cidr"], capture_output=True, text=True)
+check("'payloads' says what a run starting now may do (off: the change says no)", pl.stdout.strip(), "off")
+no_pending()
+pl = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "payloads", "--org-dir", str(org),
+                     "--agent", "trafficmon", "--kind", "cidr"], capture_output=True, text=True)
+check("...and on once nothing is waiting", pl.stdout.strip(), "on")
+save_approved(record(capture_payloads=False))
+check("a direct save switching payloads off stops such a run too",
+      "payload contents" in run_coverage.why_uncovered(org, "trafficmon", "cidr", "10.0.0.5", started_payloads="on"), True)
+ptf = org / "run-payloads"; ptf.write_text("on\n")
+tf = org / "c-run-target"; tf.write_text("10.0.0.5\n")
+r = subprocess.run([sys.executable, str(HERE / "run_coverage.py"), "check", "--org-dir", str(org), "--agent", "trafficmon",
+                    "--kind", "cidr", "--target-file", str(tf), "--payloads-file", str(ptf)], capture_output=True, text=True)
+check("the CLI's check reads the run-payloads marker", (r.returncode, "payload" in r.stdout), (3, True))
+(org / ec.PENDING_FILENAME).write_text("{broken")
+check("an unreadable pending change stops runs (fail closed)", why("enum", "cidr", "10.0.0.5") != "", True)
+no_pending()
 
 print(f"\n{'=' * 52}\n  {PASS} passed, {FAIL} failed\n{'=' * 52}")
 sys.exit(1 if FAIL else 0)

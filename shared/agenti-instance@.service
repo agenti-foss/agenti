@@ -70,7 +70,8 @@ EnvironmentFile=-__ROOT__/org/secrets.env
 EnvironmentFile=-__ROOT__/org/__AGENT__/secrets.env
 EnvironmentFile=-__ROOT__/org/__AGENT__/instances/%i/secrets.env
 
-# GATE 3 — preflight (incl. the admin scope-approval, when the policy asks for it).
+# GATE 3 — preflight (incl. the admin scope-approval, and a pending change
+# narrowing what the run may touch until another admin approves it).
 ExecStartPre=__PYTHON__ __LIBDIR__/preflight.py
 ExecStart=__PYTHON__ __MASTER__/__AGENT__-agent.py
 
@@ -85,7 +86,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 TemporaryFileSystem=__ROOT__/org:ro
 BindPaths=__ROOT__/org/__AGENT__/instances/%i
-BindReadOnlyPaths=-__ROOT__/org/__AGENT__/agent-scope.json -__ROOT__/org/__AGENT__/tool-settings.json -__ROOT__/org/engagement.json -__ROOT__/org/approval.json -__ROOT__/org/secrets.env -__ROOT__/org/__AGENT__/secrets.env
+BindReadOnlyPaths=-__ROOT__/org/__AGENT__/agent-scope.json -__ROOT__/org/__AGENT__/tool-settings.json -__ROOT__/org/engagement.json -__ROOT__/org/engagement-pending.json -__ROOT__/org/approval.json -__ROOT__/org/secrets.env -__ROOT__/org/__AGENT__/secrets.env
 ReadWritePaths=__ROOT__/org/__AGENT__/instances/%i
 ProtectHome=yes
 PrivateTmp=yes
