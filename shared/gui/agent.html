@@ -40,29 +40,26 @@
 
     <!-- The console (CLAUDE.md §4 item 25): what the agent says and does, in
          order, with the composer and the run controls at the bottom — one
-         pane, the way a terminal session reads, instead of an activity list
-         and a separate chat box. -->
+         pane, the way a Claude Code session reads: every step on its own
+         line, "/" commands in the box (slash.js). Not a terminal: nothing
+         typed here reaches a shell. -->
     <div class="panel console-panel">
       <div class="console-head">
         <h2 class="ih" data-icon="terminal">Console</h2>
         <span class="console-status" id="ag-console-status"></span>
+        <!-- The run's model. On a live run you may steer, it opens /model. -->
+        <button type="button" class="model-chip" id="ag-model-chip" hidden></button>
       </div>
       <div class="banner warn" id="ag-needs-input" hidden></div>
       <div id="ag-exploit-approvals" hidden></div>
       <div id="ag-tool-approvals" hidden></div>
       <div class="console activity" id="ag-feed" role="log" aria-live="polite" aria-label="Agent console"><div class="act-empty">Loading…</div></div>
       <form class="composer" id="ag-chat-form">
-        <input type="text" id="ag-chat-input" placeholder="Message the agent, or add a note…" aria-label="Message the agent" autocomplete="off">
+        <input type="text" id="ag-chat-input" placeholder="Message the agent, or type / for commands" aria-label="Message the agent" autocomplete="off">
         <button type="submit" class="btn btn-primary compact" id="ag-send-btn" data-icon="send" title="Send to the agent"><span class="btn-label">Send</span></button>
         <button type="button" class="btn compact" id="ag-note-btn" data-icon="note" title="Note — recorded in the ledger and the report; never reaches the model"><span class="btn-label">Note</span></button>
         <button type="button" class="btn compact" id="ag-attach-btn" data-icon="paperclip" title="Attach a file — a run going now gets it at once; otherwise the next run does"><span class="btn-label">Attach</span></button>
         <span class="composer-controls" id="ag-controls">
-          <span id="ag-model-switch" hidden style="display:inline-flex; align-items:center; gap:4px;">
-            <select id="ag-model-select" aria-label="Switch model" style="width:auto; min-width:0;"></select>
-            <button type="button" class="icon-btn" id="ag-model-switch-btn" aria-label="Switch model" title="Switch the model at the next turn boundary — never mid-step">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 8a6 6 0 0 1 10.2-4.2M3.5 3v3.5H7M14 8a6 6 0 0 1-10.2 4.2M12.5 13v-3.5H9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-label">Switch</span>
-            </button>
-          </span>
           <button type="button" class="icon-btn" data-action="pause" aria-label="Pause the run" title="Pause — freezes the run in place; resume to continue">
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="3" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/></svg><span class="icon-label">Pause</span>
           </button>
@@ -149,6 +146,8 @@
   <script src="js/nav.js" defer></script>
   <script src="js/markdown.js" defer></script>
   <script src="js/activity.js" defer></script>
+  <script src="js/models.js" defer></script>
+  <script src="js/slash.js" defer></script>
   <script src="js/attachments.js" defer></script>
   <script src="js/context-editor.js" defer></script>
   <script src="js/send-output.js" defer></script>

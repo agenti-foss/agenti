@@ -1,7 +1,8 @@
 # Any model: one Agenti, many AI providers
 
 Status: design agreed 2026-11-04; phase A live-proven on Claude and OpenAI;
-phase B complete and VM-proven; the small self-hosted model has limitations noted below.
+phase B complete and VM-proven; the small self-hosted model has limitations
+noted below; phase C (the console) done 2026-11-06.
 This file is the plan
 and the hand-off brief: whoever continues (a person, Claude Code or Codex)
 starts here, then `AGENTS.md` / `CLAUDE.md`.
@@ -28,7 +29,7 @@ starts here, then `AGENTS.md` / `CLAUDE.md`.
    Code / Codex session (the model's steps, tool calls and outputs streaming;
    you type messages; `/model` switches model mid-run). Not a real terminal:
    a real CLI's shell mode and permission commands would step around the
-   per-command checks. Today's console stays for self-hosted models.
+   per-command checks. Done as phase C, for every provider.
 7. **The exploit agent may run on any model, with no provider check** (it used
    to require Anthropic's Cyber Verification Program). Its other gates stay:
    `exploitation_enabled` in the engagement, CIDR scope, per-action operator
@@ -256,7 +257,28 @@ revision above; update the pin for a future published core release.
       Proof: help tests and the installed VM CLI help reader.
 
 **C. The console (#3)**
-- [ ] Stream engine events to the agent page as a session view; `/model`.
+
+**Phase C: done (2026-11-06).** GUI only: the run's ledger already streamed
+every step to the agent page and `set-model` already re-checked the policy and
+kept the provider, so no server change was needed.
+
+- [x] Session view (`activity.js` session mode, the agent page only; the team
+      chat keeps its folded form): what the agent said, every step on its own
+      line with its result's first line (open for the whole recorded result),
+      your messages as prompts, a "Working…" line with the time since the last
+      step, and switch rows ("Switched to …" / refused).
+- [x] `/` commands in the message box (`slash.js`): `/model`, `/note`,
+      `/pause`, `/resume`, `/stop`, `/interrupt`, `/attach`, `/help`, offered only
+      when the matching button would be. `/model` lists the run provider's live
+      models filtered by policy; a model chip in the console head names the
+      model, follows applied switches and opens `/model`. Typed text never
+      reaches a shell; every command calls an existing, permission-checked route.
+- [x] Proof: GUI checks (agent-run, agent-live, agent-live-model views; the
+      fixture server replays a recorded live feed). On the VM: a real Claude
+      haiku enum run, `/model son` → Enter switched it to `claude-sonnet-5`
+      after the step in flight (console row and chip both followed), a message
+      sent mid-run was delivered, a step opened to its full result; checked at
+      1440 and 390 px.
 
 ## How to test
 

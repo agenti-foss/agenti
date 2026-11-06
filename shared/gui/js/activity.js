@@ -16,11 +16,20 @@
 // Used by the agent console (agent.js) and by the team chat (team.js), so a
 // run reads the same in both places.
 //
+// SESSION mode ({session: true}, the agent console): the way a Claude Code or
+// Codex session reads. Every step is its own line, in order: what it ran,
+// a live marker while it runs, and a one-line result that opens to the whole
+// recorded result. What the agent said sits between them as plain text, what
+// you said as a prompt line. Nothing is folded away, so the run can be
+// followed step by step; the team chat keeps the folded form.
+//
 // Everything is built from escaped text (AgentiMarkdown escapes its input).
 const AgentiActivity = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const baseTool = (t) => String(t || "?").replace(/^mcp__[a-z0-9_]+__/, "");
   const nice = (t) => baseTool(t).replace(/_/g, " ");
+  // "run_scan" -> "Run scan": a step's name as a sentence starts.
+  const stepName = (t) => { const n = nice(t); return n.charAt(0).toUpperCase() + n.slice(1); };
   // "2 refused · 1 failed": refusals are named apart from errors.
   const stepsMeta = (failed, refused) => [refused ? `${refused} refused` : "",
                                           failed ? `${failed} failed` : ""].filter(Boolean).join(" · ");
@@ -78,6 +87,7 @@ const AgentiActivity = (() => {
       this.group = null;        // the open "steps" group, if any
       this.pending = [];        // steps still waiting for a result
       this.lastSay = null;
+      if (opts.session) el.classList.add("session");
       el.addEventListener("click", (e) => {
         const b = e.target.closest(".say-more");
         if (!b) return;
@@ -87,7 +97,11 @@ const AgentiActivity = (() => {
       });
     }
 
-    clear() { this.el.innerHTML = ""; this.group = null; this.pending = []; this.lastSay = null; }
+    clear() {
+      const working = this.workingEl;
+      this.el.innerHTML = ""; this.group = null; this.pending = []; this.lastSay = null;
+      if (working) this.el.appendChild(working);
+    }
     empty(msg) { this.el.innerHTML = `<div class="act-empty">${esc(msg)}</div>`; }
 
     _atBottom() { return this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 80; }
@@ -95,7 +109,8 @@ const AgentiActivity = (() => {
       const stick = this._atBottom();
       const empty = this.el.querySelector(".act-empty");
       if (empty) empty.remove();
-      this.el.appendChild(node);
+      if (this.workingEl) { this.el.insertBefore(node, this.workingEl); this.since = Date.now(); this._paintWorking(); }
+      else this.el.appendChild(node);
       if (stick) this.el.scrollTop = this.el.scrollHeight;
       return node;
     }
@@ -108,9 +123,88 @@ const AgentiActivity = (() => {
       if (tool === "team_message") return f.verdict === "call" ? this._teamPost(f) : undefined;
       if (tool === "propose_complete") return f.verdict === "call" ? this._vote(f) : undefined;
       if (tool === "ask_operator") return f.verdict === "call" ? this._ask(f) : undefined;
-      if (tool === "model_switch") return this._muted(`Model switch ${f.verdict || ""}: ${f.summary || ""}`);
+      if (tool === "model_switch") return this._modelSwitch(f);
+      if (this.opts.session) {
+        // The Claude Agent SDK loading its own tool definitions: not a step
+        // the run took, so one quiet line, and its (empty) result is dropped.
+        if (tool === "ToolSearch") return f.verdict === "call" ? this._muted("Loaded its tools") : undefined;
+        return f.verdict === "call" ? this._line(f, tool, live) : this._lineResult(f, tool);
+      }
       if (f.verdict === "call") return this._step(f, tool, live);
       return this._result(f, tool);
+    }
+
+    // ---- a model switch, as the run applied (or refused) it ------------------
+    _modelSwitch(f) {
+      this.el.querySelectorAll(".act-note.switch-pending").forEach((n) => n.remove());
+      const v = f.verdict || "";
+      if (this.opts.onModel && v === "applied") this.opts.onModel(f.summary || "");
+      const text = v === "applied" ? `Switched to ${f.summary || "the new model"}`
+        : v === "refused" ? `Model not switched: ${String(f.summary || "").replace(/^model switch to /, "")}`
+        : `Model switch ${v}: ${f.summary || ""}`;
+      const node = this._muted(text);
+      node.classList.add("switch", v === "applied" ? "ok" : "bad");
+      return node;
+    }
+    // Shown at once when /model is sent; replaced by the run's own row.
+    switchPending(model) {
+      const node = this._muted(`Switching to ${model} after the step it is on…`);
+      node.classList.add("switch", "switch-pending");
+      return node;
+    }
+
+    // ---- SESSION mode: one line per step --------------------------------------
+    _line(f, tool, live) {
+      this._closeGroup();
+      const node = this._html(`<details class="sess-step${live ? " run" : " done"}" data-tool="${esc(tool)}">
+        <summary>
+          <span class="sess-head"><span class="mark" aria-hidden="true"></span><span class="sess-name">${esc(stepName(tool))}</span><code class="sess-arg">${esc(f.summary || "")}</code></span>
+          <span class="sess-peek">${live ? "Running…" : ""}</span>
+        </summary>
+        <pre class="sess-out"></pre></details>`);
+      this.pending.push({ node, tool });
+      this.lastSay = null;
+      return this._append(node);
+    }
+    _lineResult(f, tool) {
+      let i = this.pending.findIndex((p) => p.tool === tool);
+      if (i < 0) i = this.pending.length ? 0 : -1;
+      const node = i >= 0 ? this.pending.splice(i, 1)[0].node : this._line({ summary: "" }, tool, false);
+      if (i < 0) this.pending.pop();
+      const bad = f.verdict === "error", refused = f.verdict === "denied";
+      node.classList.remove("run");
+      node.classList.add("done");
+      node.classList.toggle("bad", bad);
+      node.classList.toggle("refused", refused);
+      const out = String(f.summary || "").trim();
+      const peek = refused ? `Refused: ${out.replace(/^DENIED:\s*/, "")}`
+        : out || (bad ? "Failed" : "Done, no output");
+      node.querySelector(".sess-peek").textContent = peek;
+      node.querySelector(".sess-out").textContent = out || peek;
+      // Nothing more to see than the line already shows: not openable.
+      if (!out || out.length < 90) node.classList.add("short");
+      const stick = this._atBottom();
+      if (stick) this.el.scrollTop = this.el.scrollHeight;
+      return node;
+    }
+
+    // While the run is live and not waiting on anyone: one line at the very
+    // bottom saying it is working, and for how long since its last step.
+    working(on) {
+      if (!on) { if (this.workingEl) { this.workingEl.remove(); this.workingEl = null; clearInterval(this.workingTimer); } return; }
+      if (!this.workingEl) {
+        this.workingEl = this._html(`<div class="sess-working" aria-hidden="true"><span class="spark"></span><span class="sess-working-text">Working…</span></div>`);
+        this.el.appendChild(this.workingEl);
+        this.workingTimer = setInterval(() => this._paintWorking(), 1000);
+      }
+      this.since = this.since || Date.now();
+      this._paintWorking();
+    }
+    _paintWorking() {
+      if (!this.workingEl) return;
+      const s = Math.max(0, Math.round((Date.now() - (this.since || Date.now())) / 1000));
+      this.workingEl.querySelector(".sess-working-text").textContent =
+        `Working… ${s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`}`;
     }
 
     // ---- what it said --------------------------------------------------------
@@ -216,7 +310,12 @@ const AgentiActivity = (() => {
 
     // The run is over: nothing is still working.
     finish(reportHref) {
-      this.pending.forEach((p) => p.node.classList.remove("run"));
+      this.working(false);
+      this.pending.forEach((p) => {
+        p.node.classList.remove("run");
+        const peek = p.node.querySelector(".sess-peek");
+        if (peek && peek.textContent === "Running…") { peek.textContent = "No result recorded"; p.node.classList.add("short"); }
+      });
       this.pending = [];
       this._closeGroup();
       this.el.querySelectorAll(".steps.working").forEach((g) => this._repaintClosed(g));
@@ -270,6 +369,8 @@ const AgentiActivity = (() => {
       }
       if (kind === "note") return this._muted(`Note: ${r.body}`);
       if (kind === "kickoff") return null;
+      // The request itself; the run's own model_switch row says what came of it.
+      if (kind === "set_model") return null;
       return this._muted(`${kind}: ${r.body}`);
     }
 

@@ -6,15 +6,20 @@ run (display only). Its parts, from top to bottom:
 
 ## Console
 
-A conversation, not a log:
+It reads like a Claude Code session: everything the run did, in order.
 
-- What the agent says appears as short messages. A long one is folded with
-  **Show more**; the closing message of a finished run is its **Summary**, with a
-  link to the full report.
-- What the agent does in between is folded into one line, "Ran 6 steps". Open it
-  to see each step, and open a step to see what it returned. Failed steps are
-  counted in red. While a run is live the line reads "Working · …".
-- What you or a teammate said to the agent appears as a message too.
+- What the agent says appears as text beside a grey dot. A long message is folded
+  with **Show more**; the closing message of a finished run is its **Summary**, with
+  a link to the full report.
+- Every step it takes has its own line: what it ran (for example
+  `Run scan nmap -sT --top-ports 10 192.0.2.50`) and, beneath it, the first line of
+  what came back. A green dot means it ran, a red one that it failed, and an amber
+  one that the allow-list or the scope refused it. Click a step to see its whole
+  recorded result. The full output of a scan is in the run's outputs and report.
+- While the run is working, the last line says **Working…** and how long since its
+  last step.
+- What you or a teammate said to the agent appears as a highlighted prompt.
+- The chip at the top right names the run's model, for example **Claude · haiku**.
 - The live feed keeps checking that you may still see it: if you sign out, your
   session ends, or an admin's access to someone else's run is removed, it stops
   within half a minute and says why. You can have up to six live feeds open at
@@ -32,6 +37,20 @@ A conversation, not a log:
 - The agent's narration is its own account of what it's doing. It is useful, but it
   is not a trace of how the agent actually reached its answer.
 
+Type `/` in the message box for commands. The list shows only the ones you can
+use right now; keep typing to narrow it, use the arrow keys to move, and press
+Enter or Tab to choose.
+
+| Command | What it does |
+|---|---|
+| `/model` | Switches the model. It lists the models your organisation allows from the run's provider; pick one, or type `/model` and a name. |
+| `/note <text>` | Adds a note, like **Note**. |
+| `/pause`, `/resume`, `/stop`, `/interrupt` | The same as the buttons below. |
+| `/attach` | Attaches a file, like **Attach**. |
+| `/help` | Lists the commands. |
+
+The message box is not a terminal: nothing typed there runs on the machine.
+
 The buttons beside the message box:
 
 | Button | What it does |
@@ -40,7 +59,6 @@ The buttons beside the message box:
 | Resume | Continues a paused run, or restarts a stopped one with the same conversation. |
 | Interrupt | Stops the step in progress now and ends the run. A partial report is still written. |
 | Stop | Ends the run once the step in progress finishes. A partial report is written. |
-| Switch model | Changes the model at the next turn boundary. |
 
 If the agent asks you a question, a yellow banner shows it. Answer with **Send**.
 The agent waits for your answer for up to 24 hours, and the time it spends waiting does

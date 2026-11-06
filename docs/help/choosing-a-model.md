@@ -69,6 +69,14 @@ or self-hosted address is refused before a solo run's slot is created.
 For a team at a terminal, use `--model` for a common default, or repeat
 `--member-model enum=openai:YOUR_MODEL` for individual members.
 
+To change the model of a run that is going, type `/model` in its console (or
+click the model chip at the top of the console) and pick one; at a terminal,
+`sudo agenti enum set-model sonnet`. The switch happens after the step in
+progress, and the console says when it does. A run keeps its provider: a Claude
+run can switch to another Claude model, but not to a ChatGPT one. The new model
+must be on the allowed list at the moment of the switch, and an OpenAI model
+needs a price.
+
 If the live list fails, check the provider key, server availability and relay
 allow-list. A key does not override allowed models, scope, budgets, tool
 validation, or operator approvals. Exploit runs use the same gates on every

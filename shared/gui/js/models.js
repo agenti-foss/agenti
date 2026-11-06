@@ -34,6 +34,13 @@ window.AgentiModels = (() => {
     const p = providerOf(model);
     try { if (p) localStorage.setItem(LAST_PROVIDER_KEY, p); } catch (e) { /* no persistence */ }
   }
+  // How a run's model reads to a person: "Claude · haiku", "ChatGPT · gpt-5.1".
+  function describe(model) {
+    const id = providerOf(model);
+    const provider = PROVIDERS.find((p) => p.id === id);
+    const bare = String(model || "").startsWith(id + ":") ? String(model).slice(id.length + 1) : String(model || "");
+    return { provider: id, name: provider ? provider.name : "", icon: provider ? provider.icon : "cpu", bare };
+  }
   function lastProvider() {
     try { return localStorage.getItem(LAST_PROVIDER_KEY) || ""; } catch (e) { return ""; }
   }
@@ -172,5 +179,5 @@ window.AgentiModels = (() => {
     };
   }
 
-  return { PROVIDERS, status, mount, remember };
+  return { PROVIDERS, status, mount, remember, providerOf, describe };
 })();

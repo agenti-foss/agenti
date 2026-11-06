@@ -2571,3 +2571,128 @@ mark.docs-mark {
 .launch-section .provider-legend { font-weight: 600; font-size: 0.95rem; }
 #providers-list > .panel { margin: 0; }
 .launch-section.single-provider { padding: 0; background: none; border-radius: 0; }
+
+/* ---- The agent console as a session (activity.js session mode) ------------
+ * Read like a Claude Code session: what the agent said as plain text by a
+ * dot, every step on its own line with a one-line result beneath it, what you
+ * said as a prompt line. Quiet by default; colour only where something failed
+ * or the boundary refused a step. */
+.console.activity.session { gap: 10px; }
+.session .say {
+  align-self: stretch; max-width: 92ch; position: relative;
+  background: none; border: 0; border-radius: 0; padding: 0 0 0 22px;
+}
+.session .say::before {
+  content: ""; position: absolute; left: 6px; top: 0.62em;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint);
+}
+.session .say.final { max-width: none; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 5%, var(--bg-elevated)); }
+.session .say.final::before, .session .say.you::before, .session .say.ask::before { display: none; }
+.session .say.you {
+  max-width: none; padding: 8px 12px 8px 14px; color: var(--text);
+  background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+}
+.session .say.you .say-meta { color: var(--accent); }
+.session .say.you .md a, .session .say.you .md code { color: inherit; }
+.session .say.ask { padding: 9px 13px; border: 1px solid var(--warn); border-radius: var(--radius-sm); }
+.session .say.mate, .session .say.post { padding: 8px 12px; border: 1px dashed var(--border); border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--radius-sm); }
+.session .say.mate::before, .session .say.post::before { display: none; }
+
+.sess-step > summary {
+  display: flex; flex-direction: column; gap: 2px; cursor: pointer; list-style: none;
+  padding: 2px 0; border-radius: 6px;
+}
+.sess-step > summary::-webkit-details-marker { display: none; }
+.sess-step > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sess-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sess-step .mark {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; margin: 0 1px 0 6px;
+  background: var(--ok); position: relative; top: -1px;
+}
+.sess-step.run .mark { animation: agenti-pulse 1.2s ease-in-out infinite; }
+.sess-step.bad .mark { background: var(--err); }
+.sess-step.refused .mark { background: var(--warn); }
+.sess-name { font-weight: 650; color: var(--text); flex: 0 0 auto; font-size: 0.86rem; }
+.sess-arg {
+  font-family: var(--mono); font-size: 0.8rem; color: var(--text); min-width: 0;
+  overflow-wrap: anywhere; background: none; padding: 0;
+}
+.sess-peek {
+  padding-left: 22px; color: var(--text-dim); font-family: var(--mono); font-size: 0.76rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative;
+}
+.sess-peek:empty { display: none; }
+.sess-peek::before { content: "└"; position: absolute; left: 8px; color: var(--text-faint); }
+.sess-step.run .sess-peek { color: var(--text-faint); }
+.sess-step.bad .sess-peek { color: var(--err); }
+.sess-step.refused .sess-peek { color: var(--warn); }
+.sess-step[open]:not(.short) .sess-peek { display: none; }
+.sess-out {
+  margin: 4px 0 4px 22px; padding: 8px 10px; max-height: 16em; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: 0.76rem; line-height: 1.45; color: var(--text-dim);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.sess-step.bad .sess-out { color: var(--err); }
+.sess-step.short > summary { cursor: default; }
+.sess-step.short .sess-out { display: none; }
+.sess-step:not(.short) > summary:hover .sess-peek { color: var(--text); }
+
+.sess-working { display: flex; align-items: center; gap: 9px; padding-left: 4px; color: var(--text-dim); font-size: 0.82rem; }
+.sess-working .spark {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+  animation: agenti-pulse 1.2s ease-in-out infinite;
+}
+.act-note.switch {
+  align-self: center; padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-dim); background: var(--bg-elevated);
+}
+.act-note.switch.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
+.act-note.switch.bad { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.act-note.switch-pending { font-style: italic; }
+@media (prefers-reduced-motion: reduce) {
+  .sess-step.run .mark, .sess-working .spark { animation: none; }
+}
+
+/* The run's model, in the console's head; on a live run it opens /model. */
+.model-chip {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+  min-height: 30px; padding: 3px 11px 3px 4px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text);
+  font-size: 0.8rem; font-weight: 550; box-shadow: none; max-width: 100%;
+}
+.model-chip > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-chip .cat-icon { width: 22px; height: 22px; border-radius: 50%; }
+.model-chip .chev {
+  width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg); position: relative; top: -2px; opacity: 0.6;
+}
+.model-chip:not(:disabled):hover { border-color: var(--accent); color: var(--accent); cursor: pointer; }
+.model-chip:disabled { opacity: 1; cursor: default; }
+
+/* The "/" command list (slash.js), opening above the message box. */
+.composer { position: relative; }
+.slash-menu {
+  position: absolute; left: var(--space-2); width: min(36rem, calc(100% - 2 * var(--space-2))); bottom: calc(100% + 6px); z-index: 30;
+  max-height: 17rem; overflow-y: auto; padding: 5px;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+}
+.slash-menu[hidden] { display: none; }
+.slash-title {
+  padding: 5px 10px 4px; font-size: 0.7rem; font-weight: 650; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.slash-item {
+  display: flex; align-items: baseline; gap: 14px; padding: 7px 10px; border-radius: 7px; cursor: pointer;
+}
+.slash-item.active { background: var(--accent-soft); }
+.slash-label { font-family: var(--report-mono, var(--mono)); font-size: 0.84rem; color: var(--text); flex: 0 0 auto; }
+.slash-item.active .slash-label { color: var(--accent); }
+.slash-hint { color: var(--text-dim); font-size: 0.8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) {
+  .slash-item { flex-direction: column; gap: 1px; }
+  .slash-hint { white-space: normal; }
+  .model-chip { margin-left: 0; }
+}

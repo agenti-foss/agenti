@@ -335,7 +335,8 @@ no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the r
 
 ### Open questions / next work
 1. **Model providers:** `docs/model-providers.md` records Phase B implementation,
-   VM proof and outstanding checks. Phase C is the console; do not start it during B.
+   VM proof and outstanding checks. Phase C (the session-style console with `/`
+   commands, `shared/gui/js/slash.js`) is done; its proof is in that file.
    Paid-agent apt hosting remains on hold. Remote access is operator-configured.
    **Licensing:** core AGPL-3.0; advanced agents proprietary, each in a private repo
    (`docs/open-core-split.md`). Publish only on request: `docs/release-signing.md`;

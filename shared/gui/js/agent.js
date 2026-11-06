@@ -76,9 +76,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     chatInput: document.getElementById("ag-chat-input"),
     sendBtn: document.getElementById("ag-send-btn"),
     noteBtn: document.getElementById("ag-note-btn"),
-    modelSwitch: document.getElementById("ag-model-switch"),
-    modelSelect: document.getElementById("ag-model-select"),
-    modelSwitchBtn: document.getElementById("ag-model-switch-btn"),
+    modelChip: document.getElementById("ag-model-chip"),
     reviewPanel: document.getElementById("ag-review-panel"),
     markBtn: document.getElementById("ag-mark-complete"),
     reportKv: document.getElementById("ag-report-kv"),
@@ -198,9 +196,14 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   // ---------- the console ----------
-  // What the agent said, what it did (folded into "Ran N steps"), and what you
-  // or a teammate said to it — see activity.js. Built here, filled below.
-  const feed = new AgentiActivity.Feed(els.feed, { you: viewUser || "You" });
+  // What the agent said, every step it took, and what you or a teammate said
+  // to it, in session form — see activity.js. Built here, filled below. A
+  // model switch the run applied updates the model chip.
+  let currentModel = "";
+  const feed = new AgentiActivity.Feed(els.feed, {
+    you: viewUser || "You", session: true,
+    onModel: (m) => { currentModel = m; paintModel(); },
+  });
   const latestReportHref = () => `report.html?agent=${encodeURIComponent(agent)}`
     + (copy ? `&copy=${encodeURIComponent(copy)}` : "") + viewQS;
 
@@ -476,7 +479,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       st.target || l.target || "no target",
       l.turn !== undefined ? `turn ${l.turn}` : null,
       l.findings_count !== undefined ? `${l.findings_count} findings` : null,
-      st.model || null,
       l.launched_by ? `launched by ${plabel(l.launched_by)}${l.launched_via ? ` (${l.launched_via})` : ""}` : null,
     ].filter(Boolean).join(" · ");
     els.meta.textContent = meta;
@@ -517,6 +519,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       ? (cls === "warn-soft" ? `? waiting on ${viewUser || "you"}`
         : st.freezer === "frozen" ? "❚❚ paused" : `● live — turn ${l.turn ?? 0}`)
       : l.phase === "finished" ? `ended — ${full}` : "no run";
+    // "Working… 12s" at the foot of the console while the run is busy, not
+    // while it is paused or waiting on someone.
+    feed.working(st.state === "active" && st.freezer !== "frozen" && !question);
   }
   paintHeader(status);
 
@@ -557,42 +562,66 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (shownControls.length === 1) shownControls[0].classList.add("with-label");
   if (!shownControls.length) els.controls.hidden = true;
 
-  // ---------- live model switch (CLAUDE.md "Current plan") ----------
-  // Active only for a running, non-frozen run, and only for a caller who
-  // could already steer it with Send (agent:chat) — changing the model is
-  // at least as consequential as a steering message, arguably more so
-  // since it changes real spend rate.
-  if (isActive && !isFrozen && may("agent:chat")) {
-    (async () => {
-      try {
-        const data = await Agenti.get(`${base}/engagement`);
-        const models = ((data.effective_policy || {}).allowed_models || []);
-        if (!models.length) return;
-        els.modelSelect.innerHTML = models.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
-        const current = status.model;
-        if (current && models.includes(current)) els.modelSelect.value = current;
-        els.modelSwitch.hidden = false;
-        els.modelSwitchBtn.addEventListener("click", async () => {
-          const target = els.modelSelect.value;
-          if (!target) return;
-          if (!confirm(`Switch to ${target} at the next turn boundary?\n\nApplied between steps, never mid-tool-call.`)) return;
-          els.modelSwitchBtn.disabled = true;
-          try {
-            await Agenti.post(u(`${base}/set-model`), { model: target });
-            say("ok", els.msg, `Requested switch to ${target} — applied at the next turn boundary.`);
-          } catch (e) {
-            say("err", els.msg, Agenti.errorText(e));
-          } finally {
-            els.modelSwitchBtn.disabled = false;
-          }
-        });
-      } catch (e) { /* engagement panel below already reports this failure */ }
-    })();
+  // ---------- the model, and /model ----------
+  // The chip names the run's model ("Claude · haiku"), following any switch
+  // the run applies. On a live, unpaused run you may steer (agent:chat: a new
+  // model changes what the run spends, so it needs at least what a message
+  // needs), it opens /model. A switch stays within the run's provider and
+  // takes effect after the step in flight; the run re-checks the allowed list
+  // itself and records a refusal, which the console shows.
+  currentModel = status.model || "";
+  const canSwitch = isActive && !isFrozen && may("agent:chat") && !viewUser;
+  function paintModel() {
+    if (!currentModel) { els.modelChip.hidden = true; return; }
+    const d = AgentiModels.describe(currentModel);
+    els.modelChip.hidden = false;
+    els.modelChip.innerHTML = `<span class="cat-icon" aria-hidden="true">${Agenti.icon(d.icon, 13)}</span>`
+      + `<span>${d.name ? `${esc(d.name)} · ` : ""}${esc(d.bare)}</span>`
+      + (canSwitch ? `<span class="chev" aria-hidden="true"></span>` : "");
+    els.modelChip.disabled = !canSwitch;
+    els.modelChip.title = canSwitch ? "Switch the model after the step it is on (/model)" : "The model this run uses";
+    els.modelChip.setAttribute("aria-label", `Model: ${d.name ? d.name + " " : ""}${d.bare}${canSwitch ? ". Switch it" : ""}`);
   }
+  paintModel();
+
+  // The run's provider's models, live, kept to what the policy allows (the
+  // same list the launch page offers). Asked once, when /model first opens.
+  let modelList = null;
+  function switchOptions() {
+    const provider = AgentiModels.providerOf(currentModel) || "anthropic";
+    modelList = modelList || Agenti.get(`models?${new URLSearchParams({ provider, agent })}`)
+      .then((r) => (r.models || []).map((m) => {
+        const bare = m.startsWith(provider + ":") ? m.slice(provider.length + 1) : m;
+        // "haiku" (as launched) is the listed claude-haiku-… model.
+        const now = AgentiModels.describe(currentModel).bare;
+        const isNow = bare === now || (["haiku", "sonnet", "opus"].includes(now) && bare.startsWith(`claude-${now}`));
+        return { value: bare, hint: isNow ? "current" : "" };
+      }))
+      .catch((e) => { modelList = null; say("err", els.msg, Agenti.errorText(e) + " You can still type /model and a model name."); return []; });
+    return modelList;
+  }
+  async function switchModel(name) {
+    if (!name) { slash.open("/model "); return; }
+    const provider = AgentiModels.providerOf(currentModel) || "anthropic";
+    const typed = name.split(":", 1)[0];
+    const full = AgentiModels.PROVIDERS.some((p) => p.id === typed) ? name : `${provider}:${name}`;
+    if (AgentiModels.providerOf(full) !== provider) {
+      say("err", els.msg, `This run uses ${AgentiModels.describe(currentModel).name || "its provider"}. A run keeps its provider: start a new run to use ${name}.`);
+      return;
+    }
+    try {
+      await Agenti.post(u(`${base}/set-model`), { model: full });
+      feed.switchPending(name);
+      say("ok", els.msg, `Switching to ${name} after the step it is on.`);
+    } catch (e) {
+      say("err", els.msg, Agenti.errorText(e));
+    }
+  }
+  els.modelChip.addEventListener("click", () => { if (canSwitch) slash.open("/model "); });
 
   // ---------- composer ----------
-  async function send(kind) {
-    const text = els.chatInput.value.trim();
+  async function send(kind, typed) {
+    const text = (typed ?? els.chatInput.value).trim();
     if (!text) return;
     els.sendBtn.disabled = true; els.noteBtn.disabled = true;
     try {
@@ -613,6 +642,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       els.chatInput.focus();
     }
   }
+  if (matchMedia("(max-width: 480px)").matches) els.chatInput.placeholder = "Message, or / for commands";
   if (viewUser) els.chatForm.hidden = true;   // nobody steers someone else's run
   if (!isActive || !may("agent:chat")) {
     els.sendBtn.disabled = true;
@@ -626,7 +656,34 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (els.sendBtn.disabled && els.noteBtn.disabled) {
     els.chatForm.classList.add("is-disabled");
   }
-  els.chatForm.addEventListener("submit", (e) => { e.preventDefault(); send("message"); });
+  // "/" commands: the same actions as the buttons beside the box, offered
+  // only when the button would be (your role, the run's state).
+  const control = (action) => {
+    const btn = els.controls.querySelector(`[data-action="${action}"]`);
+    return btn && !btn.hidden ? btn : null;
+  };
+  const slash = AgentiSlash.attach(els.chatInput, {
+    onError: (text) => say("err", els.msg, text),
+    commands: () => [
+      canSwitch && { name: "model", args: "<name>", about: "Switch the model after the step it is on",
+        optionsTitle: `${AgentiModels.describe(currentModel).name || "Models"} models allowed here`,
+        options: switchOptions, run: switchModel },
+      may("agent:note") && { name: "note", args: "<text>", about: "Add a note to the ledger and report; the model never sees it",
+        run: (text) => (text ? send("note", text) : slash.open("/note ")) },
+      ...[["pause", "Freeze the run where it is"], ["resume", "Carry on from where it stopped"],
+          ["stop", "End after the step in flight; a partial report is written"],
+          ["interrupt", "Abort the step in flight now and end the run"]]
+        .filter(([a]) => control(a)).map(([a, about]) => ({ name: a, about, run: () => control(a).click() })),
+      !document.getElementById("ag-attach-btn").hidden && { name: "attach", about: "Attach a file to this run",
+        run: () => document.getElementById("ag-attach-btn").click() },
+      { name: "help", about: "List these commands", run: () => slash.open("/") },
+    ].filter(Boolean),
+  });
+  els.chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (slash.handle(els.chatInput.value.trim())) return;
+    send("message");
+  });
   els.noteBtn.addEventListener("click", () => send("note"));
 
   // ---------- files ----------

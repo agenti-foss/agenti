@@ -75,6 +75,12 @@ class Handler(BaseHTTPRequestHandler):
             with _lock:
                 MISSES.append({"as": self._who(), "request": key})
             return self._send(404, b'{"detail":"not recorded (tests/gui/record.js)"}', "application/json")
+        if "sse" in hit:
+            # A live feed (GET /agents/{a}/stream): its recorded events once,
+            # then the stream ends; the long retry keeps the browser from
+            # replaying it while a screenshot is taken.
+            body = "retry: 600000\n\n" + "".join(f"event: {name}\ndata: {json.dumps(data)}\n\n" for name, data in hit["sse"])
+            return self._send(hit["status"], body.encode(), "text/event-stream")
         return self._send(hit["status"], json.dumps(hit["body"]).encode(), "application/json")
 
     do_GET = do_HEAD = do_POST = do_PUT = do_PATCH = do_DELETE = _answer

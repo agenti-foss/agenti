@@ -943,6 +943,34 @@
     "text": "no files attached."
    }
   },
+  "GET /agents/enum/files?copy=run-0d5e55a1": {
+   "status": 200,
+   "body": {
+    "run": [],
+    "run_dir": null,
+    "pending": [],
+    "limits": {
+     "file_bytes": 104857600,
+     "run_bytes": 524288000,
+     "run_files": 50
+    },
+    "text": "no files attached."
+   }
+  },
+  "GET /agents/enum/files?copy=run-5c1a7e20": {
+   "status": 200,
+   "body": {
+    "run": [],
+    "run_dir": null,
+    "pending": [],
+    "limits": {
+     "file_bytes": 104857600,
+     "run_bytes": 524288000,
+     "run_files": 50
+    },
+    "text": "no files attached."
+   }
+  },
   "GET /agents/enum/files?copy=run-f2ac258c": {
    "status": 200,
    "body": {
@@ -961,7 +989,136 @@
    "status": 200,
    "body": []
   },
+  "GET /agents/enum/findings?n=500&copy=run-0d5e55a1": {
+   "status": 200,
+   "body": [
+    {
+     "turn": 2,
+     "tool": "agent:says",
+     "verdict": "text",
+     "summary": "I'll begin by loading the reconnaissance tools and then systematically assess the in-scope host (192.0.2.50/32) for live services and AD exposure.",
+     "ts": 1793000000.0
+    },
+    {
+     "turn": 3,
+     "tool": "ToolSearch",
+     "verdict": "call",
+     "summary": "query=select:mcp__recon__run_scan,mcp__recon__read_scan,mcp__recon__ask_operator, max_results=5",
+     "ts": 1793000007.0
+    },
+    {
+     "turn": 3,
+     "tool": "operator:message",
+     "verdict": "received",
+     "summary": "[b-admin via api] Use only one quick nmap scan of the top 10 TCP ports on the approved target, then summarize and finish. Do not attempt exploitation.",
+     "ts": 1793000014.0
+    },
+    {
+     "turn": 3,
+     "tool": "ToolSearch",
+     "verdict": "ok",
+     "summary": "",
+     "ts": 1793000021.0
+    },
+    {
+     "turn": 5,
+     "tool": "agent:says",
+     "verdict": "text",
+     "summary": "Understood. I'll run a single quick nmap scan of the top 10 TCP ports on 192.0.2.50 and provide the findings.",
+     "ts": 1793000028.0
+    },
+    {
+     "turn": 6,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "call",
+     "summary": "nmap -sV --top-ports 10 192.0.2.50",
+     "ts": 1793000035.0
+    },
+    {
+     "turn": 6,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "ok",
+     "summary": "Starting Nmap 7.991 ( https://nmap.org ) at 2026-11-04 07:06 -0500 --- error output (exit 1) --- pcap_activate(eth0) FAILED: PF_PACKET sockets not supported - is this WSL1?. Call to pcap_open_live() f\u2026",
+     "ts": 1793000042.0
+    },
+    {
+     "turn": 8,
+     "tool": "agent:says",
+     "verdict": "text",
+     "summary": "The first scan hit a network interface issue. Let me retry with unprivileged mode:",
+     "ts": 1793000049.0
+    },
+    {
+     "turn": 8,
+     "tool": "model_switch",
+     "verdict": "applied",
+     "summary": "claude-sonnet-5",
+     "ts": 1793000056.0
+    },
+    {
+     "turn": 9,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "call",
+     "summary": "nmap --unprivileged -sT -sV --top-ports 10 192.0.2.50",
+     "ts": 1793000063.0
+    },
+    {
+     "turn": 9,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "denied",
+     "summary": "DENIED: option '--unprivileged' is not allowed for nmap. Allowed: --host-timeout --max-parallelism --max-rate --max-retries --max-rtt-timeout --min-parallelism --min-rate --no-stylesheet --open --reas\u2026",
+     "ts": 1793000070.0
+    },
+    {
+     "turn": 11,
+     "tool": "agent:says",
+     "verdict": "text",
+     "summary": "Let me use the TCP connect scan mode which is allowed and doesn't require raw sockets:",
+     "ts": 1793000077.0
+    },
+    {
+     "turn": 12,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "call",
+     "summary": "nmap -sT -sV --top-ports 10 -Pn 192.0.2.50",
+     "ts": 1793000084.0
+    },
+    {
+     "turn": 12,
+     "tool": "mcp__recon__run_scan",
+     "verdict": "ok",
+     "summary": "Starting Nmap 7.991 ( https://nmap.org ) at 2026-11-04 07:06 -0500 Nmap scan report for 192.0.2.50 Host is up (0.00072s latency). PORT STATE SERVICE VERSION 21/tcp open ftp vsftpd 2.3.4 22/tcp open\u2026",
+     "ts": 1793000091.0
+    },
+    {
+     "turn": 12,
+     "tool": "agent:says",
+     "verdict": "text",
+     "summary": "## Findings Summary \u2014 192.0.2.50\n\nPerformed one quick TCP service/version scan of the top 10 Nmap ports, per instruction. Host is reachable.\n\n### Open services\n| Port | Service | Identified version/details |\n|---:|---|---|\n| 21/tcp | FTP | vsftpd 2.3.4 |\n| 22/tcp | SSH | OpenSSH 4.7p1 Debian 8ubuntu1 |\n| 23/tcp | Telnet | Linux telnetd |\n| 25/tcp | SMTP | Postfix smtpd |\n| 80/tcp | HTTP | Apache httpd 2.2.8, DAV/2 |\n| 139/tcp | NetBIOS/SMB | Samba smbd 3.x\u20134.x; workgroup `WORKGROUP` |\n| 445/tcp | SMB | Samba smbd 3.x\u20134.x; workgroup `WORKGROUP` |\n\nClosed among the scanned ports: 110/tcp (POP3), 443/tcp (HTTPS), and 3389/tcp (RDP).\n\n### Notable findings\n- **Immediate human review recommended:** FTP reports **vsftpd 2.3.4**, a version widely associated with a historically backdoored distribution. I did not attempt to validate, exploit, or otherwise interact with this condition.\n- **Cleartext remote administration exposure:** Telnet is available on TCP/23. Telnet does not protect credentials or session traffic in transit and should be disabled or replaced with SSH.\n- **Legacy service stack:** The identified OpenSSH, Apache, Samba, and FTP versions are substantially dated. Confirm patch/support status and restrict access to only necessary trusted networks.\n- **SMB exposure:** SMB/NetBIOS is externally reachable on 139/445 and advertises the `WORKGROUP` workgroup. No AD domain exposure was identified in this limited scan.\n\nHost identification returned: `metasploitable.localdomain`, with Unix/Linux indicated.\n\nNo exploitation, credential attempts, payload capture, or additional enumeration was performed.",
+     "ts": 1793000098.0
+    }
+   ]
+  },
   "GET /agents/enum/history?n=50": {
+   "status": 200,
+   "body": []
+  },
+  "GET /agents/enum/history?n=50&copy=run-0d5e55a1": {
+   "status": 200,
+   "body": [
+    {
+     "run_id": "run-0d5e55a1",
+     "status": "completed",
+     "reason": "",
+     "findings_count": 4,
+     "ended": 1793000200.0,
+     "acknowledged": true,
+     "acknowledged_by": "b-admin",
+     "report": "report-1.md"
+    }
+   ]
+  },
+  "GET /agents/enum/history?n=50&copy=run-5c1a7e20": {
    "status": 200,
    "body": []
   },
@@ -990,6 +1147,215 @@
     "last_report": "",
     "live": {}
    }
+  },
+  "GET /agents/enum/status?copy=run-0d5e55a1": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "owner": "b-admin",
+    "copy": "run-0d5e55a1",
+    "name": "",
+    "vault": "off",
+    "state": "inactive",
+    "freezer": "n/a",
+    "target": "192.0.2.50",
+    "team": null,
+    "model": "haiku",
+    "last_report": "/var/lib/agenti/data/org/enum/instances/b-admin.run-0d5e55a1/reports/report-1.md",
+    "live": {
+     "run_id": "run-0d5e55a1",
+     "turn": 12,
+     "findings_count": 4,
+     "phase": "finished",
+     "status": "completed",
+     "launched_by": "b-admin",
+     "launched_via": "gui"
+    }
+   }
+  },
+  "GET /agents/enum/status?copy=run-5c1a7e20": {
+   "status": 200,
+   "body": {
+    "agent": "enum",
+    "owner": "b-admin",
+    "copy": "run-5c1a7e20",
+    "name": "",
+    "vault": "off",
+    "state": "active",
+    "freezer": "thawed",
+    "target": "192.0.2.50",
+    "team": null,
+    "model": "haiku",
+    "last_report": "",
+    "live": {
+     "run_id": "run-5c1a7e20",
+     "turn": 13,
+     "findings_count": 4,
+     "phase": "running",
+     "status": "running",
+     "launched_by": "b-admin",
+     "launched_via": "gui"
+    }
+   }
+  },
+  "GET /agents/enum/stream?copy=run-5c1a7e20": {
+   "status": 200,
+   "sse": [
+    [
+     "reset",
+     {
+      "run_id": "run-5c1a7e20"
+     }
+    ],
+    [
+     "status",
+     {
+      "state": "active",
+      "freezer": "thawed",
+      "target": "192.0.2.50",
+      "last_report": "",
+      "live": {
+       "run_id": "run-5c1a7e20",
+       "turn": 13,
+       "findings_count": 4,
+       "phase": "running",
+       "status": "running",
+       "launched_by": "b-admin",
+       "launched_via": "gui"
+      }
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 2,
+      "tool": "agent:says",
+      "verdict": "text",
+      "summary": "I'll help you assess the authorized host for live services and AD exposure. Let me start by loading the necessary scanning tools, then perform a comprehensive enumeration.",
+      "ts": 1793004000.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 3,
+      "tool": "ToolSearch",
+      "verdict": "call",
+      "summary": "query=select:mcp__recon__run_scan,mcp__recon__read_scan,mcp__recon__ask_operator, max_results=10",
+      "ts": 1793004005.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 3,
+      "tool": "operator:message",
+      "verdict": "received",
+      "summary": "[b-admin via api] Keep to TCP connect scans; no UDP today.",
+      "ts": 1793004007.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 3,
+      "tool": "ToolSearch",
+      "verdict": "ok",
+      "summary": "",
+      "ts": 1793004010.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 5,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "call",
+      "summary": "nmap -sV -sC -p- --open 192.0.2.50",
+      "ts": 1793004015.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 5,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "denied",
+      "summary": "DENIED: option '-sC' is not allowed for nmap. Allowed: --host-timeout --max-parallelism --max-rate --max-retries --max-rtt-timeout --min-parallelism --min-rate --no-stylesheet --open --reason --scan-d\u2026",
+      "ts": 1793004020.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 7,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "call",
+      "summary": "nmap -sV -sT -p- --open 192.0.2.50",
+      "ts": 1793004025.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 7,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "ok",
+      "summary": "Starting Nmap 7.991 ( https://nmap.org ) at 2026-11-04 04:53 -0500 --- error output (exit 1) --- pcap_activate(eth0) FAILED: PF_PACKET sockets not supported - is this WSL1?. Call to pcap_open_live() f\u2026",
+      "ts": 1793004030.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 9,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "call",
+      "summary": "nc -zv 192.0.2.50 22 25 53 80 88 135 139 389 443 445 3306 3389 5985 5986 8080",
+      "ts": 1793004035.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 9,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "denied",
+      "summary": "DENIED: Binary 'nc' is not in the allow-list",
+      "ts": 1793004040.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 11,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "call",
+      "summary": "curl -v http://192.0.2.50:80 2>&1 | head -20",
+      "ts": 1793004045.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 11,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "denied",
+      "summary": "DENIED: Binary 'curl' is not in the allow-list",
+      "ts": 1793004050.0
+     }
+    ],
+    [
+     "finding",
+     {
+      "turn": 13,
+      "tool": "mcp__recon__run_scan",
+      "verdict": "call",
+      "summary": "dig @192.0.2.50 ANY",
+      "ts": 1793004055.0
+     }
+    ]
+   ]
   },
   "GET /agents/enum/tool-approvals": {
    "status": 200,
