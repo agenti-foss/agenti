@@ -4704,15 +4704,19 @@ cmd_admin() {
 reinstall it:  $REINSTALL"
         exec python3 "$IAM_PY" --help
     fi
-    case "${1:-}" in
-        set-policy)
-            if [[ "${2:-}" == model-price || "${2:-}" == model_prices ]]; then
-                console_only "admin set-policy model-price"
-                [[ $# -eq 3 ]] || die "usage: sudo agenti admin set-policy model-price provider:model=INPUT,OUTPUT
+    # set-policy model-price is the engagement's price list, not a platform
+    # policy. Checked BEFORE the case below: as a `set-policy)` clause there
+    # its `;;` ended the case for EVERY set-policy, so the real handler further
+    # down never ran and each policy change was a silent no-op (found
+    # 2026-11-06; broken since the model-price alias came in).
+    if [[ "${1:-}" == set-policy && ( "${2:-}" == model-price || "${2:-}" == model_prices ) ]]; then
+        console_only "admin set-policy model-price"
+        [[ $# -eq 3 ]] || die "usage: sudo agenti admin set-policy model-price provider:model=INPUT,OUTPUT
 Prices are USD per million tokens; this uses the organisation's engagement policy."
-                cmd_org_engagement set --model-price "$3"
-                return
-            fi ;;
+        cmd_org_engagement set --model-price "$3"
+        return
+    fi
+    case "${1:-}" in
         relay)
             console_only "admin relay"
             [[ "${2:-}" == allow && $# -eq 3 ]] || die "usage: sudo agenti admin relay allow host:port

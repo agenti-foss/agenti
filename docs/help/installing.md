@@ -11,8 +11,8 @@ curl -fsSL https://apt.agenti-foss.org/install.sh | sudo sh
 It ends by printing the address to open and a **setup code**. Open that
 address in a browser on the Agenti machine or any computer on its network
 (`https://<its address>:8420`), accept the certificate warning, enter
-the code and create the first admin. Then set up the engagement in
-**Settings → Engagement** and approve it. You can now launch an agent.
+the code and create the first admin. Then fill in the engagement in
+**Settings → Engagement** and press **Save and close**. You can now launch an agent.
 
 ## What you need
 
@@ -134,18 +134,17 @@ sudo agenti verify
 It tests every safety boundary by trying the forbidden thing (for example, the
 web server trying to read the user database), and changes nothing. A **FAIL**
 line names the fix. On a new install it warns that no engagement exists yet;
-that goes away once you set one up and approve it.
+that goes away once you save one.
 
 ## Before the first run: the engagement
 
 Agents only work inside an approved engagement: the client, the scope
 (addresses or domains), the dates and who authorised it.
 
-1. **Settings → Engagement** (or `sudo agenti engagement set --help`).
-2. An admin **approves** it (or `sudo agenti engagement approve`).
-
-Any later change to the engagement needs a fresh approval. Until then, every
-agent refuses to start and says so.
+Fill it in under **Settings → Engagement** (or `sudo agenti engagement set
+--help`) and press **Save and close**: saving approves it, so agents can start.
+An optional second-approver policy makes each change wait for another admin;
+see [The engagement](engagement.md).
 
 **Runs already going when the engagement changes.** A run keeps working as long
 as the new version still covers it (a note fixed, a scope widened and waiting
@@ -160,11 +159,9 @@ passed, even if nobody changed anything: an exploit approved before then does no
 fire after it, a traffic capture stops at the end of that day, and resuming a run
 gets the same checks as starting one (including *require a separate approver*).
 
-Saving and approving each ask you to confirm it's you (password and 2FA code, or
-a passkey). An approval covers exactly the version you were looking at: if
-someone changes the engagement while you review it, approving is refused and you
-review the new version. "Require approval" can be turned off only at the server
-(`sudo agenti engagement set --no-require-approval`), never from the web.
+Saving asks you to confirm it's you (password and 2FA code, or a passkey). If
+someone changes the engagement while your window is open, your save is refused
+and you redo it on the new version.
 
 Anything on the engagement's **out of scope** list is enforced, not just shown
 to the agent: an excluded address or domain can't be a run's target, a range
@@ -238,8 +235,10 @@ commands to delete it yourself. A script can answer yes in advance:
 | *no Anthropic API key reached this run* | No key is set at any level. **Settings → AI providers**, or `sudo agenti setup`, or set one for the agent or the user (above). |
 | The web interface does not load | `agenti gui status`, then `sudo agenti gui logs -n 40` |
 | *the vault is locked* | `sudo agenti vault unlock` (see **The vault**) |
-| *…is not approved as it stands* | An admin approves the engagement (Settings → Engagement). |
-| *REFUSING: target … is outside the authorized engagement scope* | The target isn't in the engagement. Pick one inside it, or have an admin add it and approve again. |
+| *…is not approved as it stands* | An admin opens Settings → Engagement and presses **Save and close** (with the second approver on, another admin approves it). |
+| *REFUSING: target … is outside the authorized engagement scope* | The target isn't in the engagement. Pick one inside it, or have an admin add it. |
+| *…the engagement change by … does not cover it* | A change waits for another admin; until it is decided, a run must fit both versions. See [The engagement](engagement.md). |
+
 | A run's report says *Invalid API key* | The key was revoked or mistyped. Replace it in **Settings → AI providers**, or `sudo /usr/lib/agenti/set-secret.sh` |
 | A run started from the terminal doesn't show on your dashboard | It belongs to your Linux username. Start it with `--owner <your Agenti name>`, or use the same name for both. |
 | A report's Findings section is empty | The run hit its turn, budget or time limit before writing its summary. The commands it ran and their output are still in the report. |

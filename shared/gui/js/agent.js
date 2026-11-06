@@ -419,11 +419,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     els.engSummary.textContent = `${esc(record.engagement_id || "?")} · ${lineCount} scope ${lineCount === 1 ? "entry" : "entries"}`;
     let statusLine;
-    const requiresApproval = (data.effective_policy || {}).require_approval !== false;
     if (st.current) statusLine = `<span style="color:var(--ok);">approved by ${esc(st.approved_by || "?")} — current</span>`;
-    else if (!requiresApproval) statusLine = `<span style="color:var(--ok);">not required by the organisation's policy</span>`;
     else if (st.approved) statusLine = `<span style="color:var(--warn);">stale — ${esc(st.reason || "edited since approval")}</span>`;
     else statusLine = `<span style="color:var(--warn);">not approved — ${esc(st.reason || "no approval on record")}</span>`;
+    // A change waiting for a second admin narrows what runs may touch now.
+    if (data.pending) statusLine += `<br><span style="color:var(--warn);">a change by ${esc(data.pending.author)} is waiting for approval: until then, runs must fit both versions (the scope below is what both allow)</span>`;
     const pol = data.effective_policy || {};
     const models = (pol.allowed_models || []).join(", ") || "(none)";
     const policyLine = `caps up to ${esc(String(pol.max_turns_ceiling))} turns / `
@@ -442,7 +442,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         <dt>Approval</dt><dd>${statusLine}</dd>
         <dt>Policy</dt><dd>${policyLine}</dd>
       </dl>
-      ${(data.history || []).length ? `<p class="hint">last changed by ${esc(data.history[data.history.length - 1].by)}</p>` : ""}
+      ${record.updated_by ? `<p class="hint">last changed by ${esc(record.updated_by)}</p>` : ""}
       ${engagementLink()}`;
   }
 
@@ -581,25 +581,57 @@ document.addEventListener("DOMContentLoaded", async function () {
     els.modelChip.disabled = !canSwitch;
     els.modelChip.title = canSwitch ? "Switch the model after the step it is on (/model)" : "The model this run uses";
     els.modelChip.setAttribute("aria-label", `Model: ${d.name ? d.name + " " : ""}${d.bare}${canSwitch ? ". Switch it" : ""}`);
+    if (chipSelect && modelNames) modelNames.then(paintChipOptions);
   }
-  paintModel();
 
   // The run's provider's models, live, kept to what the policy allows (the
-  // same list the launch page offers). Asked once, when /model first opens.
-  let modelList = null;
-  function switchOptions() {
+  // same list the launch page offers). Asked once.
+  let modelNames = null, chipSelect = null;
+  function loadModelNames() {
     const provider = AgentiModels.providerOf(currentModel) || "anthropic";
-    modelList = modelList || Agenti.get(`models?${new URLSearchParams({ provider, agent })}`)
-      .then((r) => (r.models || []).map((m) => {
-        const bare = m.startsWith(provider + ":") ? m.slice(provider.length + 1) : m;
-        // "haiku" (as launched) is the listed claude-haiku-… model.
-        const now = AgentiModels.describe(currentModel).bare;
-        const isNow = bare === now || (["haiku", "sonnet", "opus"].includes(now) && bare.startsWith(`claude-${now}`));
-        return { value: bare, hint: isNow ? "current" : "" };
-      }))
-      .catch((e) => { modelList = null; say("err", els.msg, Agenti.errorText(e) + " You can still type /model and a model name."); return []; });
-    return modelList;
+    modelNames = modelNames || Agenti.get(`models?${new URLSearchParams({ provider, agent })}`)
+      .then((r) => (r.models || []).map((m) => (m.startsWith(provider + ":") ? m.slice(provider.length + 1) : m)))
+      .catch((e) => { modelNames = null; say("err", els.msg, Agenti.errorText(e) + " You can still type /model and a model name."); return []; });
+    return modelNames;
   }
+  // "haiku" (as launched) is the listed claude-haiku-… model.
+  function isCurrent(bare) {
+    const now = AgentiModels.describe(currentModel).bare;
+    return bare === now || (["haiku", "sonnet", "opus"].includes(now) && bare.startsWith(`claude-${now}`));
+  }
+  async function switchOptions() {
+    return (await loadModelNames()).map((b) => ({ value: b, hint: isCurrent(b) ? "current" : "" }));
+  }
+  // The chip opens the browser's own dropdown (on a phone, the OS picker):
+  // a native <select> laid invisibly over it (operator note 2026-11-06).
+  // "Other model…" types /model in the message box for a name not listed.
+  function paintChipOptions(names) {
+    if (!chipSelect) return;
+    const cur = names.find(isCurrent);
+    chipSelect.innerHTML = (cur ? "" : `<option value="" selected disabled>${esc(AgentiModels.describe(currentModel).bare)}</option>`)
+      + names.map((b) => `<option value="${esc(b)}"${b === cur ? " selected" : ""}>${esc(b)}${b === cur ? " (current)" : ""}</option>`).join("")
+      + `<option value="__other__">Other model…</option>`;
+  }
+  if (canSwitch && currentModel) {
+    const wrap = document.createElement("span");
+    wrap.className = "model-chip-wrap";
+    els.modelChip.replaceWith(wrap);
+    wrap.appendChild(els.modelChip);
+    els.modelChip.tabIndex = -1;
+    els.modelChip.setAttribute("aria-hidden", "true");
+    chipSelect = document.createElement("select");
+    chipSelect.className = "model-chip-select";
+    chipSelect.setAttribute("aria-label", "Switch the model, after the step it is on");
+    wrap.appendChild(chipSelect);
+    loadModelNames().then(paintChipOptions);
+    chipSelect.addEventListener("change", async () => {
+      const v = chipSelect.value;
+      paintChipOptions(await loadModelNames());       // the chip shows the run's model until it switches
+      if (v === "__other__") slash.open("/model ");
+      else if (v) switchModel(v);
+    });
+  }
+  paintModel();
   async function switchModel(name) {
     if (!name) { slash.open("/model "); return; }
     const provider = AgentiModels.providerOf(currentModel) || "anthropic";

@@ -775,6 +775,7 @@ textarea { line-height: 1.5; resize: vertical; }
 .field input[type=text],
 .field input[type=password],
 .field input[type=number],
+.field input[type=date],
 .field select,
 .field textarea { width: 100%; }
 /* A password or a six-digit code is never long, and a box the width of the
@@ -1341,13 +1342,46 @@ code.value {
   border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;
   word-break: break-all; max-width: 100%;
 }
-img.qr {
-  display: block; width: 200px; height: 200px; max-width: 100%;
-  background: #fff; border: 1px solid var(--border); border-radius: 8px;
-  image-rendering: pixelated; image-rendering: crisp-edges;
+/* The 2FA QR code (api.js qrCode): round dots, rounded corner eyes, a soft
+ * card. One code follows the theme live through these three colours. Dark
+ * mode keeps dark ink on a light (slightly tinted) card: an inverted code
+ * is unreadable to some authenticator apps. The eyes are the accent,
+ * deepened so they keep scanner contrast in every skin. */
+:root {
+  --qr-card: #ffffff;
+  --qr-ink: #0f172a;
+  --qr-eye: color-mix(in srgb, var(--accent) 78%, #0b1220);
 }
-.qr-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --qr-card: #e7ebf2; --qr-ink: #0b1220; }
+}
+:root[data-theme="dark"] { --qr-card: #e7ebf2; --qr-ink: #0b1220; }
+.qr-card {
+  width: 232px; max-width: 100%; aspect-ratio: 1; flex: 0 0 auto;
+  border-radius: 18px; padding: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.10);
+  outline: 1px solid color-mix(in srgb, var(--border) 70%, transparent); outline-offset: -1px;
+  overflow: hidden;
+}
+.qr-card svg { display: block; width: 100%; height: 100%; }
+.qr-card .qr-bg { fill: var(--qr-card); }
+.qr-card .qr-ink { fill: var(--qr-ink); }
+.qr-card .qr-eye { fill: var(--qr-eye); }
+.qr-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
 .qr-row .qr-side { flex: 1; min-width: 200px; }
+@media (max-width: 480px) { .qr-row > div:first-child { margin: 0 auto; } }
+
+/* The 2FA secret: one box, its copy button tucked inside on the right. */
+.secret-box {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 4px 4px 12px; min-height: 40px;
+  background: var(--bg-inset); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
+.secret-box > code {
+  flex: 1; min-width: 0; padding: 0; background: none; border: 0;
+  font-size: 0.86rem; letter-spacing: 0.04em; word-break: break-all;
+}
+.secret-box > button.copy-btn { flex: 0 0 auto; margin: 0; }
 
 /* ---- the console (§4 item 25): activity + chat + controls in one pane ---- */
 /* ---------- team group chat ----------
@@ -2523,7 +2557,9 @@ mark.docs-mark {
 .provider-choice.not-ready:has(input:checked) { border-style: solid; }
 .provider-model { margin: 0; }
 .input-with-button { display: flex; gap: var(--space-2); align-items: stretch; }
-.input-with-button input { flex: 1 1 auto; min-width: 0; }
+.input-with-button input, .input-with-button select { flex: 1 1 auto; min-width: 0; width: auto; }
+.provider-other { margin-top: var(--space-2); }
+.provider-other input { width: 100%; }
 .btn.icon-only { padding-left: 10px; padding-right: 10px; display: inline-flex; align-items: center; justify-content: center; }
 
 /* A team member's picker: the same radios as a compact segmented row. */
@@ -2696,4 +2732,109 @@ mark.docs-mark {
   .slash-item { flex-direction: column; gap: 1px; }
   .slash-hint { white-space: normal; }
   .model-chip { margin-left: 0; }
+}
+
+/* ---- The sign-up page: "Welcome, <name>" is the headline ------------------ */
+.enrol-card h1 { font-size: 2rem; letter-spacing: -0.026em; overflow-wrap: anywhere; }
+.enrol-card .sub { font-size: 0.95rem; }
+.enrol-card .qr-row { margin-bottom: var(--space-4); }
+@media (max-width: 480px) { .enrol-card h1 { font-size: 1.7rem; } }
+
+/* ---- The password box (password-gen.js): icons inside, a small panel ------ */
+.pw-box { position: relative; }
+.field .pw-box > input.pw-input { width: 100%; max-width: none; padding-right: 116px; font-family: var(--mono); letter-spacing: 0.02em; }
+.pw-actions {
+  position: absolute; top: 50%; right: 5px; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 2px;
+}
+.pw-btn, .pw-actions button.copy-btn {
+  width: 34px; height: 34px; min-height: 0; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); box-shadow: none; cursor: pointer;
+}
+.pw-actions button.copy-btn.copied { color: var(--ok); }
+.pw-btn:hover, .pw-actions .copy-btn:hover { color: var(--accent); background: var(--accent-soft); }
+.pw-btn[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.pw-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: 248px;
+  padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+.pw-panel[hidden] { display: none; }
+.pw-panel-row { display: flex; justify-content: space-between; align-items: baseline; }
+.pw-panel-row label { margin: 0; font-weight: 600; color: var(--text); }
+.pw-panel output { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--accent); }
+.pw-panel input[type=range] { width: 100%; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+.pw-range { font-size: 0.72rem; color: var(--text-faint); margin-top: -4px; }
+.pw-new { align-self: flex-start; }
+.pw-hint { margin-top: 6px; }
+.pw-hint:not(.own)::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+.pw-confirm { margin-top: var(--space-3); }
+@media (pointer: coarse) { .pw-btn, .pw-actions .copy-btn { width: 40px; height: 40px; } .field .pw-box > input.pw-input { padding-right: 130px; } }
+
+/* ---- "Don't show again" on a standing advisory banner (api.js) ------------ */
+/* First in the banner and floated: the text (plain, or with bold and links)
+ * flows around it, so no banner's own markup has to change. */
+.banner > .banner-dismiss {
+  float: right; margin: 0 0 2px 16px; padding: 1px 0; min-height: 0; border: 0; background: none; box-shadow: none;
+  color: inherit; font: inherit; font-size: 0.8rem; font-weight: 650; white-space: nowrap;
+  text-decoration: underline; text-underline-offset: 2px; opacity: 0.85; cursor: pointer;
+}
+.banner > .banner-dismiss:hover { opacity: 1; }
+.hidden-messages-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* The console's model chip opens a native dropdown laid invisibly over it. */
+.model-chip-wrap { position: relative; margin-left: auto; display: inline-flex; max-width: 100%; }
+.model-chip-wrap > .model-chip { margin-left: 0; }
+.model-chip-select {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; padding: 0;
+  opacity: 0; cursor: pointer; border: 0; font-size: 16px; -webkit-appearance: none; appearance: none;
+}
+.model-chip-wrap:hover > .model-chip { border-color: var(--accent); color: var(--accent); }
+.model-chip-wrap:focus-within > .model-chip { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 480px) { .model-chip-wrap { margin-left: 0; } }
+
+/* ---- The engagement window and card (settings.js, operator notes 13 + 16) -- */
+/* Title + subtitle: a short title, a quieter line under it. */
+.dlg-section-head { margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.dlg-section-head:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+dialog .dlg-section-head h3.dlg-section { margin: 0; padding: 0; border: 0; }
+.dlg-sub { margin: 2px 0 0; font-size: 0.82rem; color: var(--text-dim); }
+.field-sub { margin: -2px 0 6px; font-size: 0.78rem; color: var(--text-faint); line-height: 1.4; }
+.check-row {
+  display: flex; align-items: flex-start; gap: 10px; margin: 10px 0; font-weight: normal; cursor: pointer;
+}
+.check-row input { width: auto; margin-top: 3px; flex: 0 0 auto; }
+.check-row .check-title { display: block; color: var(--text); font-weight: 550; }
+.check-row .field-sub { display: block; margin: 1px 0 0; }
+.eng-fold > summary { gap: 10px; }
+.eng-fold .fold-title { color: var(--text); font-weight: 600; font-size: 0.92rem; }
+.eng-fold .fold-sub { color: var(--text-faint); font-weight: 450; font-size: 0.8rem; }
+.eng-head { flex-wrap: wrap; row-gap: 8px; }
+.eng-head h2 { margin: 0; }
+.eng-head .eng-view { margin-left: auto; margin-right: 6px; }
+.eng-view button { padding: 5px 14px; }
+/* A field the pending change touches, and what is in force now under it. */
+.field.changed > label::after, .check-row.changed .check-title::after {
+  content: "changed"; margin-left: 8px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+  font-size: 0.68rem; font-weight: 650; letter-spacing: 0.02em;
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+.field.changed input, .field.changed textarea { border-color: color-mix(in srgb, var(--warn) 55%, var(--border-strong)); }
+.was { margin: 4px 0 0; font-size: 0.78rem; color: var(--text-dim); overflow-wrap: anywhere; }
+.cmd-inline { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+/* The card: a thin amber outline and an alert icon while a change waits. */
+.eng-card .panel-head { align-items: flex-start; }
+.eng-card-icon { display: inline-flex; color: var(--accent); margin-right: 8px; vertical-align: -2px; }
+.eng-card.attention { border-color: color-mix(in srgb, var(--warn) 70%, var(--border)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 35%, transparent); }
+.eng-card.attention .eng-card-icon { color: var(--warn); }
+.eng-edit-col { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 22rem; }
+.eng-edit-note { margin: 0; font-size: 0.8rem; color: var(--warn); text-align: right; line-height: 1.35; }
+.ok-text { color: var(--ok); }
+.warn-text { color: var(--warn); }
+@media (max-width: 480px) {
+  .eng-card .panel-head { flex-direction: column; align-items: stretch; }
+  .eng-edit-col { align-items: stretch; max-width: none; }
+  .eng-edit-note { text-align: left; }
+  .eng-head .eng-view { margin-left: 0; }
 }

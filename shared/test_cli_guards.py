@@ -132,6 +132,9 @@ for fn in ("cmd_org_engagement_set", "cmd_org_engagement_approve", "cmd_org_enga
 for fn in ("cmd_org_engagement_set", "cmd_org_engagement_approve"):
     check(f"{fn} refuses a caller-supplied --second-approver",
           "--second-approver|--second-approver=*" in func(fn), True)
+_admin = func("cmd_admin")
+check("set-policy reaches iam.py: no early `set-policy)` clause ends cmd_admin's case first (found 2026-11-06)",
+      (bool(re.search(r"^\s+set-policy\)", _admin, re.M)), "set-policy|policy|permissions" in _admin), (False, True))
 check("engagement decisions name the pending change's digest from the web",
       'die "REFUSING: from the web, $verb must name the digest' in func("cmd_org_engagement_decide"), True)
 for fn in ("cmd_team_say", "cmd_team_note", "cmd_say", "cmd_note", "cmd_set_model", "cmd_acknowledge",

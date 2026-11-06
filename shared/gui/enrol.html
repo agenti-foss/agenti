@@ -9,40 +9,40 @@
 <link rel="stylesheet" href="css/arcade.css">
 <script src="js/theme.js"></script>
 <script src="js/api.js" defer></script>
+<script src="js/password-gen.js" defer></script>
 </head>
 <body>
   <div class="login-wrap">
-    <div class="panel login-card" style="max-width:520px;">
-      <h1 id="enrol-title">Set up your account</h1>
+    <div class="panel login-card enrol-card" style="max-width:520px;">
+      <h1 id="enrol-title">Welcome</h1>
+      <p class="sub muted" id="enrol-sub">Checking your link…</p>
       <ol class="setup-progress" id="enrol-progress" aria-label="Setup steps" hidden>
         <li data-step="1" class="done">Setup code</li>
         <li data-step="2" aria-current="step">Your account</li>
         <li data-step="3">Finish</li>
       </ol>
-      <p class="sub muted" id="enrol-sub">Checking your link…</p>
 
       <div id="enrol-banner" class="banner err"></div>
 
       <form id="enrol-form" hidden>
         <h2>1. Choose a password</h2>
+        <!-- For password managers: this is a sign-up for this account. -->
+        <input type="text" id="enrol-username" name="username" autocomplete="username"
+               class="sr-only" tabindex="-1" aria-hidden="true" readonly>
         <div class="field">
           <label for="enrol-password">Password</label>
-          <input type="password" id="enrol-password" autocomplete="new-password" required minlength="8">
-        </div>
-        <div class="field">
-          <label for="enrol-password2">Confirm it</label>
-          <input type="password" id="enrol-password2" autocomplete="new-password" required minlength="8">
+          <input type="password" id="enrol-password" name="new-password" autocomplete="new-password" required>
         </div>
 
         <h2 id="enrol-totp-heading">2. Set up two-factor authentication</h2>
-        <p class="hint" id="enrol-totp-why"></p>
         <div class="qr-row">
           <div id="enrol-qr"></div>
           <div class="qr-side">
-            <p class="hint" style="margin-top:0;">Scan with an authenticator app, or enter the secret:</p>
-            <div class="copyable"><code class="value" id="enrol-secret"></code></div>
-            <p style="margin:8px 0;"><a id="enrol-otpauth-link" href="#" class="btn btn-sm">Open in authenticator app</a></p>
-            <div class="field" style="margin-top:8px;">
+            <div class="field">
+              <label id="enrol-secret-label">Secret:</label>
+              <div class="secret-box" aria-labelledby="enrol-secret-label"><code id="enrol-secret"></code></div>
+            </div>
+            <div class="field">
               <label for="enrol-totp-code">Code from the app, right now</label>
               <input type="text" id="enrol-totp-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
             </div>
@@ -79,8 +79,12 @@
     // enrol/confirm). The server only commits it when the code typed here
     // was generated from it, so a mistyped secret or a wrong clock can never
     // leave the account enrolled in a factor it cannot produce.
+    //
+    // The password box comes filled with a generated password (password-gen.js);
+    // the QR code is drawn here in the site's own style (Agenti.qrCode).
     document.addEventListener("DOMContentLoaded", async () => {
       const token = new URLSearchParams(location.search).get("token") || "";
+      const title = document.getElementById("enrol-title");
       const sub = document.getElementById("enrol-sub");
       const banner = document.getElementById("enrol-banner");
       const form = document.getElementById("enrol-form");
@@ -92,7 +96,6 @@
       // in and come back to setup.html for the optional steps.
       const setup = new URLSearchParams(location.search).get("setup") === "1";
       if (setup) {
-        document.getElementById("enrol-title").textContent = "Set up Agenti";
         document.getElementById("enrol-progress").hidden = false;
         document.querySelector(".login-card").classList.add("setup-card");
         document.getElementById("enrol-signin").href = "login.html?next=setup.html";
@@ -109,28 +112,30 @@
       try {
         info = await Agenti.get(`enrol/${encodeURIComponent(token)}`, { noRedirect: true });
       } catch (err) {
-        sub.textContent = "This link is invalid or has expired.";
-        Agenti.banner(banner, "err", "Ask an admin to send you a new one — links are valid for 48 hours and work once.");
+        if (err.status === 429) {
+          sub.textContent = "Too many tries from this address.";
+          Agenti.banner(banner, "err", "Wait a few minutes, then open the link again.");
+        } else {
+          sub.textContent = "This link is invalid or has expired.";
+          Agenti.banner(banner, "err", "Ask an admin to send you a new one — links are valid for 48 hours and work once.");
+        }
         return;
       }
 
-      sub.textContent = setup
-        ? `Your admin account, ${info.user}: a password and an authenticator app.`
-        : `Welcome, ${info.user}. Two short steps and your account is ready.`;
+      title.textContent = `Welcome, ${info.user}`;
+      sub.textContent = setup ? "Set up Agenti" : "Set up your account";
+      document.getElementById("enrol-username").value = info.user;
+      const pw = AgentiPassword.attach(document.getElementById("enrol-password"));
       form.hidden = false;
 
-      // The second factor: mandatory under the policy, offered otherwise.
+      // The second factor: mandatory under the policy, offered otherwise
+      // (then the "Skip" box says so).
       const required = !!info.totp_required;
-      document.getElementById("enrol-totp-why").textContent = required
-        ? "Required for this account — every sign-in will ask for a code from the app as well as your password."
-        : "Recommended. Every sign-in will then ask for a code from the app as well as your password.";
-      const qrHost = document.getElementById("enrol-qr");
-      const img = Agenti.qrImage(info.qr_svg, "QR code for your authenticator app");
-      if (img) qrHost.appendChild(img);
+      const qr = Agenti.qrCode(info.qr_modules, "QR code for your authenticator app");
+      if (qr) document.getElementById("enrol-qr").appendChild(qr);
       const secretEl = document.getElementById("enrol-secret");
       secretEl.textContent = info.totp_secret || "";
       secretEl.parentElement.appendChild(Agenti.copyButton(info.totp_secret || "", "Copy secret"));
-      document.getElementById("enrol-otpauth-link").href = info.otpauth_uri || "#";
       codeInput.required = required;
       if (!required) {
         skipWrap.hidden = false;
@@ -143,10 +148,8 @@
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         banner.className = "banner";
-        const p1 = document.getElementById("enrol-password").value;
-        const p2 = document.getElementById("enrol-password2").value;
-        if (p1 !== p2) { Agenti.banner(banner, "err", "Those two passwords don't match."); return; }
-        if (p1.length < 8) { Agenti.banner(banner, "err", "Use at least 8 characters."); return; }
+        const problem = pw.check();
+        if (problem) { Agenti.banner(banner, "err", problem); return; }
         const code = codeInput.value.trim();
         const enrolling = !(skip.checked && !required);
         if (enrolling && !/^[0-9]{6}$/.test(code)) {
@@ -155,12 +158,13 @@
             : "Enter the 6-digit code from your authenticator app, or tick “Skip 2FA for now”.");
           return;
         }
-        const body = { new: p1 };
+        const body = { new: pw.value };
         if (enrolling) { body.totp_secret = info.totp_secret; body.totp_code = code; }
         const btn = form.querySelector("button[type=submit]");
         btn.disabled = true;
         try {
           const r = await Agenti.post(`enrol/${encodeURIComponent(token)}`, body, { noRedirect: true });
+          await pw.saved(info.user);
           form.hidden = true;
           done.hidden = false;
           if (setup) {

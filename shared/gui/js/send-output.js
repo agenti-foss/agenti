@@ -213,10 +213,8 @@ const AgentiSend = (() => {
           <input type="text" id="quick-target" autocomplete="off" spellcheck="false">
           <p class="hint" id="quick-target-hint"></p>
         </div>
-        <div class="field">
-          <label for="quick-model">Model</label>
-          <select id="quick-model" required></select>
-          <p class="hint" id="quick-model-hint"></p>
+        <div class="field quick-model-field">
+          <div id="quick-model-host"></div>
         </div>
         <div class="field-row">
           <div class="field"><label for="quick-turns">Max turns</label><input type="number" id="quick-turns" min="1"></div>
@@ -249,8 +247,6 @@ const AgentiSend = (() => {
     $("quick-target").value = target;
     $("quick-target-hint").textContent = target
       ? `The same target ${sourceTitle} had. You may narrow it; the engagement still decides what is in scope.` : "";
-    $("quick-model").innerHTML = `<option value="" disabled selected>Loading…</option>`;
-    $("quick-model-hint").textContent = "";
     for (const id of ["quick-turns", "quick-budget", "quick-timeout"]) { $(id).value = ""; $(id).placeholder = ""; $(id).removeAttribute("max"); }
     go.disabled = true;
     d.showModal();
@@ -263,16 +259,11 @@ const AgentiSend = (() => {
       Agenti.banner(banner, "err", Agenti.errorText(err));
       return;
     }
-    const models = policy.allowed_models || [];
-    const label = (m) => ({ haiku: "Haiku (fastest, cheapest)", sonnet: "Sonnet (balanced)", opus: "Opus (most capable)" }[m] || m);
-    // Default to what the sending run used, if this agent may use it too.
-    const want = models.includes(config.model) ? config.model : "";
-    $("quick-model").innerHTML = models.length
-      ? `<option value="" disabled${want ? "" : " selected"}>Choose a model…</option>`
-        + models.map((m) => `<option value="${esc(m)}"${m === want ? " selected" : ""}>${esc(label(m))}</option>`).join("")
-      : `<option value="" disabled selected>(none allowed — ask an admin)</option>`;
-    $("quick-model-hint").textContent = want ? `The same model ${sourceTitle} used.`
-      : models.length ? "From the organisation's allowed list." : "";
+    // The same picker as the launch page (models.js): the provider's live,
+    // allowed models in the browser's own dropdown, starting on the model
+    // the sending run used. (It used to list raw allowed-list entries, so a
+    // default install offered "anthropic:*" as if it were a model.)
+    const picker = AgentiModels.mount($("quick-model-host"), { agent: dest.agent, remembered: config.model || "", compact: true });
     // Limits default to the sending run's, held to this agent's ceilings.
     const cap = (v, ceil) => (v == null ? "" : (ceil != null && v > ceil ? ceil : v));
     const f = [["quick-turns", config.max_turns, policy.max_turns_ceiling],
@@ -282,14 +273,14 @@ const AgentiSend = (() => {
       $(id).value = cap(v, ceil);
       if (ceil != null) { $(id).max = ceil; $(id).placeholder = `up to ${ceil}`; }
     }
-    go.disabled = !models.length;
+    go.disabled = false;
 
     const form = $("quick-form");
     form.onsubmit = async (e) => {
       e.preventDefault();
       banner.className = "banner err";
-      const model = $("quick-model").value;
-      if (!model) { Agenti.banner(banner, "err", "Pick a model."); return; }
+      const model = picker.value;
+      if (!model) { picker.reportValidity(); Agenti.banner(banner, "err", "Pick a model."); return; }
       go.disabled = true;
       let staged = false;
       try {

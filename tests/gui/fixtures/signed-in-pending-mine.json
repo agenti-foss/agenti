@@ -1,0 +1,443 @@
+{
+ "_about": "Layered over signed-in.json by serve.py (cookie gui-test=signed-in-pending-mine): an engagement change waiting for a second admin.",
+ "base": "signed-in",
+ "answers": {
+  "GET /engagement": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "path": "/var/lib/agenti/data/org/engagement.json",
+    "exists": true,
+    "record": {
+     "engagement_id": "LAB-01",
+     "client": "Lab",
+     "authorizing_party": "Lab owner",
+     "authorizing_title": "Owner",
+     "authorization_ref": "LAB",
+     "valid_from": "2026-11-01",
+     "valid_until": "2027-01-31",
+     "emergency_contact": "",
+     "notes": "",
+     "capture_payloads": false,
+     "enabled_capabilities": [],
+     "exploitation_enabled": false,
+     "retention_days": 0,
+     "redact": [],
+     "scope": {
+      "cidr": {
+       "in_scope": [
+        "192.0.2.50/32"
+       ],
+       "out_of_scope": []
+      },
+      "domain": {
+       "in_scope": [],
+       "out_of_scope": []
+      }
+     },
+     "policy": {
+      "allowed_models": [
+       "haiku",
+       "openai:gpt-5.6-terra",
+       "opus",
+       "sonnet"
+      ],
+      "model_prices": {
+       "openai:gpt-5.6-terra": [
+        2,
+        12
+       ]
+      }
+     },
+     "updated_at": 1793786012.8298752,
+     "updated_by": "kali",
+     "updated_via": "cli"
+    },
+    "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+    "approval": {
+     "engagement_id": "LAB-01",
+     "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "approved_by": "kali",
+     "approved_at": 1793784021.163693,
+     "via": "cli"
+    },
+    "view": null,
+    "approval_status": {
+     "approved": true,
+     "current": true,
+     "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "approved_by": "kali",
+     "approved_at": 1793784021.163693,
+     "reason": "approved by kali (2026-11-04 09:20 UTC)"
+    },
+    "history": [
+     {
+      "ts": 1793784020.8705032,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+      "created": true,
+      "changed": [
+       "(created)"
+      ]
+     },
+     {
+      "ts": 1793784021.163693,
+      "by": "kali",
+      "via": "cli",
+      "action": "approve",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf"
+     },
+     {
+      "ts": 1793786012.8298752,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+      "created": false,
+      "changed": [
+       "policy"
+      ]
+     }
+    ],
+    "effective_policy": {
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "haiku",
+      "openai:gpt-5.6-terra",
+      "opus",
+      "sonnet"
+     ],
+     "model_prices": {
+      "openai:gpt-5.6-terra": [
+       2,
+       12
+      ]
+     }
+    },
+    "second_approver": "on",
+    "approvers_count": 1,
+    "pending": {
+     "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "base_digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "author": "b-admin",
+     "authors": [
+      "b-admin"
+     ],
+     "authored_at": 1793000000.0,
+     "opened_at": 1793000000.0,
+     "via": "api",
+     "record": {
+      "engagement_id": "LAB-01",
+      "client": "Lab",
+      "authorizing_party": "Lab owner",
+      "authorizing_title": "Owner",
+      "authorization_ref": "LAB",
+      "valid_from": "2026-11-01",
+      "valid_until": "2027-03-31",
+      "emergency_contact": "",
+      "notes": "Second host added for the March retest.",
+      "capture_payloads": false,
+      "enabled_capabilities": [],
+      "exploitation_enabled": false,
+      "retention_days": 0,
+      "redact": [],
+      "scope": {
+       "cidr": {
+        "in_scope": [
+         "192.0.2.50/32",
+         "192.0.2.60/32"
+        ],
+        "out_of_scope": []
+       },
+       "domain": {
+        "in_scope": [],
+        "out_of_scope": []
+       }
+      },
+      "policy": {
+       "allowed_models": [
+        "haiku",
+        "openai:gpt-5.6-terra",
+        "opus",
+        "sonnet"
+       ],
+       "model_prices": {
+        "openai:gpt-5.6-terra": [
+         2,
+         12
+        ]
+       }
+      }
+     },
+     "stale": false,
+     "changed": [
+      "notes",
+      "scope.cidr",
+      "valid_until"
+     ],
+     "approvers_available": false,
+     "in_force_now": {
+      "scope": {
+       "cidr": {
+        "in_scope": [
+         "192.0.2.50/32"
+        ],
+        "out_of_scope": []
+       },
+       "domain": {
+        "in_scope": [],
+        "out_of_scope": []
+       }
+      },
+      "valid_from": "2026-11-01",
+      "valid_until": "2027-01-31",
+      "capture_payloads": false,
+      "enabled_capabilities": []
+     }
+    },
+    "pending_invalid": null,
+    "platform_default_policy": {
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10.0,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "anthropic:*",
+      "haiku",
+      "sonnet",
+      "opus"
+     ]
+    }
+   }
+  },
+  "GET /agents/enum/engagement": {
+   "status": 200,
+   "body": {
+    "ok": true,
+    "path": "/var/lib/agenti/data/org/engagement.json",
+    "exists": true,
+    "record": {
+     "engagement_id": "LAB-01",
+     "client": "Lab",
+     "authorizing_party": "Lab owner",
+     "authorizing_title": "Owner",
+     "authorization_ref": "LAB",
+     "valid_from": "2026-11-01",
+     "valid_until": "2027-01-31",
+     "emergency_contact": "",
+     "notes": "",
+     "capture_payloads": false,
+     "enabled_capabilities": [],
+     "exploitation_enabled": false,
+     "retention_days": 0,
+     "redact": [],
+     "scope": {
+      "cidr": {
+       "in_scope": [
+        "192.0.2.50/32"
+       ],
+       "out_of_scope": []
+      },
+      "domain": {
+       "in_scope": [],
+       "out_of_scope": []
+      }
+     },
+     "policy": {
+      "allowed_models": [
+       "haiku",
+       "openai:gpt-5.6-terra",
+       "opus",
+       "sonnet"
+      ],
+      "model_prices": {
+       "openai:gpt-5.6-terra": [
+        2,
+        12
+       ]
+      }
+     },
+     "updated_at": 1793786012.8298752,
+     "updated_by": "kali",
+     "updated_via": "cli"
+    },
+    "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+    "approval": {
+     "engagement_id": "LAB-01",
+     "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "approved_by": "kali",
+     "approved_at": 1793784021.163693,
+     "via": "cli"
+    },
+    "view": {
+     "scope_kind": "cidr",
+     "in_scope": [
+      "192.0.2.50/32"
+     ],
+     "out_of_scope": [],
+     "usable": true,
+     "narrowed": false,
+     "agent_in_scope": [],
+     "org_in_scope": [
+      "192.0.2.50/32"
+     ],
+     "error": null
+    },
+    "approval_status": {
+     "approved": true,
+     "current": true,
+     "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "approved_by": "kali",
+     "approved_at": 1793784021.163693,
+     "reason": "approved by kali (2026-11-04 09:20 UTC)"
+    },
+    "history": [
+     {
+      "ts": 1793784020.8705032,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+      "created": true,
+      "changed": [
+       "(created)"
+      ]
+     },
+     {
+      "ts": 1793784021.163693,
+      "by": "kali",
+      "via": "cli",
+      "action": "approve",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf"
+     },
+     {
+      "ts": 1793786012.8298752,
+      "by": "kali",
+      "via": "cli",
+      "action": "set",
+      "engagement_id": "LAB-01",
+      "digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+      "created": false,
+      "changed": [
+       "policy"
+      ]
+     }
+    ],
+    "effective_policy": {
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "haiku",
+      "openai:gpt-5.6-terra",
+      "opus",
+      "sonnet"
+     ],
+     "model_prices": {
+      "openai:gpt-5.6-terra": [
+       2,
+       12
+      ]
+     }
+    },
+    "pending": {
+     "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "base_digest": "7bf820ccff995bf6436e499d1f7437f97e4882eb2b33618f19b3c2af7cc2d4bf",
+     "author": "b-admin",
+     "authors": [
+      "b-admin"
+     ],
+     "authored_at": 1793000000.0,
+     "opened_at": 1793000000.0,
+     "via": "api",
+     "record": {
+      "engagement_id": "LAB-01",
+      "client": "Lab",
+      "authorizing_party": "Lab owner",
+      "authorizing_title": "Owner",
+      "authorization_ref": "LAB",
+      "valid_from": "2026-11-01",
+      "valid_until": "2027-03-31",
+      "emergency_contact": "",
+      "notes": "Second host added for the March retest.",
+      "capture_payloads": false,
+      "enabled_capabilities": [],
+      "exploitation_enabled": false,
+      "retention_days": 0,
+      "redact": [],
+      "scope": {
+       "cidr": {
+        "in_scope": [
+         "192.0.2.50/32",
+         "192.0.2.60/32"
+        ],
+        "out_of_scope": []
+       },
+       "domain": {
+        "in_scope": [],
+        "out_of_scope": []
+       }
+      },
+      "policy": {
+       "allowed_models": [
+        "haiku",
+        "openai:gpt-5.6-terra",
+        "opus",
+        "sonnet"
+       ],
+       "model_prices": {
+        "openai:gpt-5.6-terra": [
+         2,
+         12
+        ]
+       }
+      }
+     },
+     "stale": false,
+     "changed": [
+      "notes",
+      "scope.cidr",
+      "valid_until"
+     ],
+     "approvers_available": false,
+     "in_force_now": {
+      "scope": {
+       "cidr": {
+        "in_scope": [
+         "192.0.2.50/32"
+        ],
+        "out_of_scope": []
+       },
+       "domain": {
+        "in_scope": [],
+        "out_of_scope": []
+       }
+      },
+      "valid_from": "2026-11-01",
+      "valid_until": "2027-01-31",
+      "capture_payloads": false,
+      "enabled_capabilities": []
+     }
+    }
+   }
+  },
+  "GET /admin/policy": {
+   "status": 200,
+   "body": {
+    "require-separate-approver": "off",
+    "webauthn-enabled": "on",
+    "update-check": "off",
+    "require-2fa": "on",
+    "engagement-second-approver": "on"
+   }
+  }
+ }
+}

@@ -13,10 +13,10 @@
 // which asks the provider live and keeps only what the policy allows.
 window.AgentiModels = (() => {
   const PROVIDERS = [
-    { id: "anthropic", name: "Claude", by: "Anthropic", icon: "star",
+    { id: "anthropic", name: "Claude", by: "Anthropic", icon: "claude",
       blurb: "Anthropic's Claude models, through the Claude Agent SDK.",
       keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys" },
-    { id: "openai", name: "ChatGPT", by: "OpenAI", icon: "chat",
+    { id: "openai", name: "ChatGPT", by: "OpenAI", icon: "openai",
       blurb: "OpenAI's GPT models, through Agenti's own run loop.",
       keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys" },
     { id: "local", name: "Self-hosted", by: "Your own model server", icon: "cpu",
@@ -77,16 +77,26 @@ window.AgentiModels = (() => {
         <div class="field provider-model">
           <label for="${id}" data-model-label>Model</label>
           <div class="input-with-button">
-            <input id="${id}" type="text" list="${id}-list" required autocomplete="off" spellcheck="false" placeholder="Choose or type a model name">
+            <select id="${id}" required><option value="">Loading models…</option></select>
             <button type="button" class="btn btn-sm icon-only" aria-label="Refresh the model list" title="Refresh the model list">${Agenti.icon("refresh", 14)}</button>
           </div>
-          <datalist id="${id}-list"></datalist>
+          <div class="provider-other" hidden>
+            <label for="${id}-other" class="sr-only">Model name</label>
+            <input id="${id}-other" type="text" autocomplete="off" spellcheck="false" placeholder="The model's exact name, e.g. gpt-5.1">
+          </div>
           <p class="hint" aria-live="polite"></p>
         </div>
       </fieldset>`;
+    // The browser's own dropdown (operator note 2026-11-06: on a phone it is
+    // the OS picker), listing the allowed models live; its last entry, "Other
+    // model…", opens a text box for a name not listed — any model name the
+    // provider accepts still works (the launch checks it against the policy).
+    const OTHER = "__other__";
     const radios = [...host.querySelectorAll('input[type="radio"]')];
-    const input = host.querySelector(`#${CSS.escape(id)}`);
-    const list = host.querySelector("datalist"), hint = host.querySelector(".provider-model .hint");
+    const select = host.querySelector(`#${CSS.escape(id)}`);
+    const otherWrap = host.querySelector(".provider-other");
+    const input = otherWrap.querySelector("input");
+    const hint = host.querySelector(".provider-model .hint");
     const refresh = host.querySelector(".input-with-button button");
     let ready = {};          // provider id -> true/false; empty = unknown
     let sequence = 0;
@@ -99,43 +109,82 @@ window.AgentiModels = (() => {
 
     function choose(p) { radios.forEach((r) => { r.checked = r.value === p; }); }
     choose(IDS.includes(preferred) ? preferred : "anthropic");
+    // What to select once the list is in: the remembered model, when it is
+    // this provider's; otherwise whatever was picked before a refresh.
+    let wanted = "";
     const fillRemembered = () => {
-      if (rememberedProvider && chosen() === rememberedProvider) {
-        input.value = rememberedProvider === prefix ? remembered.slice(prefix.length + 1) : remembered;
+      if (rememberedProvider && chosen() === rememberedProvider && !wanted) {
+        wanted = rememberedProvider === prefix ? remembered.slice(prefix.length + 1) : remembered;
       }
     };
+    const showOther = (on) => {
+      otherWrap.hidden = !on;
+      input.required = on;
+    };
+    function fillSelect(models, note) {
+      select.innerHTML = (note ? `<option value="" disabled>${esc(note)}</option>` : "")
+        + models.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")
+        + `<option value="${OTHER}">Other model…</option>`;
+      // An old short name ("haiku") is the listed model it stands for.
+      const alias = ["haiku", "sonnet", "opus"].includes(wanted)
+        ? models.find((m) => m.startsWith(`claude-${wanted}`)) : "";
+      if (alias) wanted = alias;
+      if (wanted && models.includes(wanted)) {
+        select.value = wanted;
+      } else if (wanted) {
+        select.value = OTHER;
+        input.value = wanted;
+      } else {
+        select.value = models.length ? models[0] : OTHER;
+      }
+      showOther(select.value === OTHER);
+    }
 
     async function load() {
       const request = ++sequence, p = chosen();
-      list.innerHTML = "";
-      if (ready[p] === false) { hint.textContent = notReadyText(p); refresh.disabled = false; return; }
-      hint.textContent = "Loading this provider's models…";
+      select.disabled = true;
+      if (ready[p] === false) {
+        select.innerHTML = `<option value="">Not set up yet</option>`;
+        showOther(false);
+        hint.textContent = notReadyText(p);
+        refresh.disabled = false;
+        return;
+      }
+      select.innerHTML = `<option value="">Loading models…</option>`;
+      hint.textContent = "";
       refresh.disabled = true;
       try {
         const params = new URLSearchParams({ provider: p });
         if (agent) params.set("agent", agent);
         const result = await Agenti.get("models?" + params);
         if (request !== sequence) return;
-        const models = result.models || [];
-        list.innerHTML = models.map((name) => {
-          const value = name.startsWith(p + ":") ? name.slice(p.length + 1) : name;
-          return `<option value="${esc(value)}"></option>`;
-        }).join("");
+        const models = (result.models || []).map((name) => (name.startsWith(p + ":") ? name.slice(p.length + 1) : name));
+        fillSelect(models, models.length ? "" : "No allowed model listed");
         hint.textContent = models.length
-          ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organisation. Pick one, or type a name.`
-          : "This provider offers no model on the organisation's allowed list. An admin can change the list in Settings → Engagement.";
+          ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organisation.`
+          : "This provider offers no model on the organisation's allowed list. An admin can change the list in Settings → Engagement, or choose “Other model…”.";
       } catch (err) {
-        if (request === sequence) hint.textContent = Agenti.errorText(err) + " You can still type a model name; the launch checks it.";
-      } finally { if (request === sequence) refresh.disabled = false; }
+        if (request !== sequence) return;
+        fillSelect([], "Couldn't load the list");
+        hint.textContent = Agenti.errorText(err) + " You can still choose “Other model…” and type a name; the launch checks it.";
+      } finally {
+        if (request === sequence) { refresh.disabled = false; select.disabled = false; }
+      }
     }
 
+    select.addEventListener("change", () => {
+      showOther(select.value === OTHER);
+      wanted = select.value === OTHER ? input.value.trim() : select.value;
+      if (select.value === OTHER) input.focus();
+    });
     input.addEventListener("input", () => {
+      wanted = input.value.trim();
       const typed = input.value.trim().split(":", 1)[0];
       input.setCustomValidity(IDS.includes(typed) && typed !== chosen()
         ? "Choose the provider that matches this model name." : "");
     });
     radios.forEach((r) => r.addEventListener("change", () => {
-      input.value = ""; input.setCustomValidity(""); load();
+      wanted = ""; input.value = ""; input.setCustomValidity(""); load();
     }));
     refresh.addEventListener("click", async () => { await paintReadiness(true); load(); });
 
@@ -172,10 +221,10 @@ window.AgentiModels = (() => {
 
     return {
       get value() {
-        const value = input.value.trim(), p = chosen();
+        const value = (select.value === OTHER ? input.value : select.value).trim(), p = chosen();
         return value ? (value.startsWith(p + ":") ? value : p + ":" + value) : "";
       },
-      reportValidity: () => input.reportValidity(),
+      reportValidity: () => (select.value === OTHER ? input.reportValidity() : select.reportValidity()),
     };
   }
 

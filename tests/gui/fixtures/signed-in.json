@@ -80,10 +80,6 @@
       "edit_where": "Settings \u2192 Engagement",
       "rows": [
        [
-        "Admin approval required",
-        "yes"
-       ],
-       [
         "Max turns",
         "40"
        ],
@@ -460,7 +456,8 @@
     "require-separate-approver": "off",
     "webauthn-enabled": "on",
     "update-check": "off",
-    "require-2fa": "on"
+    "require-2fa": "on",
+    "engagement-second-approver": "off"
    }
   },
   "GET /admin/tool-settings/enum": {
@@ -906,7 +903,6 @@
      }
     ],
     "effective_policy": {
-     "require_approval": true,
      "max_turns_ceiling": 40,
      "max_budget_usd_ceiling": 10,
      "timeout_s_ceiling": 3600,
@@ -922,7 +918,8 @@
        12
       ]
      }
-    }
+    },
+    "pending": null
    }
   },
   "GET /agents/enum/files": {
@@ -1565,7 +1562,6 @@
      }
     ],
     "effective_policy": {
-     "require_approval": true,
      "max_turns_ceiling": 40,
      "max_budget_usd_ceiling": 10,
      "timeout_s_ceiling": 3600,
@@ -1581,7 +1577,8 @@
        12
       ]
      }
-    }
+    },
+    "pending": null
    }
   },
   "GET /auth/me": {
@@ -2087,7 +2084,6 @@
      }
     ],
     "effective_policy": {
-     "require_approval": true,
      "max_turns_ceiling": 40,
      "max_budget_usd_ceiling": 10,
      "timeout_s_ceiling": 3600,
@@ -2103,6 +2099,21 @@
        12
       ]
      }
+    },
+    "second_approver": "off",
+    "approvers_count": 2,
+    "pending": null,
+    "pending_invalid": null,
+    "platform_default_policy": {
+     "max_turns_ceiling": 40,
+     "max_budget_usd_ceiling": 10.0,
+     "timeout_s_ceiling": 3600,
+     "allowed_models": [
+      "anthropic:*",
+      "haiku",
+      "sonnet",
+      "opus"
+     ]
     }
    }
   },

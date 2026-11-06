@@ -59,10 +59,12 @@
             <h2 class="ih" data-icon="key">Password</h2>
             <div id="pw-banner" class="banner err"></div>
             <form id="password-form" class="stack">
+              <!-- For password managers: a new password for this account. -->
+              <input type="text" id="pw-username" name="username" autocomplete="username"
+                     class="sr-only" tabindex="-1" aria-hidden="true" readonly>
               <div class="field">
                 <label for="pw-new">New password</label>
-                <input type="password" id="pw-new" autocomplete="new-password" required minlength="8">
-                <p class="hint">At least 8 characters.</p>
+                <input type="password" id="pw-new" name="new-password" autocomplete="new-password" required>
               </div>
               <button type="submit" class="btn btn-primary" data-icon="key">Change password</button>
             </form>
@@ -82,12 +84,10 @@
               <div class="qr-row">
                 <div id="mfa-qr"></div>
                 <div class="qr-side">
-                  <p class="hint" style="margin-top:0;">Scan with your authenticator app, or enter the secret.</p>
                   <div class="field">
-                    <label>Secret (manual entry)</label>
-                    <div class="copyable"><code class="value" id="mfa-secret"></code></div>
+                    <label id="mfa-secret-label">Secret:</label>
+                    <div class="secret-box" aria-labelledby="mfa-secret-label"><code id="mfa-secret"></code></div>
                   </div>
-                  <p><a id="mfa-otpauth-link" href="#" class="btn btn-sm">Open in authenticator app</a></p>
                   <div class="field">
                     <label for="mfa-code">Code from your authenticator app, right now</label>
                     <input type="text" id="mfa-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
@@ -106,7 +106,9 @@
             </div>
           </div>
 
-          <div class="panel">
+          <!-- Shown only where passkeys can be used: on, a domain set, and this
+               page open at that domain (Agenti.passkeysUsable). -->
+          <div class="panel" id="passkeys-panel" hidden>
             <h2 class="ih" data-icon="fingerprint">Passkeys</h2>
             <div id="passkey-banner" class="banner err"></div>
             <p class="hint">Sign in with your fingerprint, face or device PIN — no password.</p>
@@ -141,6 +143,14 @@
               <button type="button" data-mode="dark" role="radio" aria-checked="false"></button>
             </div>
             <p class="hint" id="mode-hint" style="margin-top:10px;"></p>
+          </div>
+          <!-- Banners hidden with "Don't show again" (Agenti.dismissibleBanner). -->
+          <div class="panel" id="hidden-messages-panel" hidden>
+            <h2 class="ih" data-icon="eye-off">Hidden messages</h2>
+            <div class="hidden-messages-row">
+              <p class="hint" id="hidden-messages-count" style="margin:0;"></p>
+              <button type="button" class="btn btn-sm" id="hidden-messages-btn" data-icon="eye">Show them again</button>
+            </div>
           </div>
         </section>
 
@@ -212,11 +222,15 @@
           <h1>Engagement</h1>
           <p class="hint">What your agents are authorized to touch, and the limits they run under.</p>
 
-          <div class="panel">
+          <div class="panel eng-card" id="eng-card">
             <div class="panel-head">
-              <h2 class="ih" data-icon="shield">Engagement</h2>
-              <button type="button" class="btn btn-primary" id="eng-edit-btn" data-icon="edit">Edit engagement</button>
+              <h2 class="ih" id="eng-card-title"><span class="eng-card-icon"></span>Engagement</h2>
+              <div class="eng-edit-col">
+                <button type="button" class="btn btn-primary" id="eng-edit-btn" data-icon="edit">Edit engagement</button>
+                <p class="eng-edit-note" id="eng-edit-note" hidden></p>
+              </div>
             </div>
+            <div id="eng-card-msg" class="banner ok"></div>
             <div id="eng-summary"><p class="hint">Loading…</p></div>
           </div>
 
@@ -416,7 +430,10 @@
           <button type="button" class="btn" id="reset-password-link-btn">Send a one-time reset link</button>
         </div>
         <div class="stack" id="reset-password-direct-form" hidden style="margin-top:8px; gap:8px;">
-          <input type="password" id="reset-password-value" placeholder="New password" autocomplete="new-password">
+          <div class="field" style="margin:0;">
+            <label for="reset-password-value">New password</label>
+            <input type="password" id="reset-password-value" autocomplete="new-password">
+          </div>
           <div class="btn-row">
             <button type="button" class="btn btn-primary" id="reset-password-direct-confirm">Set password</button>
             <button type="button" class="btn" id="reset-password-direct-cancel">Cancel</button>
@@ -506,100 +523,130 @@
 
   <dialog id="engagement-dialog">
     <form id="engagement-form" method="dialog" class="stack">
-      <h2 style="margin-top:0;" class="ih" data-icon="shield">Engagement</h2>
+      <!-- .approval-head: the dialog frame (api.js frameDialog) moves the whole
+           block into the header, so the Current | Pending switch sits there. -->
+      <div class="approval-head eng-head">
+        <h2 class="ih" data-icon="shield">Engagement</h2>
+        <div class="segmented eng-view" id="eng-view-toggle" role="tablist" aria-label="Which version" hidden>
+          <button type="button" data-view="current" role="tab" aria-selected="false">Current</button>
+          <button type="button" data-view="pending" role="tab" aria-selected="true">Pending</button>
+        </div>
+      </div>
       <div id="engagement-status" class="banner"></div>
-      <p class="hint">Shared by every agent. Applies from each agent's next start.</p>
-      <h3 class="ih dlg-section" data-icon="shield">Authorization</h3>
+
+      <div class="dlg-section-head">
+        <h3 class="ih dlg-section" data-icon="shield">Authorization</h3>
+        <p class="dlg-sub">Who agreed to the work, and when it may happen.</p>
+      </div>
       <div class="field-row">
-        <div class="field" style="flex:1;"><label for="eng2-id">Engagement ID</label>
+        <div class="field" data-eng="engagement_id"><label for="eng2-id">Engagement ID</label>
           <input type="text" id="eng2-id" required></div>
-        <div class="field" style="flex:1;"><label for="eng2-client">Client</label>
+        <div class="field" data-eng="client"><label for="eng2-client">Client</label>
           <input type="text" id="eng2-client" required></div>
       </div>
       <div class="field-row">
-        <div class="field" style="flex:1;"><label for="eng2-party">Authorizing party</label>
+        <div class="field" data-eng="authorizing_party"><label for="eng2-party">Authorized by</label>
           <input type="text" id="eng2-party" required></div>
-        <div class="field" style="flex:1;"><label for="eng2-title">Their title / authority</label>
+        <div class="field" data-eng="authorizing_title"><label for="eng2-title">Their role</label>
           <input type="text" id="eng2-title" required></div>
       </div>
-      <div class="field"><label for="eng2-ref">Authorization reference (signed SOW / RoE)</label>
+      <div class="field" data-eng="authorization_ref"><label for="eng2-ref">Reference</label>
+        <p class="field-sub">The signed statement of work or rules of engagement.</p>
         <input type="text" id="eng2-ref" required></div>
       <div class="field-row">
-        <div class="field" style="flex:1;"><label for="eng2-from">Valid from</label>
+        <div class="field" data-eng="valid_from"><label for="eng2-from">Starts</label>
           <input type="date" id="eng2-from" required></div>
-        <div class="field" style="flex:1;"><label for="eng2-until">Valid until</label>
+        <div class="field" data-eng="valid_until"><label for="eng2-until">Ends</label>
           <input type="date" id="eng2-until" required></div>
       </div>
-      <h3 class="ih dlg-section" data-icon="target">Scope</h3>
-      <div class="field"><label for="eng2-cidr-in">CIDR — in scope <span class="hint">(one per line; an optional label in parentheses is fine)</span></label>
-        <textarea id="eng2-cidr-in" rows="2" placeholder="10.0.0.0/24 (client lab VLAN)"></textarea></div>
-      <div class="field"><label for="eng2-cidr-out">CIDR — out of scope <span class="hint">(one per line, optional)</span></label>
-        <textarea id="eng2-cidr-out" rows="2"></textarea></div>
-      <div class="field"><label for="eng2-domain-in">Domain — in scope <span class="hint">(one per line, e.g. example.com)</span></label>
-        <textarea id="eng2-domain-in" rows="2" placeholder="example.com"></textarea></div>
-      <div class="field"><label for="eng2-domain-out">Domain — out of scope <span class="hint">(one per line, optional)</span></label>
-        <textarea id="eng2-domain-out" rows="2"></textarea></div>
-      <p class="hint">Add at least one in-scope entry.</p>
-      <div class="field"><label for="eng2-contact">Emergency contact</label>
-        <input type="text" id="eng2-contact"></div>
-      <div class="field"><label for="eng2-notes">Notes</label>
-        <textarea id="eng2-notes" rows="2"></textarea></div>
-      <details>
-        <summary>Data handling (passive-monitoring agents)</summary>
-        <div class="field-row" style="margin-top:8px;">
-          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-            <input type="checkbox" id="eng2-capture" style="width:auto;"> capture payload contents, not just metadata
-          </label>
-          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-            <input type="checkbox" id="eng2-exploitation-enabled" style="width:auto;">
-            <span>permit the <strong>exploit agent</strong> to start runs against this engagement
-              <span class="hint">(requires CVP enrolment — changes this field invalidate the current approval)</span>
-            </span>
-          </label>
-          <div class="field"><label for="eng2-retention">Retention (days, 0 = destroy on close)</label>
-            <input type="text" id="eng2-retention" inputmode="numeric" value="0" style="width:8em;"></div>
-        </div>
-        <div class="field"><label for="eng2-redact">Fields to redact before storage <span class="hint">(one per line, optional)</span></label>
-          <textarea id="eng2-redact" rows="2"></textarea></div>
-      </details>
-      <details open>
-        <summary>Operational policy — caps, models, approval</summary>
-        <p class="hint" style="margin-top:8px;">Ceilings — a launch can only go lower.</p>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin-top:8px;">
-          <input type="checkbox" id="eng2-require-approval" style="width:auto;" checked>
-          require admin approval before a run can start (recommended)
+
+      <div class="dlg-section-head">
+        <h3 class="ih dlg-section" data-icon="target">Scope</h3>
+        <p class="dlg-sub">What agents may touch. One per line; a label in brackets is fine.</p>
+      </div>
+      <div class="field-row">
+        <div class="field" data-eng="scope.cidr.in_scope"><label for="eng2-cidr-in">In-scope networks</label>
+          <textarea id="eng2-cidr-in" rows="2" placeholder="10.0.0.0/24 (lab)"></textarea></div>
+        <div class="field" data-eng="scope.cidr.out_of_scope"><label for="eng2-cidr-out">Excluded networks</label>
+          <textarea id="eng2-cidr-out" rows="2" placeholder="Optional, e.g. 10.0.0.9/32 (printer)"></textarea></div>
+      </div>
+      <div class="field-row">
+        <div class="field" data-eng="scope.domain.in_scope"><label for="eng2-domain-in">In-scope domains</label>
+          <textarea id="eng2-domain-in" rows="2" placeholder="example.com"></textarea></div>
+        <div class="field" data-eng="scope.domain.out_of_scope"><label for="eng2-domain-out">Excluded domains</label>
+          <textarea id="eng2-domain-out" rows="2" placeholder="Optional, e.g. payroll.example.com"></textarea></div>
+      </div>
+      <div class="field-row">
+        <div class="field" data-eng="emergency_contact"><label for="eng2-contact">Emergency contact</label>
+          <input type="text" id="eng2-contact"></div>
+        <div class="field" data-eng="notes"><label for="eng2-notes">Notes</label>
+          <textarea id="eng2-notes" rows="1"></textarea></div>
+      </div>
+
+      <details class="disclosure eng-fold" id="eng-data-handling">
+        <summary><span class="fold-title">Data handling</span><span class="fold-sub">Capture, retention and the exploit agent</span></summary>
+        <label class="check-row" data-eng="capture_payloads">
+          <input type="checkbox" id="eng2-capture">
+          <span><span class="check-title">Capture payload contents</span>
+            <span class="field-sub">Not just metadata. For agents that record traffic.</span></span>
         </label>
-        <div class="field-row" style="margin-top:8px;">
-          <div class="field"><label for="eng2-turns-ceiling">Max turns ceiling</label>
-            <div class="field-row" style="gap:4px;">
-              <input type="number" id="eng2-turns-ceiling" min="1" placeholder="platform default" style="flex:1;">
-              <button type="button" class="btn btn-sm" data-clear-ceiling="turns" title="Revert to the platform default">Reset</button>
-            </div></div>
-          <div class="field"><label for="eng2-budget-ceiling">Max budget ceiling (USD)</label>
-            <div class="field-row" style="gap:4px;">
-              <input type="number" id="eng2-budget-ceiling" min="0" step="0.01" placeholder="platform default" style="flex:1;">
-              <button type="button" class="btn btn-sm" data-clear-ceiling="budget" title="Revert to the platform default">Reset</button>
-            </div></div>
-          <div class="field"><label for="eng2-timeout-ceiling">Timeout ceiling (seconds)</label>
-            <div class="field-row" style="gap:4px;">
-              <input type="number" id="eng2-timeout-ceiling" min="1" placeholder="platform default" style="flex:1;">
-              <button type="button" class="btn btn-sm" data-clear-ceiling="timeout" title="Revert to the platform default">Reset</button>
-            </div></div>
-        </div>
-        <div class="field"><label>Allowed models</label>
-          <textarea id="eng2-models" rows="3" aria-label="Allowed models" placeholder="anthropic:*&#10;openai:gpt-5.1&#10;local:*"></textarea>
-          <p class="hint">One name or provider wildcard per line (anthropic:*, openai:*, local:*). Blank restores the platform default.</p>
-        </div>
-        <div class="field"><label for="eng2-model-prices">Model prices</label>
-          <textarea id="eng2-model-prices" rows="3" placeholder="openai:gpt-5.1=1.25,10"></textarea>
-          <p class="hint">One model=input,output per line, in USD per million tokens. Required for OpenAI budget enforcement; self-hosted models cost zero.</p>
+        <label class="check-row" data-eng="enabled_capabilities">
+          <input type="checkbox" id="eng2-exploitation-enabled">
+          <span><span class="check-title">Allow the exploit agent</span>
+            <span class="field-sub">Every module it fires still needs approval, one at a time.</span></span>
+        </label>
+        <div class="field-row">
+          <div class="field" data-eng="retention_days"><label for="eng2-retention">Keep data for (days)</label>
+            <p class="field-sub">0 destroys it when the engagement ends.</p>
+            <input type="number" id="eng2-retention" min="0" value="0"></div>
+          <div class="field" data-eng="redact"><label for="eng2-redact">Redacted fields</label>
+            <p class="field-sub">Removed before anything is stored.</p>
+            <textarea id="eng2-redact" rows="2" placeholder="Optional, e.g. Authorization"></textarea></div>
         </div>
       </details>
+
+      <details class="disclosure eng-fold" id="eng-policy" open>
+        <summary><span class="fold-title">Operational policy</span><span class="fold-sub">Caps and models · apply at once</span></summary>
+        <div class="field-row">
+          <div class="field"><label for="eng2-turns-ceiling">Max turns</label>
+            <div class="input-with-button">
+              <input type="number" id="eng2-turns-ceiling" min="1">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="turns" title="Back to the platform default">Reset</button>
+            </div></div>
+          <div class="field"><label for="eng2-budget-ceiling">Max budget (USD)</label>
+            <div class="input-with-button">
+              <input type="number" id="eng2-budget-ceiling" min="0" step="0.01">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="budget" title="Back to the platform default">Reset</button>
+            </div></div>
+          <div class="field"><label for="eng2-timeout-ceiling">Max run time (s)</label>
+            <div class="input-with-button">
+              <input type="number" id="eng2-timeout-ceiling" min="1">
+              <button type="button" class="btn btn-sm" data-clear-ceiling="timeout" title="Back to the platform default">Reset</button>
+            </div></div>
+        </div>
+        <p class="field-sub" style="margin-top:-6px;">Ceilings: a launch can only go lower. Blank means the platform default.</p>
+        <div class="field-row">
+          <div class="field"><label for="eng2-models">Allowed models</label>
+            <p class="field-sub">One per line: a model, or provider:* for all of a provider's.</p>
+            <textarea id="eng2-models" rows="3" placeholder="anthropic:*&#10;openai:gpt-5.1&#10;local:*"></textarea></div>
+          <div class="field"><label for="eng2-model-prices">Model prices</label>
+            <p class="field-sub">model=input,output in USD per million tokens. Needed for OpenAI budgets.</p>
+            <textarea id="eng2-model-prices" rows="3" placeholder="openai:gpt-5.1=1.25,10"></textarea></div>
+        </div>
+      </details>
+
+      <div class="field" id="eng-reject-field" hidden>
+        <label for="eng-reject-reason">Why reject it? <span class="muted">(optional)</span></label>
+        <input type="text" id="eng-reject-reason" maxlength="300" placeholder="Kept in the engagement history">
+      </div>
       <div id="engagement-banner" class="banner err"></div>
       <div class="btn-row">
-        <button type="submit" class="btn btn-primary" id="engagement-save" data-icon="check">Save</button>
-        <button type="button" class="btn" id="engagement-approve" data-icon="shield">Approve as-is</button>
-        <button type="button" class="btn" id="engagement-cancel">Close</button>
+        <button type="submit" class="btn btn-primary" id="engagement-save" data-icon="check">Save and close</button>
+        <button type="button" class="btn btn-primary" id="engagement-approve-pending" data-icon="check" hidden>Approve change</button>
+        <button type="button" class="btn" id="engagement-reject-pending" hidden>Reject</button>
+        <button type="button" class="btn" id="engagement-withdraw-pending" hidden>Withdraw change</button>
+        <button type="button" class="btn" id="engagement-approve" data-icon="shield" hidden>Approve</button>
+        <button type="button" class="btn btn-ghost" id="engagement-cancel">Close</button>
       </div>
     </form>
   </dialog>
@@ -612,6 +659,7 @@
   <script src="js/agent-builder.js" defer></script>
   <script src="js/catalog-editor.js" defer></script>
   <script src="js/models.js" defer></script>
+  <script src="js/password-gen.js" defer></script>
   <script src="js/settings.js" defer></script>
 </body>
 </html>

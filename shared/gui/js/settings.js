@@ -150,6 +150,22 @@ document.addEventListener("DOMContentLoaded", async function () {
   const mfaParam = new URLSearchParams(location.search).get("mfa") === "required";
   showPane(mfaParam && !location.hash ? "security" : paneFromHash(), { push: false });
 
+  // ---------- Hidden messages ("Don't show again", api.js) ----------
+  (async () => {
+    const panel = document.getElementById("hidden-messages-panel");
+    const n = await Agenti.hiddenBannerCount();
+    if (!n) return;
+    panel.hidden = false;
+    document.getElementById("hidden-messages-count").textContent =
+      `${n} message${n === 1 ? "" : "s"} hidden with “Don't show again”.`;
+    document.getElementById("hidden-messages-btn").addEventListener("click", async () => {
+      await Agenti.showHiddenBanners();
+      document.getElementById("hidden-messages-count").textContent =
+        "They'll show again where they apply.";
+      document.getElementById("hidden-messages-btn").hidden = true;
+    });
+  })();
+
   // ---------- Appearance ----------
   // Theme cards from theme.js's catalogue, each painting both modes from
   // its swatch in its own heading face, and a System / Light / Dark switch.
@@ -253,13 +269,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   // not fields embedded in this form. requireCode reflects what we already
   // know about this account (me.totp_enrolled) rather than reactively
   // revealing a field after a first attempt is refused for missing one.
+  // The box comes filled with a generated password (password-gen.js).
   const pwForm = document.getElementById("password-form");
   const pwBanner = document.getElementById("pw-banner");
+  document.getElementById("pw-username").value = me.user || "";
+  const pwGen = AgentiPassword.attach(document.getElementById("pw-new"));
   pwForm.addEventListener("submit", async function (e) {
     e.preventDefault();
     pwBanner.className = "banner";
-    const newPassword = document.getElementById("pw-new").value;
-    if (newPassword.length < 8) { Agenti.banner(pwBanner, "err", "Use at least 8 characters."); return; }
+    const problem = pwGen.check();
+    if (problem) { Agenti.banner(pwBanner, "err", problem); return; }
+    const newPassword = pwGen.value;
     const btn = pwForm.querySelector("button[type=submit]");
     btn.disabled = true;
     try {
@@ -270,6 +290,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           { current: creds.password || undefined, new: newPassword, totp: creds.totp || undefined, reauth: creds.reauth }),
       });
       if (!r) return; // cancelled — nothing changed
+      await pwGen.saved(me.user);
       Agenti.banner(pwBanner, "ok", "Password changed. Signing you out — log back in with the new one.");
       setTimeout(() => { Agenti.clearAuth(); location.href = "login.html"; }, 1600);
     } finally {
@@ -317,9 +338,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     secretEl.parentElement.appendChild(Agenti.copyButton(r.secret, "Copy secret"));
     const qrHost = document.getElementById("mfa-qr");
     qrHost.innerHTML = "";
-    const img = Agenti.qrImage(r.qr_svg, "QR code for your authenticator app");
-    if (img) qrHost.appendChild(img);
-    document.getElementById("mfa-otpauth-link").href = r.otpauth_uri;
+    const qr = Agenti.qrCode(r.qr_modules, "QR code for your authenticator app");
+    if (qr) qrHost.appendChild(qr);
     mfaConfirmPanel.dataset.secret = r.secret;
     mfaConfirmPanel.dataset.grant = r.grant;
     mfaStartPanel.hidden = true;
@@ -377,26 +397,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   const passkeyEmpty = document.getElementById("passkey-empty");
   const passkeyName = document.getElementById("passkey-name");
 
-  if (!window.PublicKeyCredential) {
-    document.getElementById("passkey-unsupported").hidden = false;
-    document.getElementById("passkey-add-panel").hidden = true;
-  }
-
-  // Same origin/rp-id check login.html does (see webauthnOriginHint in
-  // api.js) — this is where the actual "OriginMissingDomain" failure
-  // surfaces if it's missed, since adding a passkey happens here. Checked
-  // once, up front: a banner + a disabled button beat a native error after
-  // the OS picker has already been shown.
-  let passkeyOriginHint = null;
-  try {
-    const wcfg = await Agenti.get("auth/webauthn/config");
-    if (wcfg && wcfg.enabled) passkeyOriginHint = Agenti.webauthnOriginHint(wcfg.rpId, wcfg.origin);
-  } catch { /* best-effort — a failed check just means no proactive warning */ }
-  if (passkeyOriginHint) {
-    Agenti.banner(passkeyBanner, "err", passkeyOriginHint);
-    const addBtn = document.getElementById("passkey-add-btn");
-    if (addBtn) addBtn.disabled = true;
-  }
+  // The whole section exists only where passkeys can work: turned on, a
+  // domain set, and this tab open at that domain (operator note 2026-11-06 —
+  // opened by IP, it used to show a red warning and a greyed button).
+  const passkeysHere = await Agenti.passkeysUsable();
+  document.getElementById("passkeys-panel").hidden = !passkeysHere;
 
   function passkeyRowHtml(p) {
     const when = p.last_used_at ? `last used ${Agenti.when(p.last_used_at)}` : "never used yet";
@@ -425,7 +430,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       Agenti.banner(passkeyBanner, "err", Agenti.errorText(err));
     }
   }
-  const passkeysLoading = loadPasskeys();   // nothing below needs it; awaited at the end
+  const passkeysLoading = passkeysHere ? loadPasskeys() : Promise.resolve();   // awaited at the end
 
   async function removePasskey(credentialId) {
     passkeyBanner.className = "banner";
@@ -908,68 +913,234 @@ document.addEventListener("DOMContentLoaded", async function () {
   // ---------- Engagement (admin) ----------
   // The organisation's ONE engagement record: client, authorization, the
   // scope every agent is narrowed from, the validity window and the
-  // operational policy (caps, models, approval). A panel summarises it; the
-  // dialog edits and approves it. The Edit button is offered to anyone who
-  // could do anything with it (author it, or approve it as it stands) — the
-  // dialog then narrows what is editable vs read-only, the same "gate the
-  // button, then gate the form" pattern the grant dialog uses.
+  // operational policy (caps, models). A card summarises it; the dialog
+  // edits it. Operator decision 2026-11-06:
+  //   * the second-approver policy OFF (default): one "Save and close", one
+  //     confirmation — the save also records you as its approver;
+  //   * ON: a save becomes a pending change that ANOTHER admin approves or
+  //     rejects (its author may withdraw it). The card gets an amber outline
+  //     and says so; the dialog shows Current | Pending. Until it is decided,
+  //     runs must fit both versions. Caps, models and prices apply at once.
+  // Nothing is ever lost by pressing the wrong button: Approve and Reject
+  // are offered only while the form shows the change exactly as submitted.
   if (showEngagementBtn) {
     const engDlg = document.getElementById("engagement-dialog");
     const engForm = document.getElementById("engagement-form");
     const engBanner = document.getElementById("engagement-banner");
     const engStatus = document.getElementById("engagement-status");
-    const engApproveBtn = document.getElementById("engagement-approve");
     const engSaveBtn = document.getElementById("engagement-save");
-    const engLinesOf = (id) => document.getElementById(id).value.split("\n").map((s) => s.trim()).filter(Boolean);
-    // Which ceilings the admin asked to revert to the platform default this
-    // dialog session (Reset button) — reset on every open, consumed on
-    // submit. "Blank" already means "leave it alone" (a --clear-* flag is the
-    // only way to say "no, really, remove the override").
+    const engApproveBtn = document.getElementById("engagement-approve");
+    const engApprovePendingBtn = document.getElementById("engagement-approve-pending");
+    const engRejectBtn = document.getElementById("engagement-reject-pending");
+    const engWithdrawBtn = document.getElementById("engagement-withdraw-pending");
+    const engToggle = document.getElementById("eng-view-toggle");
+    const rejectField = document.getElementById("eng-reject-field");
+    const $id = (id) => document.getElementById(id);
+    const engLinesOf = (id) => $id(id).value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const when = (ts) => { const a = ts ? Agenti.ago(ts) : ""; return /ago|now/.test(a) ? a : a ? `on ${a}` : ""; };
+    let data = null;            // GET /engagement, as opened
+    let view = "current";       // which version the form shows
+    let snapshot = "";          // the form as filled, to know if it was edited
     let clearCeilings = new Set();
+    // Which ceilings the admin asked to revert to the platform default this
+    // dialog session (Reset button) — "blank" already means "leave it alone".
     engForm.querySelectorAll("[data-clear-ceiling]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const key = btn.dataset.clearCeiling;
         clearCeilings.add(key);
-        const input = document.getElementById(`eng2-${key}-ceiling`);
+        const input = $id(`eng2-${key}-ceiling`);
         input.value = "";
         input.disabled = true;
         btn.hidden = true;
+        refreshButtons();
       });
     });
 
-    function approvalLine(data) {
-      const st = data.approval_status || {};
-      const requiresApproval = (data.effective_policy || {}).require_approval !== false;
-      if (st.current) return ["ok", `Approved by ${st.approved_by || "?"} — current.`];
-      if (!requiresApproval) return ["ok", "The organisation's policy does not require approval, so a run can start regardless."];
-      if (st.approved) return ["warn", `Stale — ${st.reason || "edited since approval"}. A run cannot start until this is approved again.`];
-      return ["warn", `Not approved — ${st.reason || "no approval on record"}. A run cannot start against this engagement until it is.`];
+    // ---- the record <-> the form ----
+    const FIELD_IDS = { engagement_id: "eng2-id", client: "eng2-client", authorizing_party: "eng2-party",
+      authorizing_title: "eng2-title", authorization_ref: "eng2-ref", valid_from: "eng2-from",
+      valid_until: "eng2-until", emergency_contact: "eng2-contact", notes: "eng2-notes" };
+    const LIST_IDS = { "scope.cidr.in_scope": "eng2-cidr-in", "scope.cidr.out_of_scope": "eng2-cidr-out",
+      "scope.domain.in_scope": "eng2-domain-in", "scope.domain.out_of_scope": "eng2-domain-out",
+      redact: "eng2-redact" };
+    const pick = (rec, path) => path.split(".").reduce((o, k) => (o || {})[k], rec);
+    function fillAuth(rec) {
+      rec = rec || {};
+      for (const [k, id] of Object.entries(FIELD_IDS)) $id(id).value = rec[k] || "";
+      for (const [k, id] of Object.entries(LIST_IDS)) $id(id).value = (pick(rec, k) || []).join("\n");
+      $id("eng2-capture").checked = !!rec.capture_payloads;
+      $id("eng2-exploitation-enabled").checked = !!(rec.exploitation_enabled || (rec.enabled_capabilities || []).includes("exploit"));
+      $id("eng2-retention").value = rec.retention_days || 0;
     }
-    function paintApprovalStatus(data) {
-      const [cls, text] = approvalLine(data);
-      engStatus.className = `banner ${cls} show`;
-      engStatus.textContent = text;
+    function fillPolicy(rec) {
+      // Values: what the record itself sets (blank = the platform default);
+      // placeholders: the platform default a Reset goes back to.
+      const pol = (rec || {}).policy || {};
+      const def = data.platform_default_policy || {};
+      const set = (id, v, ph) => { const el = $id(id); el.value = v != null ? v : ""; el.placeholder = ph; el.disabled = false; };
+      set("eng2-turns-ceiling", pol.max_turns_ceiling, `default ${def.max_turns_ceiling ?? 40}`);
+      set("eng2-budget-ceiling", pol.max_budget_usd_ceiling, `default $${def.max_budget_usd_ceiling ?? 10}`);
+      set("eng2-timeout-ceiling", pol.timeout_s_ceiling, `default ${def.timeout_s_ceiling ?? 3600}`);
+      $id("eng2-models").value = (pol.allowed_models || []).join("\n");
+      $id("eng2-model-prices").value = Object.entries(pol.model_prices || {}).map(([n, p]) => `${n}=${p.join(",")}`).join("\n");
+    }
+    const formState = () => JSON.stringify([...engForm.querySelectorAll("input, textarea")]
+      .filter((el) => el.id && !el.closest("#eng-reject-field"))
+      .map((el) => (el.type === "checkbox" ? el.checked : el.value)).concat([...clearCeilings]));
+    const edited = () => formState() !== snapshot;
+
+    // Pending view: each field the change touches says so, with what is in
+    // force now under it.
+    function markChanges() {
+      engForm.querySelectorAll(".field.changed, .check-row.changed").forEach((el) => el.classList.remove("changed"));
+      engForm.querySelectorAll(".was").forEach((el) => el.remove());
+      if (view !== "pending" || !data.pending || !data.record) return;
+      const live = data.record, prop = data.pending.record;
+      const show = (path, was) => {
+        const host = engForm.querySelector(`[data-eng="${path}"]`);
+        if (!host) return;
+        host.classList.add("changed");
+        const note = document.createElement("p");
+        note.className = "was";
+        note.textContent = `In force now: ${was === "" || was == null ? "(empty)" : was}`;
+        host.appendChild(note);
+      };
+      for (const k of Object.keys(FIELD_IDS)) if ((live[k] || "") !== (prop[k] || "")) show(k, live[k] || "");
+      for (const k of Object.keys(LIST_IDS)) {
+        const a = pick(live, k) || [], b = pick(prop, k) || [];
+        if (a.join("\n") !== b.join("\n")) show(k, a.join(", "));
+      }
+      if (!!live.capture_payloads !== !!prop.capture_payloads) show("capture_payloads", live.capture_payloads ? "on" : "off");
+      const ex = (r) => (r.enabled_capabilities || []).includes("exploit");
+      if (ex(live) !== ex(prop)) show("enabled_capabilities", ex(live) ? "allowed" : "not allowed");
+      if ((live.retention_days || 0) !== (prop.retention_days || 0)) show("retention_days", String(live.retention_days || 0));
+      if (engForm.querySelector("#eng-data-handling .changed")) $id("eng-data-handling").open = true;
     }
 
-    // The summary panel on the Engagement tab.
-    const engSummary = document.getElementById("eng-summary");
-    async function paintEngagementSummary() {
+    // ---- what the dialog says and offers ----
+    const policyOn = () => data && data.second_approver === "on";
+    const isAuthor = () => !!(data && data.pending && data.pending.author === me.user);
+    function status(kind, text, extraHtml) {
+      engStatus.className = `banner ${kind} show`;
+      engStatus.textContent = text;
+      if (extraHtml) { engStatus.insertAdjacentHTML("beforeend", extraHtml); Agenti.wireCopyButtons(engStatus); }
+    }
+    function paintStatus() {
+      const st = data.approval_status || {}, p = data.pending;
+      if (data.pending_invalid) {
+        return status("err", `A waiting change can't be read, so runs are refused until it is replaced or rejected: ${data.pending_invalid}`);
+      }
+      if (!data.exists && !p) return status("warn", "No engagement yet: nothing can be scanned until one is saved.");
+      if (p && view === "pending") {
+        if (p.stale) return status("err", `${isAuthor() ? "Your" : `${p.author}'s`} change was made against an older version. Save it again, or reject it.`);
+        if (isAuthor() && !policyOn()) return status("warn", "The second-approver policy is off now, so you may approve your own change.");
+        if (isAuthor()) {
+          if (p.approvers_available === false) {
+            const cmd = "sudo agenti admin set-policy engagement-second-approver off";
+            return status("warn", "Your change is waiting, but no other admin can approve it. Add an admin in Settings → Users, withdraw the change, or turn the policy off on the host and approve it yourself: ",
+              `<span class="cmd-inline"><code>${esc(cmd)}</code>${Agenti.copyButtonHtml(cmd, "Copy command")}</span>`);
+          }
+          return status("warn", `Your change, saved ${when(p.authored_at)}, is waiting for another admin to approve it. Until then, runs must fit both versions.`);
+        }
+        return status("warn", `${p.author} submitted this change ${when(p.authored_at)}. Review it, then approve or reject it. Until then, runs must fit both versions.`);
+      }
+      if (p && view === "current") return status("ok", "The version in force. Switch to Pending to see the change waiting for approval.");
+      if (data.exists && !st.current) {
+        return status("warn", policyOn()
+          ? "Not approved yet. Another admin approves it here before a run can start."
+          : "Not approved yet. Save and close approves it as shown.");
+      }
+      if (policyOn()) {
+        const lone = data.approvers_count != null && data.approvers_count < 2;
+        return status(lone ? "warn" : "ok", lone
+          ? "A save waits for another admin's approval, and no other admin can approve yet. Add one in Settings → Users first, or turn the second-approver policy off on the host."
+          : "A save waits for another admin's approval. Until then, runs must fit both versions.");
+      }
+      engStatus.className = "banner";      // in force, approved, one-step saves: nothing to say
+    }
+    function refreshButtons() {
+      const p = data && data.pending;
+      const viewingPending = !!p && view === "pending";
+      const untouched = !edited();
+      const editable = canEditEngagement && (!p || viewingPending);
+      engForm.querySelectorAll("input, textarea").forEach((el) => {
+        if (el.closest("#eng-reject-field")) return;
+        if (el.closest("[data-clear-ceiling]")) return;
+        el.disabled = !editable || (el.id.endsWith("-ceiling") && clearCeilings.has(el.id.split("-")[1]));
+      });
+      engForm.querySelectorAll("[data-clear-ceiling]").forEach((b) => { b.hidden = !editable || clearCeilings.has(b.dataset.clearCeiling); });
+      // One main action at a time: on a waiting change shown as submitted,
+      // the choices are Approve / Reject (or Withdraw); editing it offers Save.
+      engSaveBtn.hidden = !editable || (viewingPending && untouched);
+      engSaveBtn.lastChild.textContent = p && !isAuthor() && viewingPending && !untouched ? "Save my version" : "Save and close";
+      engApprovePendingBtn.hidden = !(viewingPending && canApproveEngagement && (!policyOn() || !isAuthor()) && !p.stale && untouched);
+      engRejectBtn.hidden = !(viewingPending && canApproveEngagement && !isAuthor() && untouched);
+      rejectField.hidden = engRejectBtn.hidden;
+      engWithdrawBtn.hidden = !(viewingPending && isAuthor() && canEditEngagement && untouched);
+      const st = (data && data.approval_status) || {};
+      engApproveBtn.hidden = !(data && data.exists && !p && !st.current && policyOn() && canApproveEngagement
+                               && (data.record || {}).updated_by !== me.user && untouched);
+      if (data && data.pending_invalid && canApproveEngagement) { engRejectBtn.hidden = false; engRejectBtn.lastChild.textContent = "Discard it"; }
+      else engRejectBtn.lastChild.textContent = "Reject";
+    }
+    function setView(v) {
+      view = v;
+      engToggle.querySelectorAll("[data-view]").forEach((b) => {
+        const on = b.dataset.view === v;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", String(on));
+      });
+      fillAuth(v === "pending" && data.pending ? data.pending.record : data.record);
+      fillPolicy(data.record || (data.pending || {}).record);
+      clearCeilings = new Set();
+      snapshot = formState();
+      markChanges();
+      paintStatus();
+      refreshButtons();
+    }
+    engToggle.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+    engForm.addEventListener("input", refreshButtons);
+
+    // ---- the card on the Engagement tab ----
+    const engCard = $id("eng-card");
+    const engSummary = $id("eng-summary");
+    const engNote = $id("eng-edit-note");
+    async function paintEngagementSummary(message) {
+      const msg = $id("eng-card-msg");
+      if (message) Agenti.banner(msg, "ok", message); else msg.className = "banner ok";
       try {
-        const data = await Agenti.get("engagement");
-        const rec = data.record || {};
-        const scope = rec.scope || {};
-        const count = (k) => ((scope[k] || {}).in_scope || []).length;
-        if (!data.exists) {
-          engSummary.innerHTML = `<p class="hint">No engagement yet — nothing can be scanned until one is set.</p>`;
+        const d = await Agenti.get("engagement");
+        const rec = d.record || {};
+        const p = d.pending;
+        engCard.classList.toggle("attention", !!(p || d.pending_invalid));
+        $id("eng-card-title").querySelector(".eng-card-icon").innerHTML = Agenti.icon(p ? "warning" : "shield", 18);
+        if (p) {
+          engNote.hidden = false;
+          engNote.textContent = p.author === me.user
+            ? "Engagement change submitted, pending approval of another admin"
+            : canApproveEngagement ? `${p.author} submitted a change: it's waiting for your approval`
+              : `${p.author} submitted a change, pending approval of another admin`;
+        } else {
+          engNote.hidden = true;
+        }
+        if (!d.exists && !p) {
+          engSummary.innerHTML = `<p class="hint">No engagement yet. Nothing can be scanned until one is saved.</p>`;
           return;
         }
-        const [cls, text] = approvalLine(data);
+        const scope = (d.exists ? rec : p.record).scope || {};
+        const count = (k) => ((scope[k] || {}).in_scope || []).length;
+        const st = d.approval_status || {};
+        const approval = st.current
+          ? `<span class="ok-text">Approved by ${esc(st.approved_by || "?")}</span>`
+          : `<span class="warn-text">${d.exists ? "Not approved" : "Waiting for its first approval"}</span>`;
+        const r = d.exists ? rec : p.record;
         engSummary.innerHTML = `<dl class="kv">
-          <dt>Engagement</dt><dd>${esc(rec.engagement_id || "—")}</dd>
-          <dt>Client</dt><dd>${esc(rec.client || "—")}</dd>
-          <dt>Valid</dt><dd>${esc(rec.valid_from || "?")} to ${esc(rec.valid_until || "?")}</dd>
+          <dt>Engagement</dt><dd>${esc(r.engagement_id || "—")}</dd>
+          <dt>Client</dt><dd>${esc(r.client || "—")}</dd>
+          <dt>Valid</dt><dd>${esc(r.valid_from || "?")} to ${esc(r.valid_until || "?")}</dd>
           <dt>In scope</dt><dd>${count("cidr")} network range${count("cidr") === 1 ? "" : "s"}, ${count("domain")} domain${count("domain") === 1 ? "" : "s"}</dd>
-          <dt>Approval</dt><dd><span style="color:var(--${cls === "ok" ? "ok" : "warn"});">${esc(text)}</span></dd>
+          <dt>Approval</dt><dd>${approval}</dd>
+          ${p ? `<dt>Pending</dt><dd>Change by ${esc(p.author === me.user ? "you" : p.author)}: until it's approved, runs must fit both versions.</dd>` : ""}
         </dl>`;
       } catch (err) {
         engSummary.innerHTML = `<p class="hint warn">${esc(Agenti.errorText(err))}</p>`;
@@ -980,139 +1151,103 @@ document.addEventListener("DOMContentLoaded", async function () {
     async function openEngagement() {
       engBanner.className = "banner";
       engStatus.className = "banner";
-      engStatus.textContent = "";
-      engForm.querySelectorAll("input, textarea").forEach((el) => { el.disabled = !canEditEngagement; });
-      engSaveBtn.hidden = !canEditEngagement;
-      engApproveBtn.hidden = !canApproveEngagement;
-      clearCeilings = new Set();
-      engForm.querySelectorAll("[data-clear-ceiling]").forEach((btn) => { btn.hidden = !canEditEngagement; });
+      $id("eng-reject-reason").value = "";
       engDlg.showModal();
       try {
-        const data = await Agenti.get("engagement");
-        const record = data.record || {};
-        const scope = record.scope || {};
-        document.getElementById("eng2-id").value = record.engagement_id || "";
-        document.getElementById("eng2-client").value = record.client || "";
-        document.getElementById("eng2-party").value = record.authorizing_party || "";
-        document.getElementById("eng2-title").value = record.authorizing_title || "";
-        document.getElementById("eng2-ref").value = record.authorization_ref || "";
-        document.getElementById("eng2-from").value = record.valid_from || "";
-        document.getElementById("eng2-until").value = record.valid_until || "";
-        document.getElementById("eng2-cidr-in").value = ((scope.cidr || {}).in_scope || []).join("\n");
-        document.getElementById("eng2-cidr-out").value = ((scope.cidr || {}).out_of_scope || []).join("\n");
-        document.getElementById("eng2-domain-in").value = ((scope.domain || {}).in_scope || []).join("\n");
-        document.getElementById("eng2-domain-out").value = ((scope.domain || {}).out_of_scope || []).join("\n");
-        document.getElementById("eng2-contact").value = record.emergency_contact || "";
-        document.getElementById("eng2-notes").value = record.notes || "";
-        document.getElementById("eng2-capture").checked = !!record.capture_payloads;
-        document.getElementById("eng2-exploitation-enabled").checked =
-            !!(record.exploitation_enabled ||
-               (record.enabled_capabilities || []).includes("exploit"));
-        document.getElementById("eng2-retention").value = record.retention_days || 0;
-        document.getElementById("eng2-redact").value = (record.redact || []).join("\n");
-        // Policy: the CHECKBOX/VALUE state reflects what the record itself
-        // has set (record.policy, blank/unchecked = "not set here" — saving
-        // leaves it alone, same as the CLI's own per-field merge); the
-        // ceiling placeholders show what would actually apply right now
-        // (effective_policy — an override or the platform default), so
-        // leaving a field blank is never a guess at what happens.
-        const pol = record.policy || {};
-        const eff = data.effective_policy || {};
-        const reqApproval = document.getElementById("eng2-require-approval");
-        reqApproval.checked = pol.require_approval !== false;
-        // Turning approval OFF lets runs start without anyone approving the
-        // scope, so from the web it can only be turned on (audit run 1, F10).
-        reqApproval.disabled = reqApproval.checked;
-        reqApproval.title = reqApproval.checked
-          ? "Turning approval off is a console-only decision: sudo agenti engagement set --no-require-approval"
-          : "";
-        shownDigest = data.digest || "";
-        const turnsEl = document.getElementById("eng2-turns-ceiling");
-        turnsEl.value = pol.max_turns_ceiling != null ? pol.max_turns_ceiling : "";
-        turnsEl.placeholder = `platform default: ${eff.max_turns_ceiling}`;
-        const budgetEl = document.getElementById("eng2-budget-ceiling");
-        budgetEl.value = pol.max_budget_usd_ceiling != null ? pol.max_budget_usd_ceiling : "";
-        budgetEl.placeholder = `platform default: $${eff.max_budget_usd_ceiling}`;
-        const timeoutEl = document.getElementById("eng2-timeout-ceiling");
-        timeoutEl.value = pol.timeout_s_ceiling != null ? pol.timeout_s_ceiling : "";
-        timeoutEl.placeholder = `platform default: ${eff.timeout_s_ceiling}s`;
-        document.getElementById("eng2-models").value = (pol.allowed_models || []).join("\n");
-        document.getElementById("eng2-model-prices").value = Object.entries(pol.model_prices || {}).map(([name, pair]) => `${name}=${pair.join(",")}`).join("\n");
-        paintApprovalStatus(data);
+        data = await Agenti.get("engagement");
       } catch (err) {
         // GET answers 200 with exists:false before the first engagement is
-        // written (the fields just come back empty, ready to fill in) —
-        // reaching this catch means a REAL failure: no permission, a
-        // network error, or similar.
+        // written; reaching this catch means a real failure.
         Agenti.banner(engBanner, "err", Agenti.errorText(err));
+        return;
       }
+      engToggle.hidden = !(data.pending && data.exists);
+      setView(data.pending ? "pending" : "current");
     }
     // Exposed on window so gui_check.py (and a future deep link) can open the
     // dialog without synthesising a click.
     window.__agentiOpenEngagement = openEngagement;
-    let shownDigest = "";   // the version on screen: an approval signs exactly this one
-    document.getElementById("eng-edit-btn").addEventListener("click", openEngagement);
-    document.getElementById("engagement-cancel").addEventListener("click", () => {
+    $id("eng-edit-btn").addEventListener("click", openEngagement);
+    $id("engagement-cancel").addEventListener("click", () => engDlg.close());
+    // Closed any way (Close, ✕, Esc): the card shows what is true now.
+    engDlg.addEventListener("close", () => { if (!engDlg.dataset.keepMsg) paintEngagementSummary(); delete engDlg.dataset.keepMsg; });
+    function done(message) {
+      engDlg.dataset.keepMsg = "1";
       engDlg.close();
-      paintEngagementSummary();
-    });
+      paintEngagementSummary(message);
+    }
 
-    engForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!canEditEngagement) return;
-      engBanner.className = "banner";
+    function formBody() {
       const body = {
-        engagement_id: document.getElementById("eng2-id").value.trim(),
-        client: document.getElementById("eng2-client").value.trim(),
-        authorizing_party: document.getElementById("eng2-party").value.trim(),
-        authorizing_title: document.getElementById("eng2-title").value.trim(),
-        authorization_ref: document.getElementById("eng2-ref").value.trim(),
-        valid_from: document.getElementById("eng2-from").value,
-        valid_until: document.getElementById("eng2-until").value,
+        engagement_id: $id("eng2-id").value.trim(),
+        client: $id("eng2-client").value.trim(),
+        authorizing_party: $id("eng2-party").value.trim(),
+        authorizing_title: $id("eng2-title").value.trim(),
+        authorization_ref: $id("eng2-ref").value.trim(),
+        valid_from: $id("eng2-from").value,
+        valid_until: $id("eng2-until").value,
         cidr_in: engLinesOf("eng2-cidr-in"),
         cidr_out: engLinesOf("eng2-cidr-out"),
         domain_in: engLinesOf("eng2-domain-in"),
         domain_out: engLinesOf("eng2-domain-out"),
-        emergency_contact: document.getElementById("eng2-contact").value.trim(),
-        notes: document.getElementById("eng2-notes").value.trim(),
-        capture_payloads: document.getElementById("eng2-capture").checked,
-        enabled_capabilities: document.getElementById("eng2-exploitation-enabled").checked ? ["exploit"] : [],
+        emergency_contact: $id("eng2-contact").value.trim(),
+        notes: $id("eng2-notes").value.trim(),
+        capture_payloads: $id("eng2-capture").checked,
+        enabled_capabilities: $id("eng2-exploitation-enabled").checked ? ["exploit"] : [],
         exploitation_enabled: false,
-        retention_days: parseInt(document.getElementById("eng2-retention").value, 10) || 0,
+        retention_days: parseInt($id("eng2-retention").value, 10) || 0,
         redact: engLinesOf("eng2-redact"),
-        require_approval: document.getElementById("eng2-require-approval").checked,
         allowed_models: engLinesOf("eng2-models"),
+        model_prices: {},
       };
-      body.model_prices = {};
       for (const line of engLinesOf("eng2-model-prices")) {
         const [name, pair, extra] = line.split("=");
         const parts = (pair || "").split(",");
         const values = parts.map(Number);
         if (!name || extra !== undefined || parts.some((v) => !v.trim()) || values.length !== 2 || values.some((v) => !Number.isFinite(v) || v < 0)) {
-          Agenti.banner(engBanner, "err", "Write each price as provider:model=input,output with two non-negative USD prices per million tokens.");
-          return;
+          throw new Error("Write each price as provider:model=input,output, two prices in USD per million tokens.");
         }
         body.model_prices[name] = values;
       }
       if (clearCeilings.has("turns")) body.clear_max_turns_ceiling = true;
-      else { const v = document.getElementById("eng2-turns-ceiling").value; if (v) body.max_turns_ceiling = parseInt(v, 10); }
+      else { const v = $id("eng2-turns-ceiling").value; if (v) body.max_turns_ceiling = parseInt(v, 10); }
       if (clearCeilings.has("budget")) body.clear_max_budget_ceiling = true;
-      else { const v = document.getElementById("eng2-budget-ceiling").value; if (v) body.max_budget_ceiling = parseFloat(v); }
+      else { const v = $id("eng2-budget-ceiling").value; if (v) body.max_budget_ceiling = parseFloat(v); }
       if (clearCeilings.has("timeout")) body.clear_timeout_ceiling = true;
-      else { const v = document.getElementById("eng2-timeout-ceiling").value; if (v) body.timeout_ceiling = parseInt(v, 10); }
+      else { const v = $id("eng2-timeout-ceiling").value; if (v) body.timeout_ceiling = parseInt(v, 10); }
+      // What was being edited, and under which policy: a save is refused if
+      // either moved on meanwhile (nobody's change is silently overwritten).
+      body.base_digest = data.pending ? data.pending.digest : (data.digest || "none");
+      if (data.second_approver) body.expect_second_approver = data.second_approver;
+      return body;
+    }
+
+    engForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (engSaveBtn.hidden) return;
+      engBanner.className = "banner";
+      // Nothing changed and nothing to approve: just close (no 2FA code spent).
+      const st = data.approval_status || {};
+      if (!edited() && data.exists && (st.current || policyOn())) { engDlg.close(); return; }
+      let body;
+      try { body = formBody(); } catch (err) { Agenti.banner(engBanner, "err", err.message); return; }
       engSaveBtn.disabled = true;
       try {
         // The engagement is the legal boundary: saving it is confirmed like
         // any other admin action (audit run 1, F13).
         const r = await Agenti.requireApproval({
-          title: "Save the engagement",
-          description: "Confirm it's you to save these engagement details. A run needs an approval of this exact version before it can start.",
+          title: policyOn() ? "Submit the engagement change" : "Save the engagement",
+          description: policyOn()
+            ? "Confirm it's you. Another admin approves it before it takes effect; until then, runs must fit both versions."
+            : "Confirm it's you. It takes effect at once, approved by you.",
           submit: (creds) => Agenti.post("engagement", { ...body,
             password: creds.password, totp: creds.totp, reauth: creds.reauth }),
         });
         if (!r) return;
-        Agenti.banner(engBanner, "ok", "Saved. Approve it below before a run can start against it." + stoppedNote(r));
-        await openEngagement();
+        done((r.pending ? "Change submitted: another admin approves it before it takes effect."
+          : r.cleared ? "Saved back to the version in force: nothing is waiting any more."
+          : r.unchanged ? "Nothing changed."
+          : "Saved and approved by you: it is in force now.") + stoppedNote(r));
       } catch (err) {
         Agenti.banner(engBanner, "err", Agenti.errorText(err));
       } finally {
@@ -1120,27 +1255,69 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
 
-    engApproveBtn.addEventListener("click", async () => {
-      const id = document.getElementById("eng2-id").value.trim();
-      engApproveBtn.disabled = true;
+    async function decide(btn, { title, description, path, body, message }) {
+      engBanner.className = "banner";
+      btn.disabled = true;
       try {
-        // Approve exactly the version on screen: if anyone edited it since
-        // it was opened, the server refuses and asks for a fresh review (F25).
         const r = await Agenti.requireApproval({
-          title: "Approve the engagement",
-          description: "Confirm it's you to approve the engagement exactly as shown. Runs may then start against its scope until it is edited again.",
-          submit: (creds) => Agenti.post("engagement/approve", {
-            ...(id ? { engagement_id: id } : {}), digest: shownDigest,
+          title, description,
+          submit: (creds) => Agenti.post(path, { ...body,
             password: creds.password, totp: creds.totp, reauth: creds.reauth }),
         });
         if (!r) return;
-        Agenti.banner(engBanner, "ok", "Approved.");
-        await openEngagement();
+        done(message + stoppedNote(r));
       } catch (err) {
         Agenti.banner(engBanner, "err", Agenti.errorText(err));
       } finally {
-        engApproveBtn.disabled = false;
+        btn.disabled = false;
       }
+    }
+    engApprovePendingBtn.addEventListener("click", () => {
+      const p = data.pending;
+      decide(engApprovePendingBtn, {
+        title: `Approve ${p.author === me.user ? "your" : `${p.author}'s`} change`,
+        description: "Confirm it's you. The change takes effect at once, exactly as shown.",
+        path: "engagement/pending/approve",
+        body: { digest: p.digest, engagement_id: p.record.engagement_id },
+        message: `Approved: ${p.author === me.user ? "your" : `${p.author}'s`} change is in force now.`,
+      });
+    });
+    engRejectBtn.addEventListener("click", () => {
+      const p = data.pending;
+      const reason = $id("eng-reject-reason").value.trim();
+      if (!p && data.pending_invalid) {
+        // An unreadable change has no digest to name: the CLI discards it.
+        Agenti.banner(engBanner, "err", "Discard it at the server: sudo agenti engagement reject-pending");
+        return;
+      }
+      decide(engRejectBtn, {
+        title: `Reject ${p.author}'s change`,
+        description: "Confirm it's you. The change is discarded; the version in force stays.",
+        path: "engagement/pending/reject",
+        body: { digest: p.digest, ...(reason ? { reason } : {}) },
+        message: "Rejected: the version in force stays.",
+      });
+    });
+    engWithdrawBtn.addEventListener("click", () => {
+      const p = data.pending;
+      decide(engWithdrawBtn, {
+        title: "Withdraw your change",
+        description: "Confirm it's you. The change is discarded; the version in force stays.",
+        path: "engagement/pending/withdraw",
+        body: { digest: p.digest },
+        message: "Withdrawn: the version in force stays.",
+      });
+    });
+    engApproveBtn.addEventListener("click", () => {
+      // An older record nobody approved (the policy on): another admin
+      // approves exactly the version shown (F25).
+      decide(engApproveBtn, {
+        title: "Approve the engagement",
+        description: "Confirm it's you to approve the engagement exactly as shown.",
+        path: "engagement/approve",
+        body: { digest: data.digest, engagement_id: (data.record || {}).engagement_id },
+        message: "Approved: runs may start against it now.",
+      });
     });
 
     // The organisation's own instructions (org.md): rules every agent reads,
@@ -1249,9 +1426,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       try {
         const pol = await Agenti.get("admin/policy");
         const rows = [];
+        // Two different separations of duty, named so they can't be confused.
+        const sa = pol["engagement-second-approver"] === "on";
+        rows.push(polRow("users", "Second approver for engagement changes", sa,
+            `A saved change waits until a different admin approves it; until then, runs must fit both versions. Needs two admins: <code>sudo agenti admin set-policy engagement-second-approver ${sa ? "off" : "on"}</code>`));
         const rsa = pol["require-separate-approver"] === "on";
-        rows.push(polRow("users", "Separate approver for run approvals", rsa,
-            `Whoever approves an engagement can't also start a run against it. Turn it on once two people share the work: <code>sudo agenti admin set-policy require-separate-approver ${rsa ? "off" : "on"}</code>`));
+        rows.push(polRow("users", "Approver can't start runs", rsa,
+            `Whoever approved the engagement can't also start a run against it: <code>sudo agenti admin set-policy require-separate-approver ${rsa ? "off" : "on"}</code>`));
         // require-2fa: platform default (ON unless set off) and per-account
         // exemptions — every row a set-policy command, since
         // weakening authentication is refused to the web tier by design.
@@ -1315,6 +1496,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         } else {
           vState.innerHTML = "";
           Agenti.banner(vBanner, "warn", "Data from agents is currently not encrypted: reports, scans, attached files and the API key are plain files on this server's disk.");
+          await Agenti.dismissibleBanner(vBanner, "vault-unencrypted");
         }
       } catch (err) {
         Agenti.banner(vBanner, "err", Agenti.errorText(err));
@@ -1721,23 +1903,25 @@ document.addEventListener("DOMContentLoaded", async function () {
       });
     }
 
+    // A generated password, ready to copy and hand over (password-gen.js).
+    // Not offered to the admin's own password manager: it isn't theirs.
+    const resetPwGen = AgentiPassword.attach(resetPasswordValue);
     resetPasswordDirectBtn.addEventListener("click", () => {
       resetBanner.className = "banner";
       resetPasswordLinkResult.hidden = true;
-      resetPasswordValue.value = "";
+      resetPwGen.regenerate();
       resetPasswordDirectForm.hidden = false;
-      resetPasswordValue.focus();
     });
     resetPasswordDirectCancel.addEventListener("click", () => {
       resetPasswordDirectForm.hidden = true;
-      resetPasswordValue.value = "";
     });
     resetPasswordDirectConfirm.addEventListener("click", async () => {
       const name = grantForm.dataset.name;
-      const value = resetPasswordValue.value;
+      const value = resetPwGen.value;
       resetBanner.className = "banner";
-      if (!value) {
-        Agenti.banner(resetBanner, "err", "Enter a new password first.");
+      const problem = resetPwGen.check();
+      if (problem) {
+        Agenti.banner(resetBanner, "err", problem);
         return;
       }
       resetPasswordDirectConfirm.disabled = true;
@@ -1745,7 +1929,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         const r = await resetPasswordWithApproval(name, "direct", value);
         if (!r) return; // cancelled
         resetPasswordDirectForm.hidden = true;
-        resetPasswordValue.value = "";
         Agenti.banner(resetBanner, "ok", `Password reset for '${r.user}' (approved by `
           + `${r.approved_by}); ${r.sessions_revoked} session(s) revoked.`);
       } finally {

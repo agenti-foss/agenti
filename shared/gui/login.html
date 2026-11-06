@@ -117,11 +117,13 @@
         }
       }).catch(() => { /* an older server, or authd down: the form explains itself */ });
 
+      // Offered only where passkeys can work: on, and this page open at the
+      // passkey domain (operator note 2026-11-06 — by IP it can only fail).
       Agenti.get("auth/webauthn/config", { noRedirect: true }).then((cfg) => {
-        if (cfg && cfg.enabled) {
-          passkeyBtn.hidden = false;
-          passkeyDivider.hidden = false;
+        if (cfg && cfg.enabled && window.PublicKeyCredential) {
           passkeyOriginHint = Agenti.webauthnOriginHint(cfg.rpId, cfg.origin);
+          passkeyBtn.hidden = !!passkeyOriginHint;
+          passkeyDivider.hidden = !!passkeyOriginHint;
         }
       }).catch(() => { /* stay hidden — the password form still works */ });
 
@@ -209,12 +211,42 @@
             done(resp);
           }
         } catch (err) {
+          if (pendingTotp && !recoveryMode && /already been used/i.test(Agenti.errorText(err))) {
+            // One-use codes, kept on purpose: say when the next one comes and
+            // sign in by itself once it is typed (operator note 2026-11-06).
+            waitForNextCode();
+            return;
+          }
           const msg = err.status === 429
             ? "Too many attempts — this account is temporarily locked. Try again later."
             : Agenti.errorText(err);
           Agenti.banner(bannerEl, "err", msg);
         } finally {
           btn.disabled = false;
+        }
+      });
+
+      let waitTimer = null, autoSubmit = false;
+      function waitForNextCode() {
+        clearInterval(waitTimer);
+        autoSubmit = true;
+        totpInput.value = "";
+        totpInput.focus();
+        const paint = () => {
+          const left = 30 - (Math.floor(Date.now() / 1000) % 30);
+          Agenti.banner(bannerEl, "warn", left > 1
+            ? `That code was just used. A new one appears in ${left} s — type it and you're signed in.`
+            : "Type the new code from your app.");
+        };
+        paint();
+        waitTimer = setInterval(paint, 1000);
+      }
+      totpInput.addEventListener("input", () => {
+        if (autoSubmit && /^[0-9]{6}$/.test(totpInput.value.trim())) {
+          autoSubmit = false;
+          clearInterval(waitTimer);
+          bannerEl.className = "banner err";
+          form.requestSubmit();
         }
       });
     });

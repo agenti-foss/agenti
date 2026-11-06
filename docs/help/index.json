@@ -20,6 +20,10 @@
       "summary": "How administrators build their own agents in settings.",
       "icon": "building"
     },
+    "engagement": {
+      "summary": "The engagement: saving it, the optional second approver, and runs already going.",
+      "icon": "shield"
+    },
     "finding-help": {
       "summary": "Searching the help pages, in the app and from the command line.",
       "icon": "search"

@@ -14,6 +14,7 @@
   const A = Agenti;
   const esc = A.esc;
   let dlg = null, state = null, timer = null;
+  const NEW_GROUP = "__new__";
 
   function build() {
     dlg = document.createElement("dialog");
@@ -35,9 +36,10 @@
           <div class="field"><label for="cat-purpose">What it's for <span class="muted" id="cat-purpose-count"></span></label>
             <input type="text" id="cat-purpose" maxlength="200" autocomplete="off" placeholder="One line, e.g. look up who owns a domain">
             <p class="hint">Shown to admins and to the agent.</p></div>
-          <div class="field"><label for="cat-group">Group</label>
-            <input type="text" id="cat-group" maxlength="24" list="cat-groups" autocomplete="off" placeholder="e.g. network">
-            <datalist id="cat-groups"></datalist></div>
+          <div class="field"><label for="cat-group-select">Group</label>
+            <select id="cat-group-select"></select>
+            <input type="text" id="cat-group" maxlength="24" autocomplete="off" placeholder="The new group's name, e.g. network"
+                   aria-label="New group" style="margin-top:8px;" hidden></div>
           <div class="field"><label for="cat-denied">Blocked arguments <span class="muted">(optional, one pattern per line)</span></label>
             <textarea id="cat-denied" rows="4" spellcheck="false" class="mono"
               placeholder="A command that matches any line is refused, e.g.  (^|\\s)(-o|--output)(\\s|=|$)"></textarea>
@@ -60,6 +62,11 @@
       $("#cat-purpose-count").textContent = `${$("#cat-purpose").value.length}/200`;
     });
     $("[data-cat-save]").addEventListener("click", save);
+    $("#cat-group-select").addEventListener("change", () => {
+      const fresh = $("#cat-group-select").value === NEW_GROUP;
+      $("#cat-group").hidden = !fresh;
+      if (fresh) $("#cat-group").focus();
+    });
     dlg.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); save(); }
     });
@@ -71,7 +78,7 @@
   function entryFromForm() {
     return {
       name: $("#cat-name").value.trim(),
-      group: $("#cat-group").value.trim() || "other",
+      group: ($("#cat-group-select").value === NEW_GROUP ? $("#cat-group").value : $("#cat-group-select").value).trim() || "other",
       purpose: $("#cat-purpose").value.trim(),
       extra_denied: $("#cat-denied").value.split("\n").map((l) => l.trim()).filter(Boolean),
     };
@@ -130,9 +137,17 @@
     $("#cat-title").textContent = entry ? `Edit ${entry.name}` : "Add a program";
     $("#cat-name").value = entry ? entry.name : ""; $("#cat-name").readOnly = !!entry;
     $("#cat-purpose").value = entry ? (entry.purpose || "") : "";
-    $("#cat-group").value = entry ? (entry.group || "") : "";
+    // The browser's own dropdown of the existing groups, plus "New group…"
+    // (a choice is a native <select>, never a type-ahead list — 2026-11-06).
+    const current = entry ? (entry.group || "") : "";
+    const all = [...new Set([...(groups || []), ...(current ? [current] : [])])].sort();
+    const sel = $("#cat-group-select");
+    sel.innerHTML = all.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join("")
+      + `<option value="${NEW_GROUP}">New group…</option>`;
+    sel.value = current || (all.includes("other") ? "other" : (all[0] || NEW_GROUP));
+    $("#cat-group").value = "";
+    $("#cat-group").hidden = sel.value !== NEW_GROUP;
     $("#cat-denied").value = entry ? (entry.extra_denied || []).join("\n") : "";
-    $("#cat-groups").innerHTML = (groups || []).map((g) => `<option value="${esc(g)}">`).join("");
     $("#cat-purpose-count").textContent = "";
     $("#cat-status").className = "hint cat-status"; $("#cat-status").textContent = "";
     $("#cat-banner").className = "banner err";

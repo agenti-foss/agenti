@@ -26,6 +26,12 @@ HERE = Path(__file__).resolve().parent
 GUI = Path(os.environ.get("AGENTI_GUI_DIR") or HERE.parent.parent / "shared" / "gui").resolve()
 FIXTURES = {who: json.loads((HERE / "fixtures" / f"{who}.json").read_text())["answers"]
             for who in ("signed-in", "signed-out")}
+# Personas layered over another (fixtures/<name>.json with "base"): the same
+# signed-in answers, with a few changed — e.g. an engagement change waiting.
+for _f in sorted((HERE / "fixtures").glob("*.json")):
+    _doc = json.loads(_f.read_text())
+    if _f.stem not in FIXTURES and _doc.get("base") in FIXTURES:
+        FIXTURES[_f.stem] = {**FIXTURES[_doc["base"]], **_doc["answers"]}
 # The real server's headers (shared/api/main.py, _security_headers), so a
 # page that would break under them breaks here too.
 HEADERS = {"Content-Security-Policy": "frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN",
@@ -57,7 +63,11 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _who(self):
-        return "signed-in" if "gui-test=signed-in" in (self.headers.get("Cookie") or "") else "signed-out"
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == "gui-test" and value in FIXTURES:
+                return value
+        return "signed-out"
 
     def _answer(self):
         url = urlsplit(self.path)

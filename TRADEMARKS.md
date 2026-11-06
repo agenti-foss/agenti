@@ -12,4 +12,9 @@ You may not, without written permission: call a modified or competing product
 your build is the official one, or distribute builds under the project's name
 that the project did not produce.
 
+Other companies' marks: Claude and the Claude mark belong to Anthropic; ChatGPT,
+OpenAI and the OpenAI mark belong to OpenAI. Agenti shows them only to name the
+AI provider you choose; that implies no endorsement. The one-colour mark shapes
+come from Simple Icons (CC0).
+
 *Draft policy. Formal trademark registration and final wording are pending legal review.*

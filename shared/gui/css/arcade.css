@@ -255,6 +255,8 @@
   border-width: 2px; border-color: var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
+/* the engagement card while a change waits (theme.css .eng-card.attention) */
+[data-skin="arcade"] .panel.eng-card.attention { border-color: var(--warn); }
 [data-skin="arcade"] .agent-card:hover, [data-skin="arcade"] .category-card:hover:not(.disabled) {
   transform: translate(-1px, -1px);
   box-shadow: var(--shadow);

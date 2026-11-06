@@ -129,6 +129,19 @@ same way.
 | Low | Approvals could be used by another operator, or fire after the engagement ended; a callback from outside the scope could be kept as a session; the Metasploit service could be impersonated. | Approvals are bound to the run and checked when they fire; a session is kept only if both the target and the connecting address are in scope; the service is checked before every connection. |
 | Low | A compromised cracking program could reach files outside its sandbox through links. | Results are read through link-safe readers. |
 
+### Found in review, fixed in 0.1.4
+
+Found while reviewing the engagement and sign-up screens (November 2026), and
+fixed in 0.1.4. Each fix has a test.
+
+| Rating | What could happen | Fixed by |
+|---|---|---|
+| Medium | Unticking "allow the exploit agent" or "capture payload contents" in Settings → Engagement did not switch it off: the setting stayed on. | The page sends every setting on every save, so taking a permission away really removes it. |
+| Low | Switching payload capture off did not stop a capture already running with it on; a run still starting could miss an engagement change. | Running captures that started with payloads are stopped at once, and runs still starting are checked too. |
+| Low | A password the server refused (too short) still used up the sign-up or reset link. | The password is checked before the link is used. |
+| Low | A refused field (for example a password starting with "-") was repeated back in the error message. | Error messages name the field, never its value. |
+| Low | A free-text exclusion was accepted, then refused every run of its kind. | Exclusions are checked when the engagement is saved. |
+
 ## Reporting a problem
 
 Please do not open a public issue for a security problem. Report it privately

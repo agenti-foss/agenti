@@ -306,8 +306,9 @@ def layout_report(d):
 
 def check_engagement_dialog(d, base):
     """Open the Engagement editor as a full editor (engagement:manage
-    held) and confirm it actually renders — the dialog, the approval-status
-    banner, and Save both present. Not one of PAGES: it needs a click
+    held) and confirm it actually renders — the dialog, "Save and close",
+    editable fields, both fold-outs, and no Current | Pending switch unless a
+    change is waiting. Not one of PAGES: it needs a click
     (window.__agentiOpenEngagement, the exact entry point the real
     data-engagement button uses), not a URL visit."""
     d.get(f"{base}/settings.html#engagement")
@@ -326,19 +327,18 @@ def check_engagement_dialog(d, base):
       const out = [];
       const dlg = document.getElementById('engagement-dialog');
       if (!dlg || !dlg.open) { out.push('dialog did not open'); return out; }
-      const status = document.getElementById('engagement-status');
-      if (!status || !status.textContent.trim()) out.push('approval-status banner is empty');
       const save = document.getElementById('engagement-save');
       if (!save || save.hidden) out.push('Save is hidden for a full-editor caller');
+      else if (!/Save and close/.test(save.textContent)) out.push('the save button does not say "Save and close"');
+      const pending = !document.getElementById('eng-view-toggle').hidden;
       const client = document.getElementById('eng2-client');
-      if (!client || client.disabled) out.push('fields are disabled for a full-editor caller');
-      // Operational policy fields (CLAUDE.md "Current plan" — caps, models,
-      // require-approval, replacing the retired --dev/commercial split)
-      // live in the SAME form; confirm they rendered and are editable too.
-      const approvalCb = document.getElementById('eng2-require-approval');
-      if (!approvalCb || approvalCb.disabled) out.push('policy fields are disabled for a full-editor caller');
-      const modelCbs = document.querySelectorAll('.eng2-model');
-      if (modelCbs.length !== 3) out.push('expected 3 allowed-model checkboxes, found ' + modelCbs.length);
+      if (!pending && (!client || client.disabled)) out.push('fields are disabled for a full-editor caller');
+      // Operational policy (caps, models, prices) lives in the SAME form.
+      const models = document.getElementById('eng2-models');
+      if (!pending && (!models || models.disabled)) out.push('policy fields are disabled for a full-editor caller');
+      if (document.getElementById('eng2-require-approval')) out.push('the retired "require approval" box is still there');
+      if (document.querySelectorAll('#engagement-form details.disclosure').length !== 2)
+        out.push('expected the two fold-outs (Data handling, Operational policy)');
       document.getElementById('engagement-cancel').click();
       if (dlg.open) out.push('dialog did not close on Cancel');
       return out;

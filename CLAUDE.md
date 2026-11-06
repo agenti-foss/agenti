@@ -184,13 +184,14 @@ from `/proc/<pid>/mountinfo`.
   `docs/help/*.md` (user help), `docs/remote-access.md`, `docs/ci.md`.
 
 ### How the pieces behave (one line each)
-- **Engagement:** one record, edited in Settings → Engagement or
-  `agenti engagement set`; `approve` binds to the content digest, so any scope
-  edit invalidates approval; after a save, root stops live runs it no longer
-  covers (`run_coverage.py`); runners re-check the approved digest at start; `policy` (caps, models, require_approval) is
-  outside the digest. `require-separate-approver` policy refuses a start by
-  the approver. A domain run's start-time exclusions are root's `run-excluded`; a new one
-  under its target stops it. fetch_external/web_search refuse every engagement host.
+- **Engagement:** one record (Settings → Engagement, `agenti engagement set`);
+  approval binds to the content digest and a run always needs it. Policy
+  `engagement-second-approver` off: a save records the saver's approval. On:
+  a save is `engagement-pending.json`, another admin approves/rejects, and
+  `load_engagement` holds runs to `stricter_of` both. After a change root stops
+  runs no longer covered (`run_coverage.py`, `run-excluded`, `run-payloads`).
+  `policy` (caps, models, prices) is outside the digest. `require-separate-approver`
+  refuses a start by the approver. fetch_external/web_search refuse engagement hosts.
 - **Launch:** `start -t <target> --model <m>`; model mandatory; `run_coverage.py
   precheck` (model, provider key/address/price, scope, window, approval) refuses BEFORE a slot exists (and makes
   `--dry-run` honest); a 2 s post-start recheck catches the rest. Files attached before start are handed to the run; a file-analysis

@@ -115,23 +115,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   const teamHref = (name) => `team.html?team=${enc(name)}` + viewQS;
   const userQ = viewUser ? `?user=${enc(viewUser)}` : "";
 
-  // No Anthropic API key at any level: say so until one is saved. Closing it
-  // hides it for this sign-in only (sessionStorage), so it comes back.
+  // No model provider at any level: say so until one is saved, unless this
+  // person chose "Don't show again" (Agenti.dismissibleBanner).
   const keyBanner = document.getElementById("key-banner");
-  let keyHidden = false;
-  try { keyHidden = sessionStorage.getItem("agenti-key-banner") === "closed"; } catch (e) { /* no storage */ }
-  if (dash.api_key === "missing" && !viewUser && !keyHidden) {
+  if (dash.api_key === "missing" && !viewUser) {
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
     keyBanner.innerHTML = `<strong>No model provider is configured yet.</strong> `
       + (admin ? `Connect one in <a href="settings.html#providers">Settings → AI providers</a>.`
-               : `Ask an admin to connect one (Settings → AI providers).`)
-      + `<button type="button" class="banner-close" aria-label="Dismiss">${Agenti.icon("close", 14) || "×"}</button>`;
+               : `Ask an admin to connect one (Settings → AI providers).`);
     keyBanner.classList.add("show");
-    keyBanner.querySelector(".banner-close").addEventListener("click", () => {
-      keyBanner.classList.remove("show");
-      try { sessionStorage.setItem("agenti-key-banner", "closed"); } catch (e) { /* still closes */ }
-    });
+    await Agenti.dismissibleBanner(keyBanner, "no-provider");
   }
 
   if (dash.vault === "locked") {
@@ -140,13 +134,34 @@ document.addEventListener("DOMContentLoaded", async function () {
   } else if (dash.storage && dash.storage.encrypted === false) {
     // Decision 5 (audit run 1): runs work on an unencrypted disk, and every
     // dashboard says so, with the way to fix it.
+    // Its own slot, so a later message never hides it (or is hidden by it);
+    // full-disk encryption is the recommended alternative, so it may be
+    // dismissed for good.
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
-    pageBanner.hidden = false;
-    pageBanner.className = "banner warn show";
-    pageBanner.innerHTML = `<strong>Data from agents is currently not encrypted.</strong> Reports, scans, attached files and the API key are stored as plain files on this server's disk. `
+    const storageBanner = document.getElementById("storage-banner");
+    storageBanner.innerHTML = `<strong>Data from agents is currently not encrypted.</strong> Reports, scans, attached files and the API key are stored as plain files on this server's disk. `
       + (admin ? `<a href="settings.html#platform">Turn on the vault</a> in Settings → Platform.`
                : `Ask an admin to turn on the vault (Settings → Platform).`);
+    storageBanner.classList.add("show");
+    await Agenti.dismissibleBanner(storageBanner, "storage-unencrypted");
+  }
+
+  // An engagement change waiting for a second admin: tell the admins who
+  // can approve it, wherever they land first (not dismissible: it needs
+  // someone to act).
+  if (!viewUser) {
+    (async () => {
+      const me = await Agenti.me().catch(() => ({}));
+      if (!(me.permissions || []).includes("engagement:approve")) return;
+      const eng = await Agenti.get("engagement").catch(() => null);
+      const p = eng && eng.pending;
+      if (!p || (p.author === me.user && eng.second_approver === "on")) return;
+      const pb = document.getElementById("pending-banner");
+      pb.innerHTML = `<strong>${esc(p.author === me.user ? "Your" : `${p.author}'s`)} engagement change is waiting for approval.</strong> `
+        + `<a href="settings.html#engagement">Review it in Settings → Engagement</a>. Until it's decided, runs must fit both versions.`;
+      pb.classList.add("show");
+    })();
   }
 
   // The agent catalogue: who may launch, and each agent's title — a card's

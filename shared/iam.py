@@ -1556,13 +1556,16 @@ def mfa_setup_required(conn: sqlite3.Connection, principal: str) -> bool:
     return two_factor_required(conn, principal)[0]
 
 
-def _qr_svg(text: str) -> str | None:
-    """The otpauth URI as an SVG, or None if the encoder is not installed
-    beside this file (the package installs it; the enrolment still works
-    from the secret alone, so this must never be the reason a call fails)."""
+def _qr_modules(text: str) -> list[str] | None:
+    """The otpauth URI as QR module rows ("0101…", no quiet zone) for the
+    page to draw in its own style (api.js qrCode: round dots, accent eyes,
+    the theme's colours), or None if the encoder is not installed beside
+    this file (the enrolment still works from the secret alone, so this
+    must never be the reason a call fails). Error correction Q, not M: the
+    styled dots cover less of each module, and Q leaves the scanner room."""
     try:
         import qr
-        return qr.to_svg(qr.encode(text, "M"))
+        return ["".join("1" if m else "0" for m in row) for row in qr.encode(text, "Q")]
     except Exception:
         return None
 
@@ -3920,8 +3923,11 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                     # found and fixed once for WebAuthn register/finish.
                     gid = mint_action_grant(rt, a.name, {"op": "mfa-confirm",
                                                          "principal": a.name, "secret": secret})
+                    # The page gets the code to draw and the secret to copy;
+                    # no "open in authenticator" link any more (operator note
+                    # 2026-11-06) — the QR code carries the same URI.
                     return emit({"principal": a.name, "secret": secret,
-                                "otpauth_uri": _uri, "qr_svg": _qr_svg(_uri),
+                                "qr_modules": _qr_modules(_uri),
                                 "grant": gid, "expires_in": ACTION_GRANT_TTL_S},
                                [f"  secret: {secret}",
                                 f"  scan or enter this in your authenticator app, then "
@@ -4330,8 +4336,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             uri = totp_uri(secret, principal)
             return emit({"principal": principal, "valid": True,
                          "totp_required": required, "totp_reason": why,
-                         "totp_secret": secret, "otpauth_uri": uri,
-                         "qr_svg": _qr_svg(uri)},
+                         "totp_secret": secret, "qr_modules": _qr_modules(uri)},
                         [f"  valid — for '{principal}'",
                          f"  2FA {'required' if required else 'optional'}: {why}"])
 

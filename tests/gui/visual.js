@@ -82,10 +82,12 @@ function overflowing() {
       await ctx.addInitScript(([mode, skin]) => {
         localStorage.setItem("agenti-gui-theme", mode);
         if (skin) localStorage.setItem("agenti-gui-skin", skin); else localStorage.removeItem("agenti-gui-skin");
+        // Every view starts with no banner hidden ("Don't show again").
+        Object.keys(localStorage).filter((k) => k.startsWith("agenti-hidden-banners:")).forEach((k) => localStorage.removeItem(k));
       }, [look.mode, look.skin]);
       for (const pg of PAGES) {
         await ctx.clearCookies();
-        if (pg.as === "signed-in") await ctx.addCookies([{ name: "gui-test", value: "signed-in", url: BASE }]);
+        if (pg.as && pg.as !== "signed-out") await ctx.addCookies([{ name: "gui-test", value: pg.as, url: BASE }]);
         const view = `${pg.name} [${look.name} ${look.width}px]`;
         const errors = [];
         const p = await ctx.newPage();

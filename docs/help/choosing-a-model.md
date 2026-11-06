@@ -1,8 +1,9 @@
 # Choosing a model and connecting providers
 
-Every launch needs a model. On **Launch**, choose from the provider's live
-model list or type a model name. Only providers an administrator has set up
-are offered:
+Every launch needs a model. On **Launch**, pick one from the provider's live
+list of allowed models. A model that isn't listed? Choose **Other model…** at
+the end of the list and type its name. Only providers an administrator has set
+up are offered:
 
 - **One provider set up:** Launch does not ask; the field is named after it
   (for example **Claude model**).
@@ -69,8 +70,8 @@ or self-hosted address is refused before a solo run's slot is created.
 For a team at a terminal, use `--model` for a common default, or repeat
 `--member-model enum=openai:YOUR_MODEL` for individual members.
 
-To change the model of a run that is going, type `/model` in its console (or
-click the model chip at the top of the console) and pick one; at a terminal,
+To change the model of a run that is going, tap the model chip at the top of
+its console and pick one (or type `/model`); at a terminal,
 `sudo agenti enum set-model sonnet`. The switch happens after the step in
 progress, and the console says when it does. A run keeps its provider: a Claude
 run can switch to another Claude model, but not to a ChatGPT one. The new model

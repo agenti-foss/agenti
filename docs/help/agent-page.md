@@ -20,6 +20,7 @@ It reads like a Claude Code session: everything the run did, in order.
   last step.
 - What you or a teammate said to the agent appears as a highlighted prompt.
 - The chip at the top right names the run's model, for example **Claude · haiku**.
+  On a run you can steer, tapping it opens a list of the models you may switch to.
 - The live feed keeps checking that you may still see it: if you sign out, your
   session ends, or an admin's access to someone else's run is removed, it stops
   within half a minute and says why. You can have up to six live feeds open at

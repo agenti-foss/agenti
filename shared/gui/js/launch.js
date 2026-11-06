@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       + (admin ? `Connect one in <a href="settings.html#providers">Settings → AI providers</a>.`
                : `Ask an admin to connect one (Settings → AI providers).`);
     kb.classList.add("show");
+    await Agenti.dismissibleBanner(kb, "no-provider");
   }).catch(() => { /* the start itself still says why */ });
   const runBtn = document.getElementById("run-btn");
   const teamRoster = document.getElementById("team-roster");
@@ -78,7 +79,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   let mode = "single";
   let selected = [];        // [{agent, scope_kind, tools}, ...]
   let currentCeiling = null; // {kind, inScope, outScope} for the single-mode selection
-  let currentPolicy = null;  // {require_approval, max_turns_ceiling, max_budget_usd_ceiling, timeout_s_ceiling, allowed_models}
+  let currentPolicy = null;  // {max_turns_ceiling, max_budget_usd_ceiling, timeout_s_ceiling, allowed_models, model_prices}
 
   try {
     me = await Agenti.me();
@@ -312,13 +313,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       wireTargetBank(bank, runTargetInput, view.in_scope || []);
       const outs = (view.out_of_scope || []).map((s) => `<code>${esc(scopeValue(s))}</code>`).join(", ");
       ceilingInfo.innerHTML = outs ? `Excluded from scope: ${outs}` : "";
-      const policy = data.effective_policy || {};
-      if (policy.require_approval === false) {
-        ceilingBanner.hidden = true;
-      } else if (!st.current) {
+      if (!st.current) {
+        // Dismissible: a run would still be refused, with a clear message.
         Agenti.banner(ceilingBanner, "warn", st.approved
-          ? "This engagement was edited since it was last approved — an admin must re-approve before a run can start."
-          : `This engagement has not been approved yet — an admin must approve it in Settings before a run can start.${st.reason ? ` (${esc(st.reason)})` : ""}`);
+          ? "This engagement was changed since it was last approved — an admin approves it in Settings → Engagement before a run can start."
+          : `This engagement has not been approved yet — an admin approves it in Settings → Engagement before a run can start.${st.reason ? ` (${st.reason})` : ""}`);
+        await Agenti.dismissibleBanner(ceilingBanner, "engagement-not-approved");
+      } else if (data.pending) {
+        Agenti.banner(ceilingBanner, "warn",
+          `A change to the engagement by ${data.pending.author} is waiting for another admin's approval. Until then a run must fit both versions, so the targets below are only what both allow.`);
       } else {
         ceilingBanner.hidden = true;
       }
