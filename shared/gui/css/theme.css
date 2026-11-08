@@ -150,17 +150,10 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* No rubber-band at the page's ends (operator notes 2026-11-08): on a Mac
- * the bounce dragged the sticky top bar off screen, and on an iPhone a flick
- * into the bottom of Settings → Engagement or Users bounced back unevenly.
- * The page now comes to a clean stop at the top and the bottom; boxes that
- * scroll on their own keep overscroll-behavior: contain. */
-html { overscroll-behavior-y: none; }
 body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overscroll-behavior-y: none;
 }
 
 a { color: var(--accent); text-underline-offset: 2px; }
@@ -224,9 +217,16 @@ p { margin: 0 0 var(--space-2); line-height: 1.55; }
   position: relative;
   transition: padding 200ms var(--ease), box-shadow 200ms var(--ease);
 }
-/* The mount, not the bar, is what sticks: the bar is the mount's only child,
- * so as a sticky element itself it had no room to stick and scrolled away. */
-#topnav-mount { position: sticky; top: 0; z-index: 20; }
+/* The bar is FIXED to the screen and the mount is a placeholder that keeps
+ * the bar's full height in the page (nav.js sets it), always the same:
+ *  * slimming the bar on scroll no longer shortens the page, which on a
+ *    short page made a fast flick jitter as it landed on the moving bottom
+ *    edge (operator note 2026-11-08, iPhone);
+ *  * a fixed bar stays put while the page bounces at either end, where a
+ *    sticky one was dragged off screen with it (Mac). */
+#topnav-mount { position: relative; z-index: 20; height: var(--nav-full-h, 59px); }
+#topnav-mount > .topnav { position: fixed; top: 0; left: 0; right: 0; z-index: 20; }
+.topnav.measuring, .topnav.measuring * { transition: none !important; }
 /* Scrolled: a slimmer bar with a soft shadow, so the page gets its height
  * back (most of all on a phone) and the bar reads as floating above it. */
 .topnav.compact {
@@ -1391,7 +1391,7 @@ code.value {
   word-break: break-all; max-width: 100%;
 }
 /* The 2FA QR code (api.js qrCode): round dots, rounded corner eyes, a soft
- * card, Agenti's mark in the centre, and ONE colour for every dot (operator
+ * card, the favicon in the centre, and ONE colour for every dot (operator
  * note 2026-11-08). It follows the theme: black on white in light mode,
  * white on near-black in dark mode, which current authenticator apps and
  * phone cameras read. */
@@ -1411,8 +1411,7 @@ code.value {
 .qr-card .qr-bg { fill: var(--qr-card); }
 .qr-card .qr-ink { fill: var(--qr-ink); }
 .qr-card .qr-eye { fill: var(--qr-ink); }
-.qr-card .qr-mark-bg { fill: var(--qr-ink); }
-.qr-card .qr-mark-fg { stroke: var(--qr-card); }
+
 .qr-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
 .qr-row .qr-side { flex: 1; min-width: 200px; }
 @media (max-width: 480px) { .qr-row > div:first-child { margin: 0 auto; } }

@@ -103,7 +103,26 @@ function renderNav(active) {
 function wireStickyBar(mount) {
   const bar = document.getElementById("topnav");
   if (!bar) return;
-  const setHeight = () => document.documentElement.style.setProperty("--nav-h", `${mount.offsetHeight}px`);
+  // --nav-h: the bar's height now (other sticky things sit under it).
+  // --nav-full-h: its full, unslimmed height, which the mount keeps in the
+  // page so slimming never changes the page's length (see theme.css).
+  const root = document.documentElement.style;
+  const setHeight = () => root.setProperty("--nav-h", `${bar.offsetHeight}px`);
+  let lastWidth = -1;
+  const setFullHeight = () => {
+    if (window.innerWidth === lastWidth) return;   // a phone's toolbar sliding away resizes too: nothing to remeasure
+    lastWidth = window.innerWidth;
+    // measured unslimmed, with every transition off so nothing is caught mid-way
+    const was = bar.classList.contains("compact");
+    bar.classList.add("measuring");
+    if (was) bar.classList.remove("compact");
+    root.setProperty("--nav-full-h", `${bar.offsetHeight}px`);
+    if (was) bar.classList.add("compact");
+    void bar.offsetHeight;
+    bar.classList.remove("measuring");
+  };
+  setFullHeight();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { lastWidth = -1; setFullHeight(); setHeight(); });
   let compact = false, ticking = false;
   const onScroll = () => {
     ticking = false;
@@ -117,7 +136,7 @@ function wireStickyBar(mount) {
     }
   };
   window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
-  window.addEventListener("resize", setHeight, { passive: true });
+  window.addEventListener("resize", () => { setFullHeight(); setHeight(); }, { passive: true });
   setHeight();
   onScroll();
 

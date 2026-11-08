@@ -672,12 +672,11 @@ const Agenti = (() => {
         `M${x + 2},${y + 1}a1,1 0 0 0-1,1v3a1,1 0 0 0 1,1h3a1,1 0 0 0 1-1v-3a1,1 0 0 0-1-1z` }, eyes);
       add("rect", { x: x + 2, y: y + 2, width: 3, height: 3, rx: 0.9 }, eyes);
     }
-    // The mark: the favicon's rounded square and "A", drawn in the code's own
-    // two colours so it follows light and dark like the dots do.
-    const m = add("g", { class: "qr-mark", transform: `translate(${quiet + h0 + 0.6} ${quiet + h0 + 0.6}) scale(${(hole - 1.2) / 32})` });
-    add("rect", { width: 32, height: 32, rx: 8, class: "qr-mark-bg" }, m);
-    add("path", { d: "M10 22.5 16 9l6 13.5M12.6 18.4h6.8", fill: "none", "stroke-width": 2.8,
-                  "stroke-linecap": "round", "stroke-linejoin": "round", class: "qr-mark-fg" }, m);
+    // The mark: the page's own favicon file, exactly as it is (operator
+    // decision 2026-11-08), so a new logo shows up here by itself.
+    const fav = document.querySelector('link[rel~="icon"]');
+    add("image", { href: (fav && fav.getAttribute("href")) || "favicon.svg", class: "qr-mark",
+                   x: quiet + h0 + 0.6, y: quiet + h0 + 0.6, width: hole - 1.2, height: hole - 1.2 });
     const card = document.createElement("div");
     card.className = "qr-card";
     card.appendChild(svg);
