@@ -46,6 +46,20 @@
         <p class="hint" id="run-via"></p>
         <form id="run-form" class="stack">
 
+          <!-- The name comes first and stands out (operator note 2026-11-08:
+               at the bottom it was easy to miss). -->
+          <div class="field launch-name" id="run-name-field" hidden>
+            <label for="run-name">Name this run <span class="hint">(optional; blank gets two words)</span></label>
+            <div class="launch-name-box"><span class="launch-name-ico" data-icon="tag" aria-hidden="true"></span>
+            <input type="text" id="run-name" maxlength="60" autocomplete="off" placeholder="e.g. lab-sweep"></div>
+          </div>
+
+          <div class="field launch-name" id="team-name-field" hidden>
+            <label for="team-name">Name this project <span class="hint">(optional)</span></label>
+            <div class="launch-name-box"><span class="launch-name-ico" data-icon="tag" aria-hidden="true"></span>
+            <input type="text" id="team-name" autocomplete="off" placeholder="e.g. q4-audit"></div>
+          </div>
+
           <!-- Team mode: one row per selected card, each with its own role
                and target — single mode never shows this and uses the single
                target field below instead. -->
@@ -59,16 +73,6 @@
             <input type="text" id="run-target" placeholder="or type one, e.g. 192.168.1.50">
             <div id="ceiling-info" class="hint"></div>
             <div id="ceiling-banner" class="banner warn" hidden></div>
-          </div>
-
-          <div class="field" id="run-name-field" hidden>
-            <label for="run-name">Name this run <span class="hint">(optional)</span></label>
-            <input type="text" id="run-name" maxlength="60" autocomplete="off" placeholder="Left blank, it gets two words, like amber-falcon">
-          </div>
-
-          <div class="field" id="team-name-field" hidden>
-            <label for="team-name">Project name <span class="hint">(optional)</span></label>
-            <input type="text" id="team-name" placeholder="auto-generated if left blank">
           </div>
 
           <div id="run-model-picker" class="launch-section"></div>

@@ -922,11 +922,32 @@ def create_principal(body: CreatePrincipalRequest, request: Request,
     return result
 
 
+class ReauthRequest(BaseModel):
+    password: Optional[ArgValue] = None
+    totp: Optional[ArgValue] = None
+    reauth: Optional[ReauthToken] = None
+
+
 @app.post("/admin/users/{name}/disable")
 @app.post("/admin/principals/{name}/disable", include_in_schema=False)
-def disable_principal(name: PrincipalName,
+def disable_principal(name: PrincipalName, body: ReauthRequest, request: Request,
                       caller: Caller = Depends(require("iam:manage"))) -> dict:
-    return _call("admin", "disable-user", name, "--by", caller.principal)
+    """Disable a user: a fresh password + 2FA/passkey check like re-enable
+    (operator decision 2026-11-08), so a stolen session cannot lock people out."""
+    sid = request.cookies.get(sessions.COOKIE_NAME)
+    if caller.via != "session" or not sid:
+        raise HTTPException(
+            status_code=400,
+            detail="disabling a user needs a signed-in browser session: the approving admin "
+                   "re-enters their password and a fresh 2FA code. An API key cannot do "
+                   f"this — use the CLI: sudo agenti admin disable-user {name}")
+    if name == caller.principal:
+        raise HTTPException(status_code=400, detail="you cannot disable the account you are "
+                                                    "currently using — ask another admin to do it.")
+    action = {"op": "disable-principal", "principal": name, "resource": iam.ORG_RESOURCE}
+    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
+               totp=body.totp or "", action=action, addr=_client_addr(request))
+    return _call("admin", "disable-user", name, "--by", caller.principal, f"--grant={g['grant']}")
 
 
 @app.post("/admin/users/{name}/enrolment-link")
@@ -1036,12 +1057,6 @@ def list_bindings(user: Optional[PrincipalName] = None, principal: Optional[Prin
 # ---------------------------------------------------------------------------
 class RenamePrincipalRequest(BaseModel):
     new_name: PrincipalName
-    password: Optional[ArgValue] = None
-    totp: Optional[ArgValue] = None
-    reauth: Optional[ReauthToken] = None
-
-
-class ReauthRequest(BaseModel):
     password: Optional[ArgValue] = None
     totp: Optional[ArgValue] = None
     reauth: Optional[ReauthToken] = None

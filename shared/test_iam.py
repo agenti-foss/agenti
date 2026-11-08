@@ -1497,6 +1497,34 @@ try:
 except iam.IAMError:
     check("a grant for a different principal is refused", True, True)
 
+section("web_disable_principal — grant-gated disable (operator decision 2026-11-08)")
+dis_action = {"op": "disable-principal", "principal": "wep-target", "resource": GRES}
+g = iam.mint_action_grant(rt, "wdp-nonadmin", dis_action)
+try:
+    iam.web_disable_principal(conn, rt, "wep-target", GRES, g)
+    check("disable refuses an approver who does not hold iam:manage", False, True)
+except iam.IAMError as e:
+    check("disable refuses an approver who does not hold iam:manage", "does not hold iam:manage" in str(e), True)
+g = iam.mint_action_grant(rt, "wep-admin", {**dis_action, "principal": "someone-else"})
+try:
+    iam.web_disable_principal(conn, rt, "wep-target", GRES, g)
+    check("a disable grant for a different account is refused", False, True)
+except iam.IAMError:
+    check("a disable grant for a different account is refused", True, True)
+check("...and the account is still active",
+      conn.execute("SELECT active FROM principals WHERE name='wep-target'").fetchone()[0], 1)
+g = iam.mint_action_grant(rt, "wep-admin", {**dis_action, "principal": "wep-admin"})
+try:
+    iam.web_disable_principal(conn, rt, "wep-admin", GRES, g)
+    check("an admin cannot disable their own account, even with a grant", False, True)
+except iam.IAMError as e:
+    check("an admin cannot disable their own account, even with a grant", "currently using" in str(e), True)
+g = iam.mint_action_grant(rt, "wep-admin", dis_action)
+out = iam.web_disable_principal(conn, rt, "wep-target", GRES, g)
+check("a real admin grant disables, naming the approver", (out["active"], out["approved_by"]), (False, "wep-admin"))
+check("...and the account is disabled",
+      conn.execute("SELECT active FROM principals WHERE name='wep-target'").fetchone()[0], 0)
+
 section("reset_principal_password / reset_principal_mfa — global-admin-only, "
        "deliberately two separate jobs (the operator's own explicit ask)")
 iam.add_principal(conn, "rpp-target", "user", "test")

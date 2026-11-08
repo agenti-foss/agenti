@@ -403,6 +403,11 @@ r = H({"op": "approve_action", "session_id": alice_sid2, "password": "correct-ho
        "action": en_act})
 check("enable-principal is approvable and password-gated", bool(r.get("grant")), True)
 
+di_act = {"op": "disable-principal", "principal": "lc-renamed", "resource": "org"}
+r = H({"op": "approve_action", "session_id": alice_sid2, "password": "correct-horse",
+       "action": di_act})
+check("disable-principal is approvable and password-gated", bool(r.get("grant")), True)
+
 # ---- edit-context: the instruction files -----------------------------------
 GR = "org"
 sp_text = "## Objective\nDo the thing.\n"

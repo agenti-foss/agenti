@@ -150,10 +150,17 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* No rubber-band at the page's ends (operator notes 2026-11-08): on a Mac
+ * the bounce dragged the sticky top bar off screen, and on an iPhone a flick
+ * into the bottom of Settings → Engagement or Users bounced back unevenly.
+ * The page now comes to a clean stop at the top and the bottom; boxes that
+ * scroll on their own keep overscroll-behavior: contain. */
+html { overscroll-behavior-y: none; }
 body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overscroll-behavior-y: none;
 }
 
 a { color: var(--accent); text-underline-offset: 2px; }
@@ -1067,6 +1074,7 @@ td.actions { text-align: right; white-space: nowrap; }
 .stack > .btn,
 .stack > .btn-row { align-self: flex-start; }
 .btn-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+#mfa-confirm-panel .btn-row { margin-top: var(--space-4); gap: var(--space-3); }
 .muted { color: var(--text-dim); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--space-4); font-size: 0.9rem; }
 .kv dt { color: var(--text-dim); }
@@ -1312,9 +1320,33 @@ button.link-btn:hover:not(:disabled) { color: var(--accent-hover); }
 /* Users table: on a wide screen the row's action buttons wrap two to a row
  * and a name keeps a readable width; phones get their own fixed layout
  * (below, in the max-width: 480px block), where the buttons stack. */
-#users-table td.actions { white-space: normal; text-align: right; min-width: 5.2rem; }
-#users-table td.actions .btn-icon { margin: 2px 0 2px 2px; }
-#users-table td:first-child { min-width: 11rem; overflow-wrap: anywhere; }
+#users-table td.actions { text-align: right; white-space: nowrap; }
+#users-table td:first-child { min-width: 9rem; overflow-wrap: anywhere; }
+#users-table .actions-wrap { display: inline-flex; gap: 4px; justify-content: flex-end; align-items: center; }
+#users-table .name-cell .row-glyph, #users-table .status-cell .row-glyph { margin-left: 6px; }
+#users-table td.status-cell, #users-table th.status-cell { white-space: nowrap; text-align: left; }
+
+/* A row action drawn as a bare glyph: no box, faint until pointed at.
+ * Used where a row of boxed buttons crowds the table (Users, review
+ * 2026-11-08). Touch screens get an invisible ring for the finger. */
+button.row-glyph {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 0; padding: 4px; margin: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-dim); font: inherit; font-size: 0.82rem;
+  cursor: pointer; vertical-align: middle; position: relative;
+  transition: color 120ms var(--ease), background-color 120ms var(--ease);
+}
+button.row-glyph.soft { color: var(--text-faint); padding: 3px; }
+button.row-glyph.accent { color: var(--accent); }
+button.row-glyph:hover { background: var(--bg-hover); color: var(--text); }
+button.row-glyph.accent:hover { color: var(--accent-hover); }
+button.row-glyph.danger:hover { color: var(--err); }
+button.row-glyph:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.row-glyph svg { flex: 0 0 auto; }
+@media (pointer: coarse) {
+  button.row-glyph { min-height: 0; }
+  button.row-glyph::after { content: ""; position: absolute; inset: -7px; }
+}
 
 /* The passkey domain wizard numbers its own steps in the text ("1. Point a
  * domain…"), so the <ol> must not number them again — it did, as "1. 1.". */
@@ -1359,21 +1391,17 @@ code.value {
   word-break: break-all; max-width: 100%;
 }
 /* The 2FA QR code (api.js qrCode): round dots, rounded corner eyes, a soft
- * card. One code follows the theme live through these three colours. Dark
- * mode keeps dark ink on a light (slightly tinted) card: an inverted code
- * is unreadable to some authenticator apps. The eyes are the accent,
- * deepened so they keep scanner contrast in every skin. */
-:root {
-  --qr-card: #ffffff;
-  --qr-ink: #0f172a;
-  --qr-eye: color-mix(in srgb, var(--accent) 78%, #0b1220);
-}
+ * card, Agenti's mark in the centre, and ONE colour for every dot (operator
+ * note 2026-11-08). It follows the theme: black on white in light mode,
+ * white on near-black in dark mode, which current authenticator apps and
+ * phone cameras read. */
+:root { --qr-card: #ffffff; --qr-ink: #0b0d12; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --qr-card: #e7ebf2; --qr-ink: #0b1220; }
+  :root:not([data-theme="light"]) { --qr-card: #0d0f14; --qr-ink: #f5f7fa; }
 }
-:root[data-theme="dark"] { --qr-card: #e7ebf2; --qr-ink: #0b1220; }
+:root[data-theme="dark"] { --qr-card: #0d0f14; --qr-ink: #f5f7fa; }
 .qr-card {
-  width: 232px; max-width: 100%; aspect-ratio: 1; flex: 0 0 auto;
+  width: 248px; max-width: 100%; aspect-ratio: 1; flex: 0 0 auto;
   border-radius: 18px; padding: 0;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.10);
   outline: 1px solid color-mix(in srgb, var(--border) 70%, transparent); outline-offset: -1px;
@@ -1382,7 +1410,9 @@ code.value {
 .qr-card svg { display: block; width: 100%; height: 100%; }
 .qr-card .qr-bg { fill: var(--qr-card); }
 .qr-card .qr-ink { fill: var(--qr-ink); }
-.qr-card .qr-eye { fill: var(--qr-eye); }
+.qr-card .qr-eye { fill: var(--qr-ink); }
+.qr-card .qr-mark-bg { fill: var(--qr-ink); }
+.qr-card .qr-mark-fg { stroke: var(--qr-card); }
 .qr-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
 .qr-row .qr-side { flex: 1; min-width: 200px; }
 @media (max-width: 480px) { .qr-row > div:first-child { margin: 0 auto; } }
@@ -2244,7 +2274,7 @@ dialog#user-dashboard-dialog::backdrop { background: rgba(0,0,0,0.55); }
 #user-dashboard-dialog .ud-head h2 { margin: 0; font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #user-dashboard-dialog iframe { flex: 1; width: 100%; border: 0; background: var(--bg, #fff); }
 /* "View dashboard" is short and fixed: keep it on one line. */
-#users-table td.dashboard-cell .btn { white-space: nowrap; }
+#users-table td.dashboard-cell .row-glyph { white-space: nowrap; }
 @media (max-width: 480px) {
   dialog#user-dashboard-dialog { width: 100vw; height: 100vh; border-radius: 0; border: 0; }
   /* On a phone the Dashboard button is its icon alone (the name is in the
@@ -2252,24 +2282,23 @@ dialog#user-dashboard-dialog::backdrop { background: rgba(0,0,0,0.55); }
    * and the Status column — a coloured dot — drops its header word, which
    * is wider than the column. Both keep the word on their tooltip. */
   #users-table .lbl-full { display: none; }
-  #users-table td.dashboard-cell .btn { width: 34px; height: 34px; min-height: 34px; padding: 0; justify-content: center; }
+
   /* "Kind" (almost always "user") gives its width to the Dashboard and
    * action buttons on a phone. */
   #users-table th:nth-child(2), #users-table td:nth-child(2) { display: none; }
   /* Fixed proportions so every column — including the buttons — fits the
    * screen, and long text wraps inside its own column instead. */
   #users-table { table-layout: fixed; width: 100%; min-width: 0; }
-  #users-table th:nth-child(1) { width: 30%; }
-  #users-table th:nth-child(3) { width: 9%; }
-  #users-table th:nth-child(4) { width: 23%; }
-  #users-table th:nth-child(5) { width: 13%; }
-  #users-table th:nth-child(6) { width: 25%; }
-  /* The row's actions: a tidy 2×2 of small buttons, not a tall stack. */
-  #users-table td.actions .actions-wrap { display: grid; grid-template-columns: repeat(2, 34px); gap: 6px; justify-content: end; }
-  #users-table td.actions .btn-icon { margin: 0; }
-  #users-table .actions-gap { display: none; }
+  #users-table th:nth-child(1) { width: 35%; }
+  #users-table th:nth-child(3) { width: 14%; }
+  #users-table th:nth-child(4) { width: 21%; }
+  #users-table th:nth-child(5) { width: 9%; }
+  #users-table th:nth-child(6) { width: 21%; }
+  #users-table td.actions { padding-left: 0; padding-right: 4px; }
+  #users-table .actions-wrap { gap: 2px; }
   #users-table td { overflow-wrap: anywhere; }
   #users-table td:first-child, #users-table td.actions { min-width: 0; }
+  #users-table .name-cell .row-glyph, #users-table .status-cell .row-glyph { margin-left: 4px; }
 }
 
 /* ---- instruction-file editor (js/context-editor.js) ---- */
@@ -2924,3 +2953,19 @@ dialog .dlg-section-head h3.dlg-section { margin: 0; padding: 0; border: 0; }
 /* A dialog's body scrolls up and down only. */
 .dlg-body { overflow-x: hidden; }
 .dlg-body .field, .dlg-body .field-row > .field { min-width: 0; }
+
+/* Launch: the run's name comes first and reads as the run's title, so it is
+ * not missed (operator note 2026-11-08). */
+.launch-name label { font-weight: 600; }
+.launch-name-box { position: relative; }
+.launch-name-box .launch-name-ico {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; color: var(--accent); pointer-events: none;
+}
+.launch-name-box input {
+  width: 100%; box-sizing: border-box; padding: 11px 14px 11px 38px;
+  font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated));
+}
+.launch-name-box input::placeholder { font-weight: 400; }

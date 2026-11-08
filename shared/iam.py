@@ -1561,11 +1561,12 @@ def _qr_modules(text: str) -> list[str] | None:
     page to draw in its own style (api.js qrCode: round dots, accent eyes,
     the theme's colours), or None if the encoder is not installed beside
     this file (the enrolment still works from the secret alone, so this
-    must never be the reason a call fails). Error correction Q, not M: the
-    styled dots cover less of each module, and Q leaves the scanner room."""
+    must never be the reason a call fails). Error correction H, the highest:
+    the page draws Agenti's mark over the centre (operator note 2026-11-08)
+    and rounds the dots, and H leaves the scanner room for both."""
     try:
         import qr
-        return ["".join("1" if m else "0" for m in row) for row in qr.encode(text, "Q")]
+        return ["".join("1" if m else "0" for m in row) for row in qr.encode(text, "H")]
     except Exception:
         return None
 
@@ -2925,6 +2926,21 @@ def web_delete_principal(conn, runtime, name: str, resource: str, grant_id: str)
     return {**delete_principal(conn, runtime, name, approver), "approved_by": approver}
 
 
+def web_disable_principal(conn, runtime, name: str, resource: str, grant_id: str) -> dict:
+    """Disable an account from the web. Disabling only removes authority, so
+    invariant 9 would allow it bare; the operator asked for the same fresh
+    password + 2FA/passkey check as re-enable anyway (review 2026-11-08), so a
+    stolen session cannot lock the team out one account at a time. The usual
+    two lockout refusals (yourself, the last admin) still apply."""
+    action = {"op": "disable-principal", "principal": name, "resource": resource}
+    approver = consume_action_grant(runtime, grant_id, action)
+    if not check(conn, approver, "iam:manage", resource).allowed:
+        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
+                       f"{resource} — refusing. Nothing was changed.")
+    set_principal_active(conn, name, False, approver)
+    return {"principal": name, "active": False, "approved_by": approver}
+
+
 def web_enable_principal(conn, runtime, name: str, resource: str, grant_id: str) -> dict:
     """Re-enable a disabled account, grant-gated like rename/delete (§4 item
     78). Enabling RESTORES authority — whatever bindings the account kept — so
@@ -3528,6 +3544,8 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             "removes authority)")
     q.add_argument("name")
     q.add_argument("--by", help="the account performing this (refuses disabling yourself)")
+    q.add_argument("--grant", help="from the web (required there): the re-authenticated "
+                                   "approval (op disable-principal) for exactly this account")
 
     q = add("mint-enrolment-link", "issue a fresh one-time enrolment link "
             "for an existing user with no password yet (e.g. a link "
@@ -4069,6 +4087,22 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                          "created": True, "enrolment_token": link}, lines)
 
         if a.cmd == "disable-user":
+            if a.actor == API_ACCOUNT or a.grant:
+                # From the web, only on a fresh single-use approval naming
+                # this account (operator decision 2026-11-08).
+                if not a.grant:
+                    raise IAMError("disabling an account from the web needs a fresh re-authentication "
+                                   "(an approval grant): nothing was changed. Use Disable in "
+                                   "Settings → Users, which asks for your password and 2FA code.")
+                try:
+                    rt = open_runtime()
+                except Exception as e:
+                    raise IAMError(f"cannot open the runtime store ({e}).")
+                try:
+                    out = web_disable_principal(conn, rt, a.name, ORG_RESOURCE, a.grant)
+                finally:
+                    rt.close()
+                return emit(out, [f"  ✓ disabled '{a.name}' (approved by {out['approved_by']})"])
             set_principal_active(conn, a.name, False, getattr(a, "by", None))
             return emit({"principal": a.name, "active": False},
                         [f"  ✓ disabled '{a.name}'"])

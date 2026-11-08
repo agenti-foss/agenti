@@ -651,10 +651,15 @@ const Agenti = (() => {
     };
     add("rect", { x: 0, y: 0, width: size, height: size, rx: 2.4, class: "qr-bg" });
     const inEye = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+    // Agenti's mark sits in a clear square at the centre, about a fifth of
+    // the width; the server encodes at error correction H, which recovers
+    // far more than the few modules it covers.
+    let hole = Math.round(n * 0.22); if (hole % 2 !== n % 2) hole += 1;
+    const h0 = (n - hole) / 2, inHole = (r, c) => r >= h0 && r < h0 + hole && c >= h0 && c < h0 + hole;
     const dots = add("g", { class: "qr-ink" });
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
-        if (rows[r][c] !== "1" || inEye(r, c)) continue;
+        if (rows[r][c] !== "1" || inEye(r, c) || inHole(r, c)) continue;
         add("rect", { x: quiet + c + 0.08, y: quiet + r + 0.08, width: 0.84, height: 0.84, rx: 0.42 }, dots);
       }
     }
@@ -667,6 +672,12 @@ const Agenti = (() => {
         `M${x + 2},${y + 1}a1,1 0 0 0-1,1v3a1,1 0 0 0 1,1h3a1,1 0 0 0 1-1v-3a1,1 0 0 0-1-1z` }, eyes);
       add("rect", { x: x + 2, y: y + 2, width: 3, height: 3, rx: 0.9 }, eyes);
     }
+    // The mark: the favicon's rounded square and "A", drawn in the code's own
+    // two colours so it follows light and dark like the dots do.
+    const m = add("g", { class: "qr-mark", transform: `translate(${quiet + h0 + 0.6} ${quiet + h0 + 0.6}) scale(${(hole - 1.2) / 32})` });
+    add("rect", { width: 32, height: 32, rx: 8, class: "qr-mark-bg" }, m);
+    add("path", { d: "M10 22.5 16 9l6 13.5M12.6 18.4h6.8", fill: "none", "stroke-width": 2.8,
+                  "stroke-linecap": "round", "stroke-linejoin": "round", class: "qr-mark-fg" }, m);
     const card = document.createElement("div");
     card.className = "qr-card";
     card.appendChild(svg);
@@ -994,6 +1005,7 @@ const Agenti = (() => {
     send: '<path d="M17 3.5 3 8.6l6 2 2.2 5.9z"/><path d="M17 3.5 9 10.6"/>',
     note: '<path d="M12.8 3.6l3.6 3.6-8.6 8.6H4.2v-3.6z"/><path d="M11 5.4l3.6 3.6"/>',
     bolt: '<path d="M11.5 2.5 4.5 11h4.5l-.8 6.5 7.3-8.8H11z"/>',
+    tag: '<path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h5l7.5 7.5-6.5 6.5L3 9.5z"/><circle cx="7" cy="7" r="1.3"/>',
     stop: '<rect x="4.5" y="4.5" width="11" height="11" rx="1.6"/>',
     pause: '<path d="M7 4.5v11M13 4.5v11"/>',
     play: '<path d="M6 4.2v11.6l9-5.8z"/>',

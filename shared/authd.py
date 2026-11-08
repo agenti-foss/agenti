@@ -477,7 +477,7 @@ class Service:
     # be spent on another.
     GRANT_OPS = ("create-user", "engagement-set", "engagement-approve",
                  "engagement-approve-pending", "engagement-reject-pending", "engagement-withdraw-pending",
-                 "bind", "rename-principal", "delete-principal", "enable-principal",
+                 "bind", "rename-principal", "delete-principal", "enable-principal", "disable-principal",
                  "reset-password", "reset-mfa",
                  "edit-context", "build-agent", "remove-agent", "update-agent", "edit-catalog",
                  "action-approve", "action-reject", "vault-enable", "set-api-key",

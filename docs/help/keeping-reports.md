@@ -10,11 +10,15 @@ History → Outputs), where it stays until you delete it.
   else's dashboard does not see the button.
 - If your storage is nearly full, the page says so. Delete old outputs to make room.
 
-## Re-enable a disabled user (admins)
+## Disable or re-enable a user (admins)
 
-In Settings → Users, a disabled user has a **check-mark** button. It asks for
-your password and a 2FA code (or a passkey), because re-enabling gives the
-account back whatever access it kept. Only admins can do this.
+In Settings → Users, the faint **lock** next to an active user's green dot
+disables the account: they are signed out at once and cannot sign in. A
+disabled user has a red ring and a faint **check mark** next to it, which
+re-enables them with whatever access the account kept. Both ask for your
+password and a 2FA code (or a passkey). Only admins can do this, and nobody
+can disable their own account or the last admin. The pencil next to a name
+renames the account.
 
 ## Things the server now refuses
 

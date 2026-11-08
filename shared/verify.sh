@@ -494,7 +494,8 @@ except c.AuthdError as e:
         done <<VERBS
 self password|$API_USER --current wrong --new x|current password is incorrect|no user named
 create-user|deploy-verify-no-such-user --kind user --role operator --grant=not-a-real-grant|no such approval grant
-disable-user|__deploy_verify_no_such_user__|no user named
+disable-user|__deploy_verify_no_such_user__|needs a fresh re-authentication
+disable-user|__deploy_verify_no_such_user__ --grant=not-a-real-grant|no such approval grant
 mint-enrolment-link|__deploy_verify_no_such_user__|no user named
 enrol-check|not-a-real-token|invalid or has expired
 enrol-consume|not-a-real-token --new x|invalid or has expired

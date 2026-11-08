@@ -1743,24 +1743,25 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     function renderUsersRows() {
       const rows = usersPager.slice(usersCache);
-      tbody.innerHTML = rows.map((r) => `
+      // Slim rows (operator note 2026-11-08): rename is a faint pencil by the
+      // name, disable/re-enable a faint glyph by the status dot, and only
+      // access and delete stay on the right. No boxes round the icons.
+      const glyph = (data, name, title, icon, extra = "") =>
+        `<button type="button" class="row-glyph${extra}" data-${data}="${esc(name)}" title="${esc(title)}" aria-label="${esc(title)}">${Agenti.icon(icon, 15)}</button>`;
+      tbody.innerHTML = rows.map((r) => {
+        const others = canManage && r.name !== me.user;
+        return `
           <tr>
-            <td>${esc(r.name)}</td>
+            <td class="name-cell"><span class="u-name">${esc(r.name)}</span>${others ? glyph("rename", r.name, `Rename ${r.name}…`, "edit", " soft") : ""}</td>
             <td>${esc(r.kind)}</td>
-            <td class="status-cell"><span class="status-dot ${r.active ? "ok" : "err"}" title="${esc(statusTitle(r))}"><span class="sr-only">${esc(statusTitle(r))}</span></span></td>
+            <td class="status-cell"><span class="status-dot ${r.active ? "ok" : "err"}" title="${esc(statusTitle(r))}"><span class="sr-only">${esc(statusTitle(r))}</span></span>${others
+              ? (r.active ? glyph("disable", r.name, `Disable ${r.name}…`, "lock", " soft")
+                          : glyph("enable", r.name, `Re-enable ${r.name}…`, "check", " soft")) : ""}</td>
             <td class="access-cell">${roleText(r.name, bindingsCache)}</td>
-            <td class="dashboard-cell">${canOpenDashboard(r) ? `<button type="button" class="btn btn-sm" data-dashboard="${esc(r.name)}" title="Open ${esc(r.name)}'s dashboard" aria-label="Open ${esc(r.name)}'s dashboard">${Agenti.icon("dashboard", 14)}<span class="lbl-full">View dashboard</span></button>` : ""}</td>
-            <td class="actions"><div class="actions-wrap">${canManage && r.active ? `
-              <button type="button" class="btn btn-sm btn-icon btn-primary" data-grant="${esc(r.name)}" title="Security settings for ${esc(r.name)}…" aria-label="Security settings for ${esc(r.name)}">${Agenti.icon("key", 15)}</button>
-              ${!r.has_password ? `<button type="button" class="btn btn-sm btn-icon" data-relink="${esc(r.name)}" title="New set-up link for ${esc(r.name)}" aria-label="New set-up link for ${esc(r.name)}">${Agenti.icon("link", 15)}</button>` : ""}
-            ` : ""}${canManage && r.name !== me.user ? `
-              <button type="button" class="btn btn-sm btn-icon" data-rename="${esc(r.name)}" title="Rename ${esc(r.name)}…" aria-label="Rename ${esc(r.name)}">${Agenti.icon("edit", 15)}</button>
-              <span class="actions-gap" aria-hidden="true"></span>
-              ${r.active ? `<button type="button" class="btn btn-sm btn-icon btn-danger" data-disable="${esc(r.name)}" title="Disable ${esc(r.name)}" aria-label="Disable ${esc(r.name)}">${Agenti.icon("lock", 15)}</button>`
-                         : `<button type="button" class="btn btn-sm btn-icon" data-enable="${esc(r.name)}" title="Re-enable ${esc(r.name)}…" aria-label="Re-enable ${esc(r.name)}">${Agenti.icon("check", 15)}</button>`}
-              <button type="button" class="btn btn-sm btn-icon btn-danger" data-delete="${esc(r.name)}" title="Permanently delete ${esc(r.name)}…" aria-label="Permanently delete ${esc(r.name)}">${Agenti.icon("trash", 15)}</button>
-            ` : ""}</div></td>
-          </tr>`).join("") || `<tr><td colspan="6" class="muted">No users.</td></tr>`;
+            <td class="dashboard-cell">${canOpenDashboard(r) ? `<button type="button" class="row-glyph dash" data-dashboard="${esc(r.name)}" title="Open ${esc(r.name)}'s dashboard" aria-label="Open ${esc(r.name)}'s dashboard">${Agenti.icon("dashboard", 15)}<span class="lbl-full">View dashboard</span></button>` : ""}</td>
+            <td class="actions"><div class="actions-wrap">${canManage && r.active ? `${glyph("grant", r.name, `Access and security for ${r.name}…`, "key", " accent")}${!r.has_password ? glyph("relink", r.name, `New set-up link for ${r.name}`, "link") : ""}` : ""}${others ? glyph("delete", r.name, `Permanently delete ${r.name}…`, "trash", " danger") : ""}</div></td>
+          </tr>`;
+      }).join("") || `<tr><td colspan="6" class="muted">No users.</td></tr>`;
       usersPager.render();
     }
 
@@ -2095,11 +2096,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         Agenti.banner(usersBanner, "ok", `'${r.name}' was permanently deleted (approved by ${r.approved_by}).`);
         await paintUsers();
       } else if (disableName) {
-        if (!confirm(`Disable '${disableName}'? They will be signed out immediately and cannot log in until an admin re-enables the account (the check-mark button on their row).`)) return;
-        try {
-          await Agenti.post(userUrl(disableName, "disable"));
-          await paintUsers();
-        } catch (err) { Agenti.banner(usersBanner, "err", Agenti.errorText(err)); }
+        const r = await Agenti.requireApproval({
+          title: "Disable user",
+          description: `Disable '${disableName}'. They are signed out at once and cannot sign in `
+            + `until an admin re-enables the account (the check mark by their status dot).`,
+          submit: (creds) => Agenti.post(userUrl(disableName, "disable"),
+            { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+        });
+        if (!r) return; // cancelled
+        Agenti.banner(usersBanner, "ok", `'${disableName}' is disabled (approved by ${r.approved_by}).`);
+        await paintUsers();
       } else if (relinkName) {
         try {
           const r = await Agenti.post(userUrl(relinkName, "enrolment-link"));
