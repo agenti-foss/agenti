@@ -1750,7 +1750,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             <td class="status-cell"><span class="status-dot ${r.active ? "ok" : "err"}" title="${esc(statusTitle(r))}"><span class="sr-only">${esc(statusTitle(r))}</span></span></td>
             <td class="access-cell">${roleText(r.name, bindingsCache)}</td>
             <td class="dashboard-cell">${canOpenDashboard(r) ? `<button type="button" class="btn btn-sm" data-dashboard="${esc(r.name)}" title="Open ${esc(r.name)}'s dashboard" aria-label="Open ${esc(r.name)}'s dashboard">${Agenti.icon("dashboard", 14)}<span class="lbl-full">View dashboard</span></button>` : ""}</td>
-            <td class="actions">${canManage && r.active ? `
+            <td class="actions"><div class="actions-wrap">${canManage && r.active ? `
               <button type="button" class="btn btn-sm btn-icon btn-primary" data-grant="${esc(r.name)}" title="Security settings for ${esc(r.name)}…" aria-label="Security settings for ${esc(r.name)}">${Agenti.icon("key", 15)}</button>
               ${!r.has_password ? `<button type="button" class="btn btn-sm btn-icon" data-relink="${esc(r.name)}" title="New set-up link for ${esc(r.name)}" aria-label="New set-up link for ${esc(r.name)}">${Agenti.icon("link", 15)}</button>` : ""}
             ` : ""}${canManage && r.name !== me.user ? `
@@ -1759,7 +1759,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               ${r.active ? `<button type="button" class="btn btn-sm btn-icon btn-danger" data-disable="${esc(r.name)}" title="Disable ${esc(r.name)}" aria-label="Disable ${esc(r.name)}">${Agenti.icon("lock", 15)}</button>`
                          : `<button type="button" class="btn btn-sm btn-icon" data-enable="${esc(r.name)}" title="Re-enable ${esc(r.name)}…" aria-label="Re-enable ${esc(r.name)}">${Agenti.icon("check", 15)}</button>`}
               <button type="button" class="btn btn-sm btn-icon btn-danger" data-delete="${esc(r.name)}" title="Permanently delete ${esc(r.name)}…" aria-label="Permanently delete ${esc(r.name)}">${Agenti.icon("trash", 15)}</button>
-            ` : ""}</td>
+            ` : ""}</div></td>
           </tr>`).join("") || `<tr><td colspan="6" class="muted">No users.</td></tr>`;
       usersPager.render();
     }

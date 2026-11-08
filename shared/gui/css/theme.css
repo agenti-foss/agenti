@@ -1136,13 +1136,21 @@ td.actions { text-align: right; white-space: nowrap; }
   }
 }
 
-/* Any touch screen, whatever its width: a finger needs the same 44px target
- * a phone gets below. */
+/* Any touch screen, whatever its width: a finger needs a ~44px target. Small
+ * icon buttons (copy, row actions) keep their small look and get the extra
+ * target from an invisible ring around them instead of being drawn at 44px,
+ * which made them dwarf the text beside them (operator note 2026-11-08). */
 @media (pointer: coarse) {
-  .icon-btn:not(.with-label), .btn-icon, button.copy-btn, .topnav .nav-icon-btn, #theme-toggle { min-width: 44px; min-height: 44px; }
+  .topnav .nav-icon-btn, #theme-toggle { min-width: 44px; min-height: 44px; }
+  .icon-btn:not(.with-label), .btn-icon, button.copy-btn { position: relative; }
+  .icon-btn:not(.with-label)::after, .btn-icon::after, button.copy-btn::after {
+    content: ""; position: absolute; inset: -6px;
+  }
   .topnav .nav-dash { min-height: 44px; }
   @media (max-width: 600px) { .topnav .nav-dash { min-width: 44px; } }
   .btn, button { min-height: 40px; }
+  .btn.btn-icon, button.btn-icon { min-height: 34px; }
+  button.copy-btn { min-height: 30px; }
   details.disclosure > summary, details.tools-panel > summary { min-height: 44px; }
 }
 
@@ -2178,8 +2186,10 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   .composer { padding: 6px; gap: 6px; }
   .composer input[type=text] { flex: 1 1 100%; }
   .composer-controls { margin-left: auto; }
-  /* Icon-only controls get the 44px a thumb needs; labelled ones a 40px line. */
-  .icon-btn, .btn-icon, button.copy-btn { width: 44px; height: 44px; min-height: 44px; }
+  /* Icon-only controls stay in proportion with the text (the tap target is
+   * widened invisibly, above); labelled ones get a 40px line. */
+  .icon-btn, .btn-icon { width: 34px; height: 34px; min-height: 34px; padding: 0; }
+  button.copy-btn { width: 30px; height: 30px; min-height: 30px; }
   .composer-controls .icon-btn.with-label { width: auto; }
   .btn-sm { min-height: 40px; }
   .settings-tab { min-height: 44px; }
@@ -2187,8 +2197,6 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   .list-pager .pager-size select { min-height: 40px; padding: 6px 8px; }
   .back-link { min-height: 40px; }
   .chip-x { min-width: 32px; min-height: 32px; }
-  /* On a phone the Users table stacks a row's buttons; the gap becomes vertical. */
-  .actions-gap { display: block; width: auto; height: var(--space-2); }
   /* A two-column dialog row (Engagement ID | Client) is two half-width boxes
    * that truncate their values at 390px: one per line instead. */
   dialog .field-row > .field { flex-basis: 100%; }
@@ -2244,18 +2252,22 @@ dialog#user-dashboard-dialog::backdrop { background: rgba(0,0,0,0.55); }
    * and the Status column — a coloured dot — drops its header word, which
    * is wider than the column. Both keep the word on their tooltip. */
   #users-table .lbl-full { display: none; }
-  #users-table td.dashboard-cell .btn { padding: 6px 8px; min-height: 44px; }
+  #users-table td.dashboard-cell .btn { width: 34px; height: 34px; min-height: 34px; padding: 0; justify-content: center; }
   /* "Kind" (almost always "user") gives its width to the Dashboard and
    * action buttons on a phone. */
   #users-table th:nth-child(2), #users-table td:nth-child(2) { display: none; }
   /* Fixed proportions so every column — including the buttons — fits the
    * screen, and long text wraps inside its own column instead. */
   #users-table { table-layout: fixed; width: 100%; min-width: 0; }
-  #users-table th:nth-child(1) { width: 32%; }
-  #users-table th:nth-child(3) { width: 13%; }
-  #users-table th:nth-child(4) { width: 29%; }
+  #users-table th:nth-child(1) { width: 30%; }
+  #users-table th:nth-child(3) { width: 9%; }
+  #users-table th:nth-child(4) { width: 23%; }
   #users-table th:nth-child(5) { width: 13%; }
-  #users-table th:nth-child(6) { width: 13%; }
+  #users-table th:nth-child(6) { width: 25%; }
+  /* The row's actions: a tidy 2×2 of small buttons, not a tall stack. */
+  #users-table td.actions .actions-wrap { display: grid; grid-template-columns: repeat(2, 34px); gap: 6px; justify-content: end; }
+  #users-table td.actions .btn-icon { margin: 0; }
+  #users-table .actions-gap { display: none; }
   #users-table td { overflow-wrap: anywhere; }
   #users-table td:first-child, #users-table td.actions { min-width: 0; }
 }
@@ -2778,7 +2790,7 @@ mark.docs-mark {
 .pw-hint { margin-top: 6px; }
 .pw-hint:not(.own)::before { content: "✓ "; color: var(--ok); font-weight: 700; }
 .pw-confirm { margin-top: var(--space-3); }
-@media (pointer: coarse) { .pw-btn, .pw-actions .copy-btn { width: 40px; height: 40px; } .field .pw-box > input.pw-input { padding-right: 130px; } }
+@media (pointer: coarse) { .pw-btn, .pw-actions .copy-btn { width: 34px; height: 34px; min-height: 34px; } .field .pw-box > input.pw-input { padding-right: 116px; } }
 
 /* ---- A standing advisory banner as a small card (api.js dismissibleBanner) ---- */
 /* Icon | title + body + "Don't show again" | a faint ✕ in the corner. */
@@ -2901,3 +2913,14 @@ dialog .dlg-section-head h3.dlg-section { margin: 0; padding: 0; border: 0; }
 .info-bubble:not([popover]):not(.show) { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .info-bubble { transition: none; } }
 .code-wait-count { opacity: 0.75; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* iPhone/iPad Safari: a native date field ignores width:100% and keeps its own
+ * wider size, which pushed the engagement dialog wider than the screen so it
+ * scrolled sideways (operator note 2026-11-08). Plain box, left-aligned. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; min-height: 42px; text-align: left; }
+  input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+}
+/* A dialog's body scrolls up and down only. */
+.dlg-body { overflow-x: hidden; }
+.dlg-body .field, .dlg-body .field-row > .field { min-width: 0; }
