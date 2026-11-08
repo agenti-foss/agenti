@@ -383,13 +383,11 @@ const Agenti = (() => {
       function waitForNextCode() {
         stopWait();
         autoSubmit = true;
-        const paint = () => {
-          const left = 30 - (Math.floor(Date.now() / 1000) % 30);
-          banner.className = "banner warn approval-banner show";
-          banner.textContent = left > 1
-            ? `That code was just used. A new one appears in ${left} s — type it and this confirms by itself.`
-            : "Type the new code from your app — this confirms by itself.";
-        };
+        // Short on screen; the why is behind the (i) (operator note 2026-11-07).
+        banner.className = "banner warn approval-banner show";
+        banner.innerHTML = codeWaitHtml("this confirms by itself");
+        const count = banner.querySelector(".code-wait-count");
+        const paint = () => { count.textContent = codeWaitCount(); };
         paint();
         waitTimer = setInterval(paint, 1000);
       }
@@ -690,35 +688,71 @@ const Agenti = (() => {
   }
 
   // ---- "Don't show again" ------------------------------------------------
-  // A standing advisory banner (data not encrypted, no AI provider, …) gets
-  // a small button that hides it for good — per account, in this browser.
-  // Settings → Appearance lists how many are hidden and brings them back.
+  // A standing advisory banner (data not encrypted, no AI provider, …) is
+  // laid out as a small card: an icon, its bold first line as the title, the
+  // rest as the body, a faint ✕ in the corner and "Don't show again" under it
+  // (operator note 2026-11-07).
+  //  * ✕ closes it until the next sign-in (login.html clears the list).
+  //  * "Don't show again" hides it for good — per account, in this browser.
+  //    Settings → Appearance lists how many are hidden and brings them back.
   // Call it AFTER the banner's text is set (banner() replaces the content).
   // Errors, results and questions waiting for you never get one.
-  async function _hiddenBanners() {
+  async function _bannerStore(prefix) {
     let user = "";
     try { user = (await memoGet("auth/me")).user || ""; } catch (e) { /* signed out */ }
-    const key = `agenti-hidden-banners:${user}`;
+    const key = `${prefix}:${user}`;
     let ids = [];
     try { ids = JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { ids = []; }
-    return { key, ids: new Set(Array.isArray(ids) ? ids : []) };
+    const set = new Set(Array.isArray(ids) ? ids : []);
+    return {
+      key, ids: set,
+      add(id) { set.add(id); try { localStorage.setItem(key, JSON.stringify([...set])); } catch (e) { /* no persistence */ } },
+    };
+  }
+  const _hiddenBanners = () => _bannerStore("agenti-hidden-banners");
+  const _closedBanners = () => _bannerStore("agenti-closed-banners");
+  // Sign-in and sign-out forget which banners were closed with ✕.
+  function forgetClosedBanners() {
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith("agenti-closed-banners:"))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch (e) { /* no storage */ }
   }
   async function dismissibleBanner(el, id) {
     if (!el) return false;
-    const { key, ids } = await _hiddenBanners();
-    if (ids.has(id)) { el.hidden = true; el.classList.remove("show"); return false; }
-    if (!el.querySelector(":scope > .banner-dismiss")) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "banner-dismiss";
-      b.textContent = "Don't show again";
-      b.addEventListener("click", () => {
-        ids.add(id);
-        try { localStorage.setItem(key, JSON.stringify([...ids])); } catch (e) { /* no persistence */ }
-        el.hidden = true;
-        el.classList.remove("show");
-      });
-      el.prepend(b);
+    const hidden = await _hiddenBanners(), closed = await _closedBanners();
+    const hide = () => { el.hidden = true; el.classList.remove("show"); };
+    if (hidden.ids.has(id) || closed.ids.has(id)) { hide(); return false; }
+    if (!el.classList.contains("banner-card")) {
+      el.classList.add("banner-card");
+      const text = document.createElement("div");
+      text.className = "banner-text";
+      while (el.firstChild) text.appendChild(el.firstChild);
+      // The bold lead, when the banner has one, is the card's title line.
+      const lead = text.firstElementChild;
+      if (lead && lead.tagName === "STRONG" && text.firstChild === lead) {
+        lead.classList.add("banner-title");
+        if (lead.nextSibling && lead.nextSibling.nodeType === 3) {
+          lead.nextSibling.textContent = lead.nextSibling.textContent.replace(/^\s+/, "");
+        }
+      }
+      const ic = document.createElement("span");
+      ic.className = "banner-icon";
+      ic.innerHTML = icon("warning", 18);
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "banner-x";
+      x.setAttribute("aria-label", "Close");
+      x.title = "Close until you next sign in";
+      x.innerHTML = icon("close", 14);
+      x.addEventListener("click", () => { closed.add(id); hide(); });
+      const never = document.createElement("button");
+      never.type = "button";
+      never.className = "banner-dismiss";
+      never.textContent = "Don't show again";
+      never.addEventListener("click", () => { hidden.add(id); hide(); });
+      text.appendChild(never);
+      el.append(ic, text, x);
     }
     return true;
   }
@@ -734,7 +768,7 @@ const Agenti = (() => {
   // 2026-11-06. Delegated, so fold-outs added later get it too. Instant when
   // the person asked for reduced motion, and inside the live console and the
   // team chat, where a step list should simply appear.
-  const FOLD_EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+  const FOLD_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
   function animateDetails(det) {
     const going = det._anim ? det._closing : !det.open;     // a second click reverses it
     const startH = det.getBoundingClientRect().height;
@@ -747,22 +781,31 @@ const Agenti = (() => {
     det.open = true;
     const endH = going ? openH : closedH;
     det._closing = !going;
+    // overflow:hidden lets a flex column (most forms here are .stack) squeeze
+    // the fold to its padding for the whole motion, then it snapped open at
+    // the end (operator note 2026-11-07: "glitches and flashes"). Never shrink.
     det.style.overflow = "hidden";
+    det.style.flexShrink = "0";
     const duration = Math.round(Math.min(320, 170 + Math.abs(endH - startH) * 0.12));
     const anim = det.animate([{ height: `${startH}px` }, { height: `${endH}px` }], { duration, easing: FOLD_EASE });
     det._anim = anim;
-    if (going) {
-      for (const kid of det.children) {
-        if (kid.tagName === "SUMMARY") continue;
-        kid.animate([{ opacity: 0, transform: "translateY(-4px)" }, { opacity: 1, transform: "none" }],
-          { duration, easing: FOLD_EASE });
-      }
+    for (const kid of det.children) {
+      if (kid.tagName === "SUMMARY") continue;
+      if (kid._fade) kid._fade.cancel();
+      kid._fade = kid.animate(going
+        ? [{ opacity: 0, transform: "translateY(-6px)" }, { opacity: 1, transform: "none" }]
+        : [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-6px)" }],
+        { duration: going ? duration : Math.round(duration * 0.7), easing: FOLD_EASE, fill: "forwards" });
     }
+    // The fades hold their last frame until the fold itself is done, so a
+    // closing section never shows its content again for a frame at the end.
     anim.onfinish = () => {
       det._anim = null;
       det.style.overflow = "";
+      det.style.flexShrink = "";
       if (det._closing) det.open = false;
       det._closing = false;
+      for (const kid of det.children) { if (kid._fade) { kid._fade.cancel(); kid._fade = null; } }
     };
   }
   document.addEventListener("click", (e) => {
@@ -776,6 +819,110 @@ const Agenti = (() => {
     e.preventDefault();
     animateDetails(det);
   });
+
+  // The 2FA "already used" wait, shared by the confirm popup and the login page.
+  function codeWaitHtml(then) {
+    return `2FA code can't be used more than once${tip(`Each code works only once, so a code someone saw or intercepted can't be replayed. Type the next one from your app and ${then}.`, "Why?")}`
+      + ` <span class="code-wait-count"></span>`;
+  }
+  function codeWaitCount() {
+    const left = 30 - (Math.floor(Date.now() / 1000) % 30);
+    return left > 1 ? `· new code in ${left} s` : "· type the new code";
+  }
+
+  // ---- (i) flyouts ---------------------------------------------------------
+  // The side note behind a small (i), instead of a line of grey text under
+  // every field — operator note 2026-11-07: keep what is on screen short.
+  //   <button type="button" class="info-tip" data-tip="Why…" aria-label="More information"></button>
+  // or Agenti.tip("Why…") in markup a script builds. Text only (textContent).
+  //  * A mouse: hovering shows it; leaving hides it. A click does nothing
+  //    (inside a <label> or <summary> it would tick the box / fold the section).
+  //  * Touch: a tap opens it; another tap, a tap elsewhere or any scroll closes it.
+  //  * Keyboard: focus shows it, Esc or moving on hides it.
+  // One bubble for the page, in the top layer (popover) so it shows over an
+  // open dialog too; without popover support it goes inside the dialog.
+  let tipBubble = null, tipOwner = null, tipHideTimer = null;
+  const hoverable = () => !!(window.matchMedia && matchMedia("(hover: hover) and (pointer: fine)").matches);
+  function tip(text, label) {
+    return `<button type="button" class="info-tip" data-tip="${esc(text)}" aria-label="${esc(label || "More information")}"></button>`;
+  }
+  function tipEl() {
+    if (tipBubble) return tipBubble;
+    tipBubble = document.createElement("div");
+    tipBubble.className = "info-bubble";
+    tipBubble.id = "agenti-info-bubble";
+    tipBubble.setAttribute("role", "tooltip");
+    if ("popover" in HTMLElement.prototype) tipBubble.popover = "manual";
+    tipBubble.addEventListener("mouseenter", () => clearTimeout(tipHideTimer));
+    tipBubble.addEventListener("mouseleave", () => hideTip());
+    return tipBubble;
+  }
+  function placeTip(btn) {
+    const b = tipEl(), r = btn.getBoundingClientRect(), gap = 8, pad = 10;
+    const w = b.offsetWidth, h = b.offsetHeight;
+    let left = r.left + r.width / 2 - w / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+    let top = r.top - h - gap, below = false;
+    if (top < pad) { top = r.bottom + gap; below = true; }
+    b.style.left = `${Math.round(left)}px`;
+    b.style.top = `${Math.round(top)}px`;
+    b.classList.toggle("below", below);
+    b.style.setProperty("--arrow-x", `${Math.round(r.left + r.width / 2 - left)}px`);
+  }
+  function showTip(btn) {
+    clearTimeout(tipHideTimer);
+    const b = tipEl();
+    if (tipOwner && tipOwner !== btn) tipOwner.removeAttribute("aria-describedby");
+    tipOwner = btn;
+    b.textContent = btn.dataset.tip || "";
+    const host = b.popover ? document.body : (btn.closest("dialog[open]") || document.body);
+    if (b.parentNode !== host) host.appendChild(b);
+    if (b.popover && !b.matches(":popover-open")) b.showPopover();
+    b.classList.remove("show");
+    placeTip(btn);
+    requestAnimationFrame(() => b.classList.add("show"));
+    btn.setAttribute("aria-describedby", b.id);
+    btn.setAttribute("aria-expanded", "true");
+  }
+  function hideTip(delay) {
+    clearTimeout(tipHideTimer);
+    const go = () => {
+      if (!tipBubble || !tipOwner) return;
+      tipBubble.classList.remove("show");
+      if (tipBubble.popover && tipBubble.matches(":popover-open")) tipBubble.hidePopover();
+      tipOwner.removeAttribute("aria-describedby");
+      tipOwner.setAttribute("aria-expanded", "false");
+      tipOwner = null;
+    };
+    if (delay) tipHideTimer = setTimeout(go, delay); else go();
+  }
+  document.addEventListener("mouseover", (e) => {
+    const btn = e.target.closest && e.target.closest(".info-tip");
+    if (btn && hoverable() && btn !== tipOwner) showTip(btn);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const btn = e.target.closest && e.target.closest(".info-tip");
+    if (!btn || btn !== tipOwner || !hoverable()) return;
+    if (e.relatedTarget && (btn.contains(e.relatedTarget) || (tipBubble && tipBubble.contains(e.relatedTarget)))) return;
+    hideTip(120);   // time to move onto the bubble
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest && e.target.closest(".info-tip");
+    if (btn) {
+      e.preventDefault();          // never ticks a checkbox or folds a section
+      if (!hoverable()) { if (tipOwner === btn) hideTip(); else showTip(btn); }
+      return;
+    }
+    if (tipOwner && !(tipBubble && tipBubble.contains(e.target))) hideTip();
+  }, true);
+  document.addEventListener("focusin", (e) => {
+    const btn = e.target.closest && e.target.closest(".info-tip");
+    if (btn && btn.matches(":focus-visible")) showTip(btn);
+    else if (tipOwner && e.target !== tipOwner) hideTip();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tipOwner) { e.preventDefault(); hideTip(); } });
+  document.addEventListener("scroll", () => { if (tipOwner) hideTip(); }, { capture: true, passive: true });
+  window.addEventListener("resize", () => { if (tipOwner) hideTip(); }, { passive: true });
 
   // ---- how a run reads on screen -----------------------------------------
   // One copy, shared by the dashboard, the agent page and the team page, so
@@ -834,7 +981,8 @@ const Agenti = (() => {
   const ICON_PATHS = {
     dashboard: '<rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/>',
     outputs: '<path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h3.6l1.6 1.9H16a1.5 1.5 0 0 1 1.5 1.5v6.6a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/>',
-    settings: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/>',
+    // A cog with eight teeth (the old rays read as a sun — operator note 2026-11-07).
+    settings: '<path d="M8.58 3.86 8.91 1.87h2.18l.33 1.99 1.91.79 1.64-1.17 1.55 1.55-1.17 1.64.79 1.91 1.99.33v2.18l-1.99.33-.79 1.91 1.17 1.64-1.55 1.55-1.64-1.17-1.91.79-.33 1.99H8.91l-.33-1.99-1.91-.79-1.64 1.17-1.55-1.55 1.17-1.64-.79-1.91-1.99-.33V8.91l1.99-.33.79-1.91-1.17-1.64 1.55-1.55 1.64 1.17Z"/><circle cx="10" cy="10" r="2.4"/>',
     logout: '<path d="M8 3.5H4.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5H8M12.5 6.5 16 10l-3.5 3.5M16 10H7.5"/>',
     user: '<circle cx="10" cy="6.8" r="3.2"/><path d="M3.8 17c.6-3.4 3.1-5 6.2-5s5.6 1.6 6.2 5"/>',
     users: '<circle cx="7.5" cy="7" r="2.8"/><path d="M2.5 16.5c.5-3 2.6-4.5 5-4.5s4.5 1.5 5 4.5M13.5 4.4a2.6 2.6 0 0 1 0 5.2M15 12.2c1.6.6 2.4 1.9 2.7 4.3"/>',
@@ -1165,7 +1313,7 @@ const Agenti = (() => {
     copyText, copyButton, copyButtonHtml, wireCopyButtons, qrCode,
     webauthnCreate, webauthnGet, webauthnOriginHint, webauthnConfig, passkeysUsable,
     requireApproval, confirmDanger, frameDialog,
-    dismissibleBanner, hiddenBannerCount, showHiddenBanners,
+    dismissibleBanner, hiddenBannerCount, showHiddenBanners, forgetClosedBanners, tip, codeWaitHtml, codeWaitCount,
     icon, iconEl, ti, avatarInner, avatarHue, spriteSvg, roleAtLeast, roleLabel,
     userHistory, userLabel,
   };

@@ -157,6 +157,7 @@
 
       function done(resp) {
         Agenti.setCsrf(resp.csrf || "");
+        Agenti.forgetClosedBanners();   // banners closed with ✕ come back at each sign-in
         if (resp.mfa_setup_required) {
           // The require-2fa policy: the session is real, but the API refuses
           // it everything except the enrolment routes until an authenticator
@@ -232,12 +233,10 @@
         autoSubmit = true;
         totpInput.value = "";
         totpInput.focus();
-        const paint = () => {
-          const left = 30 - (Math.floor(Date.now() / 1000) % 30);
-          Agenti.banner(bannerEl, "warn", left > 1
-            ? `That code was just used. A new one appears in ${left} s — type it and you're signed in.`
-            : "Type the new code from your app.");
-        };
+        Agenti.banner(bannerEl, "warn", "");
+        bannerEl.innerHTML = Agenti.codeWaitHtml("you're signed in");
+        const count = bannerEl.querySelector(".code-wait-count");
+        const paint = () => { count.textContent = Agenti.codeWaitCount(); };
         paint();
         waitTimer = setInterval(paint, 1000);
       }

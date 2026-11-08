@@ -312,8 +312,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button type="button" class="btn btn-sm btn-primary" data-decide="approve">Allow for this run</button>
           <button type="button" class="btn btn-sm" data-decide="deny">Decline</button>
+          ${Agenti.tip("For this run only. Scope and safety checks still apply.")}
         </div>
-        <p class="hint" style="margin:6px 0 0;">For this run only. Scope and safety checks still apply.</p>
       </div>`).join("");
   }
   approvalBox.addEventListener("click", async (e) => {
@@ -356,7 +356,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               <button type="button" class="btn btn-sm btn-primary" data-decide="approve">Add to my preferences</button>
               <button type="button" class="btn btn-sm" data-decide="dismiss">Dismiss</button>
             </div>`).join("")}</div>
-          <p class="hint" style="margin:6px 0 0;">Written by the agent — nothing is saved unless you add it.</p>
+          <p class="hint" style="margin:6px 0 0;">Written by the agent${Agenti.tip("Nothing is saved unless you add it.")}</p>
         </div>` : "";
     }
     propBox.addEventListener("click", async (e) => {
@@ -433,7 +433,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         <dt>Engagement</dt><dd>${esc(record.engagement_id || "—")}</dd>
         <dt>Client</dt><dd>${esc(record.client || "—")}</dd>
         <dt>Authorized by</dt><dd>${esc(record.authorizing_party || "—")}${record.authorizing_title ? ` (${esc(record.authorizing_title)})` : ""}</dd>
-        <dt>Reference</dt><dd>${esc(record.authorization_ref || "—")}</dd>
         <dt>Valid</dt><dd>${esc(record.valid_from || "?")} to ${esc(record.valid_until || "?")}</dd>
         <dt>This agent's scope (${esc(view.scope_kind || "?")})</dt>
         <dd>${(view.in_scope || []).map((s) => esc(s)).join("<br>") || '<span style="color:var(--warn);">none — this agent cannot start</span>'}</dd>

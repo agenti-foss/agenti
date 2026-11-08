@@ -2004,7 +2004,6 @@ class EngagementSetRequest(BaseModel):
     client: ArgValue
     authorizing_party: ArgValue
     authorizing_title: ArgValue
-    authorization_ref: ArgValue
     valid_from: ArgValue
     valid_until: ArgValue
     cidr_in: list[ArgValue] = []
@@ -2092,7 +2091,6 @@ def set_engagement(body: EngagementSetRequest, request: Request,
            "--engagement-id", body.engagement_id, "--client", body.client,
            "--authorizing-party", body.authorizing_party,
            "--authorizing-title", body.authorizing_title,
-           "--authorization-ref", body.authorization_ref,
            "--valid-from", body.valid_from, "--valid-until", body.valid_until,
            "--replace-scope", "cidr", "--replace-scope", "domain"]
     for entry in body.cidr_in:

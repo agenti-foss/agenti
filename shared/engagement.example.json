@@ -3,7 +3,6 @@
   "client": "Acme Corp (fictional example — replace every field)",
   "authorizing_party": "Jane Okafor",
   "authorizing_title": "CISO, authorized signatory on the SOW",
-  "authorization_ref": "SOW-ACME-2026-03 / RoE v1.1",
   "valid_from": "2026-03-01",
   "valid_until": "2026-03-14",
   "emergency_contact": "soc@acme.example  +1 555 0100",

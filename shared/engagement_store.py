@@ -82,12 +82,12 @@ __all__ = ["main", "StoreError"]
 _META_FLAGS = {
     "engagement_id": "--engagement-id", "client": "--client",
     "authorizing_party": "--authorizing-party", "authorizing_title": "--authorizing-title",
-    "authorization_ref": "--authorization-ref", "valid_from": "--valid-from",
+    "valid_from": "--valid-from",
     "valid_until": "--valid-until", "emergency_contact": "--emergency-contact",
     "notes": "--notes",
 }
 _CREATE_REQUIRED = ("engagement_id", "client", "authorizing_party", "authorizing_title",
-                    "authorization_ref", "valid_from", "valid_until")
+                    "valid_from", "valid_until")
 LOCK_FILENAME = ".engagement.lock"
 
 
@@ -434,6 +434,8 @@ def _merged_record(base: dict | None, invalid: str | None, args) -> dict:
                    f"the organisation has no engagement yet, so creating one")
             raise StoreError(f"{why} needs every core field: missing {', '.join(missing)}")
     new = dict(start)
+    for field in ec.LEGACY_RECORD_FIELDS:   # retired: a save drops it
+        new.pop(field, None)
     for field in _META_FLAGS:
         value = getattr(args, field)
         if value is not None:
@@ -482,6 +484,11 @@ def _check_set_preconditions(args, live: dict | None, pending: dict | None) -> N
             "--require-approval/--no-require-approval are retired: a run always needs an "
             "approved engagement, and a save records its own approval (or, with the "
             "engagement-second-approver policy on, waits for another admin). Nothing was changed.")
+    if args.authorization_ref is not None:
+        raise StoreError(
+            "--authorization-ref is retired: the engagement no longer has a Reference field. "
+            "Put a statement-of-work or rules-of-engagement number in --notes if you want it "
+            "kept. Nothing was changed.")
     if args.expect_second_approver and args.expect_second_approver != args.second_approver:
         raise StoreError(
             f"the second-approver policy is now {args.second_approver}, not "
@@ -943,14 +950,13 @@ def _render_text(verb: str, out: dict) -> str:
         if not rec:
             lines.append(f"the organisation has no engagement yet.")
             lines.append(f"  set one:  sudo agenti engagement set --engagement-id <id> --client <name> \\")
-            lines.append(f"              --authorizing-party <who> --authorizing-title <title> --authorization-ref <ref> \\")
+            lines.append(f"              --authorizing-party <who> --authorizing-title <title> \\")
             lines.append(f"              --valid-from YYYY-MM-DD --valid-until YYYY-MM-DD --cidr-in '<cidr>' [--domain-in '<domain>']")
             return "\n".join(lines)
         lines.append(f"engagement :")
         for k in ("engagement_id", "client"):
             lines.append(f"  · {k:18} {rec[k]}")
         lines.append(f"  · {'authorized_by':18} {rec['authorizing_party']} ({rec['authorizing_title']})")
-        lines.append(f"  · {'authorization_ref':18} {rec['authorization_ref']}")
         lines.append(f"  · {'valid':18} {rec['valid_from']} to {rec['valid_until']}")
         lines.append(f"  · {'emergency_contact':18} {rec['emergency_contact'] or '(none)'}")
         for kind in ec.SCOPE_KINDS:
@@ -1108,6 +1114,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=argparse.SUPPRESS)
     g.add_argument("--no-require-approval", dest="require_approval", action="store_false",
                    help=argparse.SUPPRESS)
+    s.add_argument("--authorization-ref", dest="authorization_ref", default=None,
+                   help=argparse.SUPPRESS)   # retired 2026-11-07, same reason
     # Operational policy: each ceiling flag is independent — giving one never
     # touches the others, matching the metadata flags' merge-by-default
     # shape, not the scope kinds' replace-by-kind one.

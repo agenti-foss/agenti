@@ -178,8 +178,7 @@
             <div id="agent-drift" class="banner" style="margin:8px 0;"></div>
             <div id="agent-controls"></div>
             <div id="agent-context" style="margin-top:18px;">
-              <h3 class="ih" data-icon="file">Edit the instructions this agent reads</h3>
-              <p class="hint">Text the model reads. It never widens scope, tools or limits.</p>
+              <h3 class="ih" data-icon="file">Edit the instructions this agent reads<button type="button" class="info-tip" aria-label="More information" data-tip="Text the model reads. It never widens scope, tools or limits."></button></h3>
               <div class="field"><label for="agent-context-kind">File</label>
                 <select id="agent-context-kind">
                   <option value="system-prompt">System prompt — what this agent is for (required)</option>
@@ -189,8 +188,7 @@
               <div id="agent-context-editor"></div>
             </div>
             <div id="agent-scope-editor" hidden style="margin-top:18px;">
-              <h3 class="ih" data-icon="target">Edit this agent's scope</h3>
-              <p class="hint">Can only <strong>narrow</strong> the engagement. Leave empty to inherit it.</p>
+              <h3 class="ih" data-icon="target">Edit this agent's scope<button type="button" class="info-tip" aria-label="More information" data-tip="Can only narrow the engagement. Leave empty to inherit it."></button></h3>
               <div id="agent-scope-body">
               <p class="hint" style="margin:6px 0;"><strong>The engagement allows:</strong> <span id="agent-scope-org-in"></span></p>
               <div class="field"><label for="agent-scope-in">May touch (one per line)</label>
@@ -202,8 +200,7 @@
               </div>
             </div>
             <div id="agent-tools-editor" hidden style="margin-top:18px;">
-              <h3 class="ih" data-icon="terminal">Edit this agent's tool allow-list</h3>
-              <p class="hint">Remove any program, or add one from the reviewed catalog.</p>
+              <h3 class="ih" data-icon="terminal">Edit this agent's tool allow-list<button type="button" class="info-tip" aria-label="More information" data-tip="Remove any program, or add one from the reviewed catalog."></button></h3>
               <div id="agent-tools-banner" class="banner err"></div>
               <div id="agent-tools-baseline"></div>
               <div id="agent-tools-catalog" style="margin-top:12px;"></div>
@@ -235,8 +232,7 @@
           </div>
 
           <div class="panel">
-            <h2 class="ih" data-icon="file">Organisation instructions</h2>
-            <p class="hint">Rules every agent reads — e.g. report style, contacts. Guides behaviour only.</p>
+            <h2 class="ih" data-icon="file">Organisation instructions<button type="button" class="info-tip" aria-label="More information" data-tip="Rules every agent reads — e.g. report style, contacts. Guides behaviour only."></button></h2>
             <div id="org-policy-editor"></div>
           </div>
         </section>
@@ -247,8 +243,7 @@
           <p class="hint">Who can sign in, and what they can reach.</p>
 
           <div class="panel" id="users-panel" hidden>
-            <h2 class="ih" data-icon="users">Users</h2>
-            <p class="hint">A new user has no access until you grant it.</p>
+            <h2 class="ih" data-icon="users">Users<button type="button" class="info-tip" aria-label="More information" data-tip="A new user has no access until you grant it."></button></h2>
             <p class="hint"><span class="icon-legend"><span data-icon="key">Access &amp; security</span><span data-icon="dashboard">Dashboard</span><span data-icon="edit">Rename</span><span data-icon="check">Re-enable</span><span data-icon="lock">Disable</span><span data-icon="trash">Delete</span></span></p>
             <div id="users-banner" class="banner err"></div>
             <div id="new-user-link-panel" hidden>
@@ -273,8 +268,7 @@
 
         <!-- ===================== Platform (platform admin) ===================== -->
         <section class="settings-pane" id="pane-providers" role="tabpanel" hidden>
-          <h1>AI providers</h1>
-          <p class="hint">Connect the AI services agents run on. Whoever launches a run picks one of them. Keys are kept on this server, used only by runs and never shown again.</p>
+          <h1>AI providers<button type="button" class="info-tip" aria-label="More information" data-tip="Connect the AI services agents run on. Whoever launches a run picks one of them. Keys are kept on this server, used only by runs and never shown again."></button></h1>
           <div id="providers-list" class="stack"></div>
           <details class="disclosure">
             <summary>Keys for one person or one agent</summary>
@@ -287,22 +281,19 @@
           <p class="hint">Policies and the deployment.</p>
 
           <div class="panel" id="limits-panel" hidden>
-            <h2 class="ih" data-icon="sliders">Policies</h2>
-            <p class="hint">Change these on the host with the command shown.</p>
+            <h2 class="ih" data-icon="sliders">Policies<button type="button" class="info-tip" aria-label="More information" data-tip="Change these on the host with the command shown."></button></h2>
             <div id="policy-list" class="stack" style="gap:6px;"></div>
           </div>
 
           <div class="panel" id="vault-panel" hidden>
-            <h2 class="ih" data-icon="lock">Vault</h2>
-            <p class="hint">The vault keeps reports, scans, attached files and API keys in an encrypted container on this server.</p>
+            <h2 class="ih" data-icon="lock">Vault<button type="button" class="info-tip" aria-label="More information" data-tip="The vault keeps reports, scans, attached files and API keys in an encrypted container on this server."></button></h2>
             <div id="vault-banner" class="banner"></div>
             <div id="vault-state" class="stack" style="gap:6px;"></div>
             <div class="row" id="vault-on-row" style="margin-top:12px;" hidden><button type="button" class="btn btn-primary" id="vault-on-btn" data-icon="lock">Turn on the vault</button></div>
           </div>
 
           <div class="panel" id="updates-panel" hidden>
-            <h2 class="ih" data-icon="download">Updates</h2>
-            <p class="hint">Checking asks GitHub whether a newer release exists. It only reports; nothing is downloaded or installed. This is off until you allow it on the host.</p>
+            <h2 class="ih" data-icon="download">Updates<button type="button" class="info-tip" aria-label="More information" data-tip="Checking asks GitHub whether a newer release exists. It only reports; nothing is downloaded or installed. This is off until you allow it on the host."></button></h2>
             <div id="updates-banner" class="banner"></div>
             <div id="updates-result" class="stack" style="gap:6px;"></div>
             <div class="row" style="margin-top:12px;"><button type="button" class="btn" id="updates-check-btn">Check for updates</button></div>
@@ -417,9 +408,8 @@
     <form id="grant-form" method="dialog" class="stack">
       <h2 style="margin-top:0;">Security settings for <span id="grant-who"></span></h2>
       <div class="field" id="grant-current-field" hidden>
-        <label>Current access</label>
+        <label>Current access<button type="button" class="info-tip" aria-label="More information" data-tip="Removals apply immediately."></button></label>
         <div id="grant-current-list" class="stack" style="gap:6px;"></div>
-        <p class="hint">Removals apply immediately.</p>
       </div>
       <details class="disclosure" id="reset-section" hidden>
         <summary>Credentials — reset this user's password or 2FA</summary>
@@ -448,17 +438,15 @@
         <p class="hint">Signs that account out everywhere.</p>
       </div>
       <div class="field" id="reset-mfa-field" hidden>
-        <label>Reset two-factor authentication</label>
+        <label>Reset two-factor authentication<button type="button" class="info-tip" aria-label="More information" data-tip="Removes every authenticator and passkey. They&#x27;ll set 2FA up again at next sign-in."></button></label>
         <div class="btn-row">
           <button type="button" class="btn btn-danger" id="reset-mfa-btn">Reset MFA</button>
         </div>
-        <p class="hint">Removes every authenticator and passkey. They'll set 2FA up again at next sign-in.</p>
       </div>
       <div id="reset-banner" class="banner err"></div>
       </details>
-      <h3 class="ih dlg-section" data-icon="key">Access</h3>
+      <h3 class="ih dlg-section" data-icon="key">Access<button type="button" class="info-tip" aria-label="More information" data-tip="New grants need approval; removals apply immediately."></button></h3>
       <div data-access-mount></div>
-      <p class="hint">New grants need approval; removals apply immediately.</p>
       <div id="grant-banner" class="banner err"></div>
       <div class="btn-row">
         <button type="submit" class="btn btn-primary" id="grant-submit">Save access</button>
@@ -535,8 +523,7 @@
       <div id="engagement-status" class="banner"></div>
 
       <div class="dlg-section-head">
-        <h3 class="ih dlg-section" data-icon="shield">Authorization</h3>
-        <p class="dlg-sub">Who agreed to the work, and when it may happen.</p>
+        <h3 class="ih dlg-section" data-icon="shield">Authorization<button type="button" class="info-tip" aria-label="More information" data-tip="Who agreed to the work, and when it may happen. Runs can start only inside these dates."></button></h3>
       </div>
       <div class="field-row">
         <div class="field" data-eng="engagement_id"><label for="eng2-id">Engagement ID</label>
@@ -550,9 +537,6 @@
         <div class="field" data-eng="authorizing_title"><label for="eng2-title">Their role</label>
           <input type="text" id="eng2-title" required></div>
       </div>
-      <div class="field" data-eng="authorization_ref"><label for="eng2-ref">Reference</label>
-        <p class="field-sub">The signed statement of work or rules of engagement.</p>
-        <input type="text" id="eng2-ref" required></div>
       <div class="field-row">
         <div class="field" data-eng="valid_from"><label for="eng2-from">Starts</label>
           <input type="date" id="eng2-from" required></div>
@@ -561,21 +545,25 @@
       </div>
 
       <div class="dlg-section-head">
-        <h3 class="ih dlg-section" data-icon="target">Scope</h3>
-        <p class="dlg-sub">What agents may touch. One per line; a label in brackets is fine.</p>
+        <h3 class="ih dlg-section" data-icon="target">Scope<button type="button" class="info-tip" aria-label="About scope"
+          data-tip="Agents may touch only what is listed here; everything else is denied. One entry per line; a label in brackets is fine, e.g. 10.0.0.0/24 (lab). A domain includes its subdomains."></button></h3>
       </div>
       <div class="field-row">
         <div class="field" data-eng="scope.cidr.in_scope"><label for="eng2-cidr-in">In-scope networks</label>
           <textarea id="eng2-cidr-in" rows="2" placeholder="10.0.0.0/24 (lab)"></textarea></div>
-        <div class="field" data-eng="scope.cidr.out_of_scope"><label for="eng2-cidr-out">Excluded networks</label>
-          <textarea id="eng2-cidr-out" rows="2" placeholder="Optional, e.g. 10.0.0.9/32 (printer)"></textarea></div>
-      </div>
-      <div class="field-row">
         <div class="field" data-eng="scope.domain.in_scope"><label for="eng2-domain-in">In-scope domains</label>
           <textarea id="eng2-domain-in" rows="2" placeholder="example.com"></textarea></div>
-        <div class="field" data-eng="scope.domain.out_of_scope"><label for="eng2-domain-out">Excluded domains</label>
-          <textarea id="eng2-domain-out" rows="2" placeholder="Optional, e.g. payroll.example.com"></textarea></div>
       </div>
+      <details class="disclosure eng-fold" id="eng-exceptions">
+        <summary><span class="fold-title">Exceptions</span><span class="fold-sub">Optional</span><button type="button" class="info-tip" aria-label="About exceptions"
+          data-tip="Only for a hole inside the scope: a host in an in-scope network, or a subdomain of an in-scope domain, that must not be touched — e.g. the payroll server. Anything outside the scope is already denied."></button></summary>
+        <div class="field-row">
+          <div class="field" data-eng="scope.cidr.out_of_scope"><label for="eng2-cidr-out">Excluded networks</label>
+            <textarea id="eng2-cidr-out" rows="2" placeholder="e.g. 10.0.0.9/32 (payroll)"></textarea></div>
+          <div class="field" data-eng="scope.domain.out_of_scope"><label for="eng2-domain-out">Excluded domains</label>
+            <textarea id="eng2-domain-out" rows="2" placeholder="e.g. payroll.example.com"></textarea></div>
+        </div>
+      </details>
       <div class="field-row">
         <div class="field" data-eng="emergency_contact"><label for="eng2-contact">Emergency contact</label>
           <input type="text" id="eng2-contact"></div>
@@ -587,20 +575,16 @@
         <summary><span class="fold-title">Data handling</span><span class="fold-sub">Capture, retention and the exploit agent</span></summary>
         <label class="check-row" data-eng="capture_payloads">
           <input type="checkbox" id="eng2-capture">
-          <span><span class="check-title">Capture payload contents</span>
-            <span class="field-sub">Not just metadata. For agents that record traffic.</span></span>
+          <span><span class="check-title">Capture payload contents<button type="button" class="info-tip" aria-label="More information" data-tip="Not just metadata. For agents that record traffic."></button></span></span>
         </label>
         <label class="check-row" data-eng="enabled_capabilities">
           <input type="checkbox" id="eng2-exploitation-enabled">
-          <span><span class="check-title">Allow the exploit agent</span>
-            <span class="field-sub">Every module it fires still needs approval, one at a time.</span></span>
+          <span><span class="check-title">Allow the exploit agent<button type="button" class="info-tip" aria-label="More information" data-tip="Every module it fires still needs approval, one at a time."></button></span></span>
         </label>
         <div class="field-row">
-          <div class="field" data-eng="retention_days"><label for="eng2-retention">Keep data for (days)</label>
-            <p class="field-sub">0 destroys it when the engagement ends.</p>
+          <div class="field" data-eng="retention_days"><label for="eng2-retention">Keep data for (days)<button type="button" class="info-tip" aria-label="More information" data-tip="0 destroys it when the engagement ends."></button></label>
             <input type="number" id="eng2-retention" min="0" value="0"></div>
-          <div class="field" data-eng="redact"><label for="eng2-redact">Redacted fields</label>
-            <p class="field-sub">Removed before anything is stored.</p>
+          <div class="field" data-eng="redact"><label for="eng2-redact">Redacted fields<button type="button" class="info-tip" aria-label="More information" data-tip="Removed before anything is stored."></button></label>
             <textarea id="eng2-redact" rows="2" placeholder="Optional, e.g. Authorization"></textarea></div>
         </div>
       </details>
@@ -608,7 +592,7 @@
       <details class="disclosure eng-fold" id="eng-policy" open>
         <summary><span class="fold-title">Operational policy</span><span class="fold-sub">Caps and models · apply at once</span></summary>
         <div class="field-row">
-          <div class="field"><label for="eng2-turns-ceiling">Max turns</label>
+          <div class="field"><label for="eng2-turns-ceiling">Max turns<button type="button" class="info-tip" aria-label="More information" data-tip="Turns, budget and run time are ceilings: a launch can only go lower. Blank means the platform default."></button></label>
             <div class="input-with-button">
               <input type="number" id="eng2-turns-ceiling" min="1">
               <button type="button" class="btn btn-sm" data-clear-ceiling="turns" title="Back to the platform default">Reset</button>
@@ -624,13 +608,10 @@
               <button type="button" class="btn btn-sm" data-clear-ceiling="timeout" title="Back to the platform default">Reset</button>
             </div></div>
         </div>
-        <p class="field-sub" style="margin-top:-6px;">Ceilings: a launch can only go lower. Blank means the platform default.</p>
         <div class="field-row">
-          <div class="field"><label for="eng2-models">Allowed models</label>
-            <p class="field-sub">One per line: a model, or provider:* for all of a provider's.</p>
+          <div class="field"><label for="eng2-models">Allowed models<button type="button" class="info-tip" aria-label="More information" data-tip="One per line: a model, or provider:* for all of a provider&#x27;s."></button></label>
             <textarea id="eng2-models" rows="3" placeholder="anthropic:*&#10;openai:gpt-5.1&#10;local:*"></textarea></div>
-          <div class="field"><label for="eng2-model-prices">Model prices</label>
-            <p class="field-sub">model=input,output in USD per million tokens. Needed for OpenAI budgets.</p>
+          <div class="field"><label for="eng2-model-prices">Model prices<button type="button" class="info-tip" aria-label="More information" data-tip="model=input,output in USD per million tokens. Needed for OpenAI budgets."></button></label>
             <textarea id="eng2-model-prices" rows="3" placeholder="openai:gpt-5.1=1.25,10"></textarea></div>
         </div>
       </details>

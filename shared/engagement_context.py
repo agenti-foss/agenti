@@ -75,7 +75,6 @@ class Engagement:
     client: str
     authorizing_party: str            # named person who authorized the test
     authorizing_title: str            # their authority to authorize it
-    authorization_ref: str            # signed SOW / RoE document reference
     valid_from: str                   # ISO date, e.g. "2026-06-15"
     valid_until: str                  # ISO date, e.g. "2026-06-22"
     in_scope: list[str]               # exact assets that may be assessed
@@ -159,7 +158,6 @@ ENGAGEMENT
   ID:            {eng.engagement_id}
   Client:        {eng.client}
   Authorized by: {eng.authorizing_party} ({eng.authorizing_title})
-  Reference:     {eng.authorization_ref}
   Valid window:  {eng.valid_from} to {eng.valid_until} (UTC)
   Escalation:    {eng.emergency_contact or "(set emergency_contact)"}
 
@@ -234,7 +232,6 @@ IMPORTANT
 #     "client":            "Acme Corp",
 #     "authorizing_party": "Jane Okafor",
 #     "authorizing_title": "CISO, signatory on the SOW",
-#     "authorization_ref": "SOW-ACME-2026-03 / RoE v1.1",
 #     "valid_from":        "2026-03-01",            # ISO dates, from <= until
 #     "valid_until":       "2026-03-14",
 #     "emergency_contact": "soc@acme.example",
@@ -280,12 +277,18 @@ MODEL_ALIASES: dict[str, str] = model_registry.CLAUDE_ALIASES
 
 _RECORD_FIELDS: tuple[str, ...] = (
     "engagement_id", "client", "authorizing_party", "authorizing_title",
-    "authorization_ref", "valid_from", "valid_until", "emergency_contact",
+    "authorization_ref",  # legacy: accepted, never required (LEGACY_RECORD_FIELDS)
+    "valid_from", "valid_until", "emergency_contact",
     "notes", "capture_payloads", "retention_days", "redact", "scope",
     "enabled_capabilities", "exploitation_enabled", "policy",
 )
 _REQUIRED_TEXT: tuple[str, ...] = (
-    "client", "authorizing_party", "authorizing_title", "authorization_ref")
+    "client", "authorizing_party", "authorizing_title")
+# Retired 2026-11-07 (operator note: the "Reference" box confused more than
+# it helped). A record saved before keeps the value, unseen and unsettable,
+# so its digest — and the approval bound to it — stays valid; the next save
+# drops it (engagement_store._merged_record).
+LEGACY_RECORD_FIELDS: tuple[str, ...] = ("authorization_ref",)
 
 # Operational policy — caps, model allow-list, model prices — living in the
 # SAME organisation record the operator edits scope in (CLAUDE.md "Current
@@ -553,6 +556,10 @@ def normalize_record(data: Any) -> dict:
             f"valid_from ({out['valid_from']}) is after valid_until ({out['valid_until']})")
     out["emergency_contact"] = _text(data, "emergency_contact", required=False)
     out["notes"] = _text(data, "notes", required=False)
+    for name in LEGACY_RECORD_FIELDS:
+        legacy = _text(data, name, required=False)
+        if legacy:
+            out[name] = legacy
 
     cp = data.get("capture_payloads", False)
     if not isinstance(cp, bool):
@@ -644,7 +651,6 @@ def engagement_from_record(record: dict, scope_kind: str) -> Engagement:
     return Engagement(
         engagement_id=rec["engagement_id"], client=rec["client"],
         authorizing_party=rec["authorizing_party"], authorizing_title=rec["authorizing_title"],
-        authorization_ref=rec["authorization_ref"],
         valid_from=rec["valid_from"], valid_until=rec["valid_until"],
         in_scope=list(part["in_scope"]), out_of_scope=list(part["out_of_scope"]),
         emergency_contact=rec["emergency_contact"], notes=rec["notes"],
@@ -1012,7 +1018,6 @@ if __name__ == "__main__":
         "client": "EIS Ltd.",
         "authorizing_party": "Jane Okafor",
         "authorizing_title": "CISO, authorized signatory on the SOW",
-        "authorization_ref": "SOW-EIS-2026-06 / RoE v1.2",
         "valid_from": "2026-06-15",
         "valid_until": "2026-06-22",
         "emergency_contact": "soc@eis.example +44 20 7946 0000",

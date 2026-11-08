@@ -56,7 +56,7 @@ def refuses(label, fn, *needle):
 def base(**over) -> dict:
     d = {
         "engagement_id": "ACME-01", "client": "Acme", "authorizing_party": "Jane Doe",
-        "authorizing_title": "CISO", "authorization_ref": "SOW-1",
+        "authorizing_title": "CISO",
         "valid_from": "2026-01-01", "valid_until": "2026-12-31",
         "emergency_contact": "soc@acme.example", "notes": "",
         "scope": {"cidr": {"in_scope": ["10.0.0.0/24 (lab)"], "out_of_scope": ["10.0.5.0/24 (payroll)"]},
@@ -189,7 +189,7 @@ try:
     check("cidr view out_of_scope", cidr_eng.out_of_scope, ["10.0.5.0/24 (payroll)"])
     check("domain view in_scope", dom_eng.in_scope, ["acme.example (web)"])
     check("domain view never sees the CIDR", "10.0.0.0/24 (lab)" in dom_eng.in_scope + dom_eng.out_of_scope, False)
-    check("metadata carried into both views", (cidr_eng.client, dom_eng.authorization_ref), ("Acme", "SOW-1"))
+    check("metadata carried into both views", (cidr_eng.client, dom_eng.authorizing_party), ("Acme", "Jane Doe"))
     check("it is a real Engagement", isinstance(cidr_eng, ec.Engagement), True)
     prompt = ec.build_system_prompt(cidr_eng)
     check("build_system_prompt works on the view: its kind in, the other kind out", ("10.0.0.0/24 (lab)" in prompt and "acme.example (web)" not in prompt), True)
@@ -246,6 +246,23 @@ try:
     refuses("a stored (retired) require_approval:false no longer lets an unapproved record run",
             lambda: ec.load_engagement("cidr", org_dir=org_dir, require_approved=True), "not approved")
     (org_dir / ec.APPROVAL_FILENAME).unlink()
+
+    section("authorization_ref: retired 2026-11-07, an old record's approval survives")
+    legacy = {"engagement_id": "ACME-01", "client": "Acme", "authorizing_party": "Jane Doe",
+              "authorizing_title": "CISO", "authorization_ref": "SOW-1",
+              "valid_from": "2026-01-01", "valid_until": "2026-12-31",
+              "scope": {"cidr": {"in_scope": ["10.0.0.0/24 (lab)"], "out_of_scope": []},
+                        "domain": {"in_scope": [], "out_of_scope": []}}}
+    # Pinned: the digest 0.1.3's engagement_context gave this record. An
+    # upgrade must not turn every approved engagement into "changed since".
+    check("a record saved with a Reference keeps its pre-retirement digest",
+          ec.record_digest(legacy), "9eccf6321f6c7b4efa10b2564b5588442e8166202a1889f3790f6126e85a8765")
+    without = {k: v for k, v in legacy.items() if k != "authorization_ref"}
+    check("a record without one loads (no longer required)", "authorization_ref" in ec.normalize_record(without), False)
+    check("...and is a different authorization than the one with it",
+          ec.record_digest(without) != ec.record_digest(legacy), True)
+    check("an empty legacy value is dropped, not kept",
+          "authorization_ref" in ec.normalize_record(dict(legacy, authorization_ref="")), False)
 
     section("approval_status(): bound to content")
     rec = ec.normalize_record(base())
@@ -307,7 +324,7 @@ try:
     out = run("approve", "--by", "alice", expect=2)
     check("approve with no record refused, naming set", "set one first" in out["error"], True)
     core = ["--engagement-id", "BETA-01", "--client", "Beta Ltd", "--authorizing-party", "Sam Lee",
-            "--authorizing-title", "Head of Security", "--authorization-ref", "SOW-B-1",
+            "--authorizing-title", "Head of Security",
             "--valid-from", "2026-01-01", "--valid-until", "2026-12-31"]
     out = run("set", "--by", "alice", *core, expect=2)
     check("create with core fields but NO scope refused (authorizes nothing)", "authorizes nothing" in out["error"], True)
@@ -322,12 +339,23 @@ try:
     check("audit fields stamped", (on_disk["updated_by"], on_disk["updated_via"]), ("alice", "cli"))
     check("on-disk record validates", ec.normalize_record(on_disk)["scope"]["cidr"]["in_scope"], ["10.9.0.0/24 (dmz)"])
     d_created = out["digest"]
+    out = run("set", "--by", "alice", "--authorization-ref", "SOW-9", expect=2)
+    check("--authorization-ref is retired, with a sentence (not 'unknown argument')",
+          "retired" in out["error"] and "Nothing was changed" in out["error"], True)
 
     out = run("show", "--scope-kind", "domain")
     check("show: domain view unusable (no domain entries yet)", out["view"]["usable"], False)
     out = run("show", "--scope-kind", "cidr")
     check("show: cidr view usable with the entry", (out["view"]["usable"], out["view"]["in_scope"]), (True, ["10.9.0.0/24 (dmz)"]))
     check("show: digest matches set's", out["digest"], d_created)
+    # A record saved before the Reference was retired: the next save drops it.
+    old_style = json.loads(rec_path.read_text()); old_style["authorization_ref"] = "SOW-OLD"
+    rec_path.write_text(json.dumps(old_style))
+    check("an old record with a Reference still reads", run("show")["exists"], True)
+    run("set", "--by", "alice", "--notes", "after the Reference went")
+    check("...and the next save drops the field from the file",
+          "authorization_ref" in json.loads(rec_path.read_text()), False)
+    d_created = run("show")["digest"]
 
     out = run("approve", "--by", "alice", "--engagement-id", "WRONG", expect=2)
     check("approve with a mismatching --engagement-id refused, naming the real one", "BETA-01" in out["error"], True)
@@ -535,7 +563,7 @@ try:
                            capture_output=True, text=True)
         return json.loads(r.stdout)
     store("set", "--by", "t", "--engagement-id", "E1", "--client", "C", "--authorizing-party", "P",
-          "--authorizing-title", "T", "--authorization-ref", "R", "--valid-from", "2026-01-01",
+          "--authorizing-title", "T", "--valid-from", "2026-01-01",
           "--valid-until", "2027-01-01", "--cidr-in", "192.0.2.0/24", "--cidr-in", "10.1.0.0/16")
     r = store("agent-scope-set", "--agent", "enum", "--scope-kind", "cidr", "--by", "t",
               "--in", "192.0.2.31", "--out", "192.0.2.1")
@@ -615,7 +643,7 @@ try:
         return json.loads(f.read_text()) if f.exists() else None
 
     _core = ["--engagement-id", "P-01", "--client", "Pending Ltd", "--authorizing-party", "Sam",
-             "--authorizing-title", "CISO", "--authorization-ref", "SOW-P", "--valid-from", "2026-01-01",
+             "--authorizing-title", "CISO", "--valid-from", "2026-01-01",
              "--valid-until", "2026-12-31"]
 
     section("policy on, no engagement yet: the first one waits too")

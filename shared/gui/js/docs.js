@@ -288,11 +288,16 @@ document.addEventListener("DOMContentLoaded", () => {
     $("nav-back").after(dock);
   }
   const dockField = () => !!dockInput && getComputedStyle(dockInput).display !== "none";
+  let docked = null;
   function placeDock() {
     if (!bar) return;
     const gone = form.getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom;
     // While the docked field is in use it stays, even if the page moves.
     const on = gone || document.activeElement === dockInput;
+    // Only when it changes: writing attributes on every scroll frame made the
+    // browser restyle the bar each frame (operator note: scrolling felt slow).
+    if (on === docked) return;
+    docked = on;
     bar.classList.toggle("has-search", on);
     dock.setAttribute("aria-hidden", on ? "false" : "true");
     dock.querySelectorAll("button, input").forEach((c) => { c.tabIndex = on ? 0 : -1; });

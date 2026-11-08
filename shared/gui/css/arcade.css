@@ -404,3 +404,9 @@
 [data-skin="arcade"] .docs-search input[type=search]:focus { box-shadow: 2px 2px 0 var(--accent); }
 [data-skin="arcade"] .docs-empty, [data-skin="arcade"] .docs-hl { border: 2px solid var(--border-strong); border-radius: var(--radius-sm); }
 [data-skin="arcade"] .docs-clear { border-radius: var(--radius-sm); }
+
+/* (i) flyouts and the advisory banner card, in the skin's blocky style. */
+[data-skin="arcade"] .info-bubble { border-radius: var(--radius-sm); border-width: 2px; box-shadow: 3px 3px 0 var(--border-strong); }
+[data-skin="arcade"] .info-tip { border-width: 2px; border-radius: var(--radius-sm); }
+[data-skin="arcade"] .banner.banner-card { border-radius: var(--radius-sm); }
+[data-skin="arcade"] .banner-card > .banner-x { border-radius: var(--radius-sm); }

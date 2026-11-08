@@ -724,7 +724,7 @@ agenti — control surface for scoped AI agents
                                               every agent
   agenti engagement set --engagement-id <id> --client <name>
       --authorizing-party <name> --authorizing-title <title>
-      --authorization-ref <ref> --valid-from <YYYY-MM-DD> --valid-until <YYYY-MM-DD>
+      --valid-from <YYYY-MM-DD> --valid-until <YYYY-MM-DD>
       [--cidr-in <entry> ...] [--cidr-out <entry> ...] [--domain-in <entry> ...] [--domain-out <entry> ...]
       [--replace-scope cidr|domain] [--clear-scope cidr|domain]
       [--emergency-contact <text>] [--notes <text>] [--capture-payloads|--no-capture-payloads]

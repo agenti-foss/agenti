@@ -114,7 +114,7 @@ try:
     check("approval defers to the engagement check when the record is missing", (ok, "engagement check" in detail), (True, True))
 
     core = ["--engagement-id", "ACME-01", "--client", "Acme", "--authorizing-party", "Jane",
-            "--authorizing-title", "CISO", "--authorization-ref", "SOW-1",
+            "--authorizing-title", "CISO",
             "--valid-from", "2020-01-01", "--valid-until", "2099-12-31"]
     store("set", "--by", "alice", *core, "--cidr-in", "10.0.0.0/24 (lab)")
     ok, _, detail = run_check(preflight.check_engagement)

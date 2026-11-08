@@ -37,10 +37,8 @@
       <div class="panel">
         <h2 id="grid-heading">Which agent would you like to deploy?</h2>
         <div id="agent-grid" class="card-grid"></div>
-        <details class="disclosure" style="margin-top:var(--space-5);">
-          <summary>How this stays bounded</summary>
-          <p class="hint">Every agent uses reviewed tools. Scope and the tool allow-list are enforced outside the conversation.</p>
-        </details>
+        <p class="hint" style="margin-top:var(--space-5);">How this stays bounded<button type="button" class="info-tip" aria-label="How this stays bounded"
+          data-tip="Every agent uses reviewed tools. Scope and the tool allow-list are enforced outside the conversation, so nothing typed into it can widen them."></button></p>
       </div>
 
       <div class="panel" id="run-panel" hidden>
@@ -83,9 +81,8 @@
           </div>
 
           <div class="field">
-            <label for="run-instructions">Anything specific you want? <span class="hint">(optional)</span></label>
+            <label for="run-instructions">Anything specific you want? <span class="hint">(optional)</span><button type="button" class="info-tip" id="run-instructions-hint" aria-label="More information" data-tip="Steers what it tries — never what it may touch."></button></label>
             <textarea id="run-instructions" rows="2" placeholder="e.g. summarize the key totals"></textarea>
-            <p class="hint" id="run-instructions-hint">Steers what it tries — never what it may touch.</p>
           </div>
 
           <details class="disclosure" id="run-caps-disclosure">

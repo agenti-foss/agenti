@@ -958,7 +958,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // ---- the record <-> the form ----
     const FIELD_IDS = { engagement_id: "eng2-id", client: "eng2-client", authorizing_party: "eng2-party",
-      authorizing_title: "eng2-title", authorization_ref: "eng2-ref", valid_from: "eng2-from",
+      authorizing_title: "eng2-title", valid_from: "eng2-from",
       valid_until: "eng2-until", emergency_contact: "eng2-contact", notes: "eng2-notes" };
     const LIST_IDS = { "scope.cidr.in_scope": "eng2-cidr-in", "scope.cidr.out_of_scope": "eng2-cidr-out",
       "scope.domain.in_scope": "eng2-domain-in", "scope.domain.out_of_scope": "eng2-domain-out",
@@ -971,6 +971,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       $id("eng2-capture").checked = !!rec.capture_payloads;
       $id("eng2-exploitation-enabled").checked = !!(rec.exploitation_enabled || (rec.enabled_capabilities || []).includes("exploit"));
       $id("eng2-retention").value = rec.retention_days || 0;
+      // Exceptions fold away unless there are some: then they are shown.
+      $id("eng-exceptions").open = !!($id("eng2-cidr-out").value || $id("eng2-domain-out").value);
     }
     function fillPolicy(rec) {
       // Values: what the record itself sets (blank = the platform default);
@@ -1014,7 +1016,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       const ex = (r) => (r.enabled_capabilities || []).includes("exploit");
       if (ex(live) !== ex(prop)) show("enabled_capabilities", ex(live) ? "allowed" : "not allowed");
       if ((live.retention_days || 0) !== (prop.retention_days || 0)) show("retention_days", String(live.retention_days || 0));
-      if (engForm.querySelector("#eng-data-handling .changed")) $id("eng-data-handling").open = true;
+      for (const fold of ["eng-data-handling", "eng-exceptions"]) {
+        if (engForm.querySelector(`#${fold} .changed`)) $id(fold).open = true;
+      }
     }
 
     // ---- what the dialog says and offers ----
@@ -1183,7 +1187,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         client: $id("eng2-client").value.trim(),
         authorizing_party: $id("eng2-party").value.trim(),
         authorizing_title: $id("eng2-title").value.trim(),
-        authorization_ref: $id("eng2-ref").value.trim(),
         valid_from: $id("eng2-from").value,
         valid_until: $id("eng2-until").value,
         cidr_in: engLinesOf("eng2-cidr-in"),
@@ -1495,7 +1498,8 @@ document.addEventListener("DOMContentLoaded", async function () {
           vState.innerHTML = `<p>The vault is off, but this server's disk is encrypted (full-disk encryption), so the data is encrypted at rest. You can still add the vault.</p>`;
         } else {
           vState.innerHTML = "";
-          Agenti.banner(vBanner, "warn", "Data from agents is currently not encrypted: reports, scans, attached files and the API key are plain files on this server's disk.");
+          Agenti.banner(vBanner, "warn", "");
+          vBanner.innerHTML = "<strong>Data from agents is currently not encrypted.</strong> Reports, scans, attached files and the API key are plain files on this server's disk.";
           await Agenti.dismissibleBanner(vBanner, "vault-unencrypted");
         }
       } catch (err) {

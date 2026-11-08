@@ -173,7 +173,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     runVia.textContent = filesKind
       ? `Analyses the files you attach, in a sandbox with no network.`
       : `Runs the ${agentInfo.agent} agent, inside its own bounded scope.`;
-    instructionsHint.textContent = filesKind ? "Tell it what to look for — it can only analyse the files you attach."
+    instructionsHint.dataset.tip = filesKind ? "Tell it what to look for — it can only analyse the files you attach."
       : "Steers what it tries — never what it may touch.";
     targetField.hidden = filesKind;
     runTargetInput.required = !filesKind;
@@ -315,9 +315,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       ceilingInfo.innerHTML = outs ? `Excluded from scope: ${outs}` : "";
       if (!st.current) {
         // Dismissible: a run would still be refused, with a clear message.
-        Agenti.banner(ceilingBanner, "warn", st.approved
-          ? "This engagement was changed since it was last approved — an admin approves it in Settings → Engagement before a run can start."
-          : `This engagement has not been approved yet — an admin approves it in Settings → Engagement before a run can start.${st.reason ? ` (${st.reason})` : ""}`);
+        Agenti.banner(ceilingBanner, "warn", "");
+        ceilingBanner.innerHTML = st.approved
+          ? "<strong>The engagement changed since it was approved.</strong> An admin approves it in Settings → Engagement before a run can start."
+          : `<strong>The engagement isn't approved yet.</strong> An admin approves it in Settings → Engagement before a run can start.${st.reason ? ` (${esc(st.reason)})` : ""}`;
         await Agenti.dismissibleBanner(ceilingBanner, "engagement-not-approved");
       } else if (data.pending) {
         Agenti.banner(ceilingBanner, "warn",
@@ -432,7 +433,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     runVia.textContent = selected.length < 2
       ? "Pick at least one more agent — a team needs more than one member."
       : "Each agent still only runs its own tools inside its own scope; a team changes how they talk to each other, never what any one of them is allowed to do.";
-    instructionsHint.textContent = "Posted to the shared channel once the project starts — every member sees it.";
+    instructionsHint.dataset.tip = "Posted to the shared channel once the project starts — every member sees it.";
     teamRoster.hidden = false;
     memberModels.clear();
     teamRoster.innerHTML = selected.map((a) => `
@@ -486,7 +487,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     // roster's own target banks just made, when kinds match.
     runTurnsInput.value = ""; runBudgetInput.value = ""; runTimeoutInput.value = "";
     paintModelAndCaps(selected[0].agent, selected[0].scope_kind);
-    runPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    // No scroll here, unlike a single run: picking a team member keeps you
+    // at the agent cards so you can pick the next one (operator note 2026-11-07).
   }
 
   function setMode(m) {

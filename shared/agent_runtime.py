@@ -1852,7 +1852,6 @@ def report_header(*, title: str, engagement, status: str, agent_name: str,
         f"**Client:** {engagement.client}",
         f"**Authorized by:** {engagement.authorizing_party} "
         f"({engagement.authorizing_title})",
-        f"**Authorization ref:** {engagement.authorization_ref}",
         f"**Engagement window:** {engagement.valid_from} .. {engagement.valid_until}",
         f"**Scope authorized (ceiling):** "
         f"{', '.join(e.split()[0] for e in engagement.in_scope)}",
