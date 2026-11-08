@@ -778,7 +778,9 @@ const Agenti = (() => {
   // 2026-11-06. Delegated, so fold-outs added later get it too. Instant when
   // the person asked for reduced motion, and inside the live console and the
   // team chat, where a step list should simply appear.
-  const FOLD_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+  // A soft start and a long settle: smoother than a front-loaded ease-out,
+  // which spent most of the motion in its first few frames.
+  const FOLD_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
   // The scroll position moves WITH the fold, every frame (operator note
   // 2026-11-08). Opening: the view glides down so the section's end comes
   // into sight as it grows, but never far enough to push its own title off
@@ -827,12 +829,25 @@ const Agenti = (() => {
     const going = det._anim ? det._closing : !det.open;     // a second click reverses it
     const startH = det.getBoundingClientRect().height;
     if (det._anim) { det._anim.cancel(); det._anim = null; }
+    // Measuring the closed height means closing the section for an instant,
+    // and that instant is enough for Safari to clamp the scroll position to
+    // the shorter page: closing a fold low in a scrolled box jumped to the
+    // top in one frame and the motion ran out of sight (operator video
+    // 2026-11-08). Put the scroll position back once it is open again.
+    const sc = scrollParent(det);
+    const keepTop = sc.scrollTop;
     det.style.height = "";
     det.open = true;
     const openH = det.getBoundingClientRect().height;
     det.open = false;
     const closedH = det.getBoundingClientRect().height;
     det.open = true;
+    if (sc.scrollTop !== keepTop) {
+      const prev = sc.style.scrollBehavior;
+      sc.style.scrollBehavior = "auto";
+      sc.scrollTop = keepTop;
+      sc.style.scrollBehavior = prev;
+    }
     const endH = going ? openH : closedH;
     det._closing = !going;
     // overflow:hidden lets a flex column (most forms here are .stack) squeeze
@@ -840,7 +855,8 @@ const Agenti = (() => {
     // the end (operator note 2026-11-07: "glitches and flashes"). Never shrink.
     det.style.overflow = "hidden";
     det.style.flexShrink = "0";
-    const duration = Math.round(Math.min(320, 170 + Math.abs(endH - startH) * 0.12));
+    // Unhurried, and a closing fold only a little quicker than an opening one.
+    const duration = Math.round(Math.min(480, 280 + Math.abs(endH - startH) * 0.15) * (going ? 1 : 0.85));
     const anim = det.animate([{ height: `${startH}px` }, { height: `${endH}px` }], { duration, easing: FOLD_EASE });
     det._anim = anim;
     for (const kid of det.children) {
@@ -849,7 +865,7 @@ const Agenti = (() => {
       kid._fade = kid.animate(going
         ? [{ opacity: 0, transform: "translateY(-6px)" }, { opacity: 1, transform: "none" }]
         : [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-6px)" }],
-        { duration: going ? duration : Math.round(duration * 0.7), easing: FOLD_EASE, fill: "forwards" });
+        { duration: going ? duration : Math.round(duration * 0.75), easing: FOLD_EASE, fill: "forwards" });
     }
     followFold(det, anim, going);
     // The fades hold their last frame until the fold itself is done, so a
