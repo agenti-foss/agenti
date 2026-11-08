@@ -484,13 +484,32 @@ class ChangePasswordRequest(BaseModel):
     new: ArgValue
     totp: Optional[ArgValue] = None
     reauth: Optional[ReauthToken] = None
+    # From /auth/password/start: the page re-authenticates first, then shows
+    # the new-password box (operator note 2026-11-08, like 2FA set-up).
+    grant: Optional[ArgValue] = None
+
+
+class PasswordStartRequest(BaseModel):
+    current: Optional[ArgValue] = None
+    totp: Optional[ArgValue] = None
+    reauth: Optional[ReauthToken] = None
+
+
+@app.post("/auth/password/start")
+def change_password_start(body: PasswordStartRequest, request: Request,
+                          caller: Caller = Depends(authenticated())) -> dict:
+    """Re-authenticate before the new password is chosen. Writes nothing;
+    returns a single-use grant for one password change of this account."""
+    return _call("admin", "self", "password-start", caller.principal, *_self_proof(body),
+                 "--addr", _client_addr(request))
 
 
 @app.post("/auth/password")
 def change_password(body: ChangePasswordRequest, request: Request,
                     caller: Caller = Depends(authenticated())) -> dict:
-    args = ["admin", "self", "password", caller.principal, *_self_proof(body),
-            "--new", body.new, "--addr", _client_addr(request)]
+    proof = [f"--grant={body.grant}"] if body.grant else _self_proof(body)
+    args = ["admin", "self", "password", caller.principal, *proof,
+            f"--new={body.new}", "--addr", _client_addr(request)]
     return _call(*args)
 
 

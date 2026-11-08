@@ -58,7 +58,11 @@
           <div class="panel">
             <h2 class="ih" data-icon="key">Password</h2>
             <div id="pw-banner" class="banner err"></div>
-            <form id="password-form" class="stack">
+            <!-- Re-authenticate first; only then the new-password box (like 2FA). -->
+            <div id="pw-start-panel">
+              <button type="button" class="btn btn-primary" id="pw-start-btn" data-icon="key">Change password</button>
+            </div>
+            <form id="password-form" class="stack" hidden>
               <!-- For password managers: a new password for this account. -->
               <input type="text" id="pw-username" name="username" autocomplete="username"
                      class="sr-only" tabindex="-1" aria-hidden="true" readonly>
@@ -66,7 +70,10 @@
                 <label for="pw-new">New password</label>
                 <input type="password" id="pw-new" name="new-password" autocomplete="new-password" required>
               </div>
-              <button type="submit" class="btn btn-primary" data-icon="key">Change password</button>
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary" data-icon="check">Save new password</button>
+                <button type="button" class="btn" id="pw-cancel-btn">Cancel</button>
+              </div>
             </form>
           </div>
 

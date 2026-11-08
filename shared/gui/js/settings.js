@@ -264,35 +264,75 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   // ---------- password change ----------
-  // The current password (+ 2FA code, if enrolled) is collected by the ONE
-  // universal admin-authentication popup (Agenti.requireApproval — api.js),
-  // not fields embedded in this form. requireCode reflects what we already
-  // know about this account (me.totp_enrolled) rather than reactively
-  // revealing a field after a first attempt is refused for missing one.
-  // The box comes filled with a generated password (password-gen.js).
+  // Like 2FA set-up (operator note 2026-11-08): only a "Change password"
+  // button until you've confirmed it's you in the ONE popup
+  // (Agenti.requireApproval). That re-authentication mints a single-use,
+  // two-minute grant server-side (`self password-start`); then the box
+  // appears, filled with a generated password (password-gen.js), and saving
+  // spends the grant. A too-short or unchanged password is refused without
+  // spending it, so it can be fixed in place.
   const pwForm = document.getElementById("password-form");
   const pwBanner = document.getElementById("pw-banner");
+  const pwStartPanel = document.getElementById("pw-start-panel");
+  const pwStartBtn = document.getElementById("pw-start-btn");
   document.getElementById("pw-username").value = me.user || "";
   const pwGen = AgentiPassword.attach(document.getElementById("pw-new"));
+  let pwGrant = null, pwTimer = null;
+  function closePasswordForm() {
+    clearTimeout(pwTimer);
+    pwGrant = null;
+    pwGen.hide();
+    pwForm.hidden = true;
+    pwStartPanel.hidden = false;
+  }
+  pwStartBtn.addEventListener("click", async () => {
+    pwBanner.className = "banner";
+    const r = await Agenti.requireApproval({
+      title: "Change password",
+      description: "Confirm it's you, then choose your new password.",
+      submit: (creds) => Agenti.post("auth/password/start",
+        { current: creds.password || undefined, totp: creds.totp || undefined, reauth: creds.reauth }),
+    });
+    if (!r) return; // cancelled — nothing changed
+    pwGrant = r.grant;
+    pwGen.regenerate();
+    pwStartPanel.hidden = true;
+    pwForm.hidden = false;
+    pwForm.querySelector("button[type=submit]").focus();
+    clearTimeout(pwTimer);
+    pwTimer = setTimeout(() => {
+      closePasswordForm();
+      Agenti.banner(pwBanner, "warn", "For your security, that closed after 2 minutes. Press Change password to start again.");
+    }, Math.max(10, (r.expires_in || 120) - 2) * 1000);
+  });
+  document.getElementById("pw-cancel-btn").addEventListener("click", () => {
+    pwBanner.className = "banner";
+    closePasswordForm();
+    pwStartBtn.focus();
+  });
   pwForm.addEventListener("submit", async function (e) {
     e.preventDefault();
     pwBanner.className = "banner";
     const problem = pwGen.check();
     if (problem) { Agenti.banner(pwBanner, "err", problem); return; }
-    const newPassword = pwGen.value;
+    if (!pwGrant) { closePasswordForm(); return; }
     const btn = pwForm.querySelector("button[type=submit]");
     btn.disabled = true;
     try {
-      const r = await Agenti.requireApproval({
-        title: "Change password",
-        description: "Confirm it's you to set your new password.",
-        submit: (creds) => Agenti.post("auth/password",
-          { current: creds.password || undefined, new: newPassword, totp: creds.totp || undefined, reauth: creds.reauth }),
-      });
-      if (!r) return; // cancelled — nothing changed
+      await Agenti.post("auth/password", { new: pwGen.value, grant: pwGrant });
+      clearTimeout(pwTimer);
       await pwGen.saved(me.user);
       Agenti.banner(pwBanner, "ok", "Password changed. Signing you out — log back in with the new one.");
       setTimeout(() => { Agenti.clearAuth(); location.href = "login.html"; }, 1600);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      // A spent or expired grant can't be retried: back to the button.
+      if (/approval grant/i.test(msg)) {
+        closePasswordForm();
+        Agenti.banner(pwBanner, "err", "That confirmation has expired. Press Change password to confirm it's you again.");
+      } else {
+        Agenti.banner(pwBanner, "err", msg);
+      }
     } finally {
       btn.disabled = false;
     }

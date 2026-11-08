@@ -1525,6 +1525,37 @@ check("a real admin grant disables, naming the approver", (out["active"], out["a
 check("...and the account is disabled",
       conn.execute("SELECT active FROM principals WHERE name='wep-target'").fetchone()[0], 0)
 
+section("change_own_password_with_grant — re-authenticate first, then choose "
+        "(operator note 2026-11-08)")
+iam.add_principal(conn, "cpg-user", "user", "test")
+iam.set_principal_password(conn, "cpg-user", "first-password-123")
+pg = iam.mint_action_grant(rt, "cpg-user", iam.password_change_action("cpg-user"))
+try:
+    iam.change_own_password_with_grant(conn, rt, "cpg-user", pg, "short")
+    check("a too-short new password is refused", False, True)
+except iam.IAMError:
+    check("a too-short new password is refused", True, True)
+try:
+    iam.change_own_password_with_grant(conn, rt, "cpg-user", pg, "first-password-123")
+    check("the current password again is refused", False, True)
+except iam.IAMError as e:
+    check("the current password again is refused", "different" in str(e), True)
+other = iam.mint_action_grant(rt, "cpg-user", iam.password_change_action("someone-else"))
+try:
+    iam.change_own_password_with_grant(conn, rt, "cpg-user", other, "second-password-456")
+    check("a grant for another account is refused", False, True)
+except iam.IAMError:
+    check("a grant for another account is refused", True, True)
+iam.change_own_password_with_grant(conn, rt, "cpg-user", pg, "second-password-456")
+check("...the refusals did not spend the grant: the fixed password is set",
+      iam.verify_password("second-password-456",
+                          conn.execute("SELECT password_hash FROM principals WHERE name='cpg-user'").fetchone()[0]), True)
+try:
+    iam.change_own_password_with_grant(conn, rt, "cpg-user", pg, "third-password-789")
+    check("the grant works once", False, True)
+except iam.IAMError as e:
+    check("the grant works once", "already used" in str(e), True)
+
 section("reset_principal_password / reset_principal_mfa — global-admin-only, "
        "deliberately two separate jobs (the operator's own explicit ask)")
 iam.add_principal(conn, "rpp-target", "user", "test")

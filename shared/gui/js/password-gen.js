@@ -8,6 +8,11 @@
 //   pw.value            -> the password
 //   pw.saved(username)  -> after a successful save: ask the browser to store it
 //
+// Shown, the password wraps onto as many lines as it needs, so all 64
+// characters are visible at once (operator note 2026-11-08): a textarea
+// mirrors the input while shown; the input stays the form's real field, so
+// password managers keep seeing an ordinary new-password box.
+//
 // The box holds three icons: show/hide, copy, and a gear that opens a small
 // panel with a length slider (16–64, starting at 64) and a "new password"
 // button. Under it: "Secure password auto generated". Typing your own turns
@@ -82,6 +87,22 @@ window.AgentiPassword = (() => {
     input.spellcheck = false;
     input.classList.add("pw-input");
 
+    // The wrapped view while shown. Not a form field of its own (no name),
+    // labelled by the same <label> through aria-labelledby on the input's id.
+    const wrap = document.createElement("textarea");
+    wrap.className = "pw-input pw-wrap";
+    wrap.rows = 1;
+    wrap.hidden = true;
+    wrap.spellcheck = false;
+    wrap.autocomplete = "off";
+    wrap.setAttribute("autocapitalize", "off");
+    wrap.setAttribute("autocorrect", "off");
+    if (input.id) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+      if (lbl) { if (!lbl.id) lbl.id = `${id}-label`; wrap.setAttribute("aria-labelledby", lbl.id); }
+    }
+    box.appendChild(wrap);
+
     const actions = document.createElement("div");
     actions.className = "pw-actions";
     actions.innerHTML = `
@@ -132,14 +153,38 @@ window.AgentiPassword = (() => {
       confirmField.hidden = !own;
       if (!own) again.value = "";
     }
+    // Grow the wrapped view to fit every line; one line matches the input's
+    // own height, so showing a short password doesn't make the box jump.
+    function fit() {
+      if (wrap.hidden) return;
+      wrap.style.minHeight = `${box.dataset.oneLine || 0}px`;
+      wrap.style.height = "auto";
+      wrap.style.height = `${wrap.scrollHeight + (wrap.offsetHeight - wrap.clientHeight)}px`;
+    }
     function fill() {
       generated = generate(length);
       input.value = generated;
+      wrap.value = generated;
+      fit();
       paint();
       if (opts.onChange) opts.onChange();
     }
     function setShown(on) {
-      input.type = on ? "text" : "password";
+      const hadFocus = document.activeElement === input || document.activeElement === wrap;
+      if (on) {
+        box.dataset.oneLine = String(input.offsetHeight || 0);
+        box.style.setProperty("--pw-one-line", `${input.offsetHeight || 40}px`);
+        wrap.value = input.value;
+      }
+      // A hidden required field would block the form with nothing to point at:
+      // the visible box carries "required" while shown.
+      if (on) { wrap.required = input.required; input.required = false; }
+      else if (wrap.required) { input.required = true; wrap.required = false; }
+      input.hidden = on;
+      wrap.hidden = !on;
+      box.classList.toggle("shown", on);
+      fit();
+      if (hadFocus) (on ? wrap : input).focus();
       again.type = on ? "text" : "password";
       showBtn.innerHTML = Agenti.icon(on ? "eye-off" : "eye", 16);
       showBtn.setAttribute("aria-label", on ? "Hide password" : "Show password");
@@ -151,7 +196,20 @@ window.AgentiPassword = (() => {
       if (open) slider.focus();
     }
 
-    showBtn.addEventListener("click", () => setShown(input.type === "password"));
+    showBtn.addEventListener("click", () => setShown(wrap.hidden));
+    // The wrapped view edits the real field: one line, no newlines, Enter submits.
+    wrap.addEventListener("input", () => {
+      const flat = wrap.value.replace(/[\r\n]+/g, "");
+      if (flat !== wrap.value) wrap.value = flat;
+      input.value = flat;
+      fit();
+      paint();
+    });
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); if (input.form) input.form.requestSubmit(); }
+    });
+    input.addEventListener("input", () => { wrap.value = input.value; });
+    window.addEventListener("resize", fit);
     gearBtn.addEventListener("click", () => setPanel(panel.hidden));
     slider.addEventListener("input", () => {
       length = parseInt(slider.value, 10);
@@ -172,6 +230,7 @@ window.AgentiPassword = (() => {
       get value() { return input.value; },
       get generated() { return input.value === generated; },
       regenerate: fill,
+      hide() { setShown(false); setPanel(false); },
       check() {
         const n = [...input.value].length;           // characters, as the server counts them
         if (n < MIN_TYPED) return `Use at least ${MIN_TYPED} characters.`;

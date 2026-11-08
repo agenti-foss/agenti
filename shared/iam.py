@@ -2816,6 +2816,32 @@ def consume_reauth_token(runtime, token: str, principal: str) -> None:
     consume_action_grant(runtime, token, _reauth_action(principal))
 
 
+def password_change_action(principal: str) -> dict:
+    """What `self password-start` approves: one password change for exactly
+    this account. The new password is chosen AFTER the re-authentication (the
+    page shows its box only then, like 2FA set-up), so it is not in the hash;
+    the grant is single-use, short-lived and bound to the account."""
+    return {"op": "password-change", "principal": principal}
+
+
+def change_own_password_with_grant(conn, runtime, name: str, grant_id: str,
+                                   new_password: str) -> int:
+    """Spend a `password-start` grant on a new password for `name`. Checks the
+    new password BEFORE spending the grant, so a too-short or unchanged one
+    can be fixed and sent again within the same two minutes."""
+    check_password_length(new_password)
+    row = conn.execute("SELECT password_hash FROM principals WHERE name=?",
+                       (name,)).fetchone()
+    if row is None:
+        raise IAMError(f"no user named '{name}'")
+    if verify_password(new_password, row["password_hash"]):
+        raise IAMError("the new password must be different from the current one")
+    approver = consume_action_grant(runtime, grant_id, password_change_action(name))
+    if approver != name:
+        raise IAMError("this grant was not issued for this account")
+    return set_principal_password(conn, name, new_password, runtime=runtime)
+
+
 def consume_action_grant(runtime, grant_id: str, action: dict) -> str:
     """Burn a grant and return the principal who approved it. Single use,
     time-limited, and refused outright if the action being performed is not
@@ -3466,8 +3492,19 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             "account page")
     ss = p.add_subparsers(dest="sub", required=True)
 
+    q = ss.add_parser("password-start", allow_abbrev=False, help="prove it's you before choosing a "
+                      "new password: writes NOTHING, returns a single-use grant "
+                      f"(valid {ACTION_GRANT_TTL_S}s) that 'self password --grant' spends")
+    q.add_argument("name")
+    q.add_argument("--current", default="", help="your CURRENT password (or --reauth)")
+    q.add_argument("--reauth", default="", help="a passkey re-authentication token (instead of --current/--totp)")
+    q.add_argument("--totp", help="a current 2FA code (or recovery code) — required if 2FA is enrolled")
+    q.add_argument("--addr", default="")
+
     q = ss.add_parser("password", allow_abbrev=False, help="change your own password")
     q.add_argument("name")
+    q.add_argument("--grant", default="", help="the grant 'self password-start' returned "
+                   "(instead of --current/--totp/--reauth)")
     q.add_argument("--current", default="", help="your CURRENT password (or --reauth)")
     q.add_argument("--reauth", default="", help="a passkey re-authentication token (instead of --current/--totp)")
     q.add_argument("--new", required=True)
@@ -3913,11 +3950,22 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                                f"created at install; recreate it with: "
                                f"sudo dpkg-reconfigure agenti")
             try:
-                if a.sub == "password":
+                if a.sub == "password-start":
                     _self_reauth(conn, rt, a)
-                    if a.current and a.current == a.new:
-                        raise IAMError("the new password must be different from the current one")
-                    revoked = set_principal_password(conn, a.name, a.new, runtime=rt)
+                    gid = mint_action_grant(rt, a.name, password_change_action(a.name))
+                    return emit({"principal": a.name, "grant": gid,
+                                 "expires_in": ACTION_GRANT_TTL_S},
+                                [f"  ✓ confirmed it's you. Within {ACTION_GRANT_TTL_S}s run:",
+                                 f"    agenti admin self password {a.name} --grant={gid} --new=…"])
+
+                if a.sub == "password":
+                    if a.grant:
+                        revoked = change_own_password_with_grant(conn, rt, a.name, a.grant, a.new)
+                    else:
+                        _self_reauth(conn, rt, a)
+                        if a.current and a.current == a.new:
+                            raise IAMError("the new password must be different from the current one")
+                        revoked = set_principal_password(conn, a.name, a.new, runtime=rt)
                     return emit({"principal": a.name, "password_set": True,
                                 "sessions_revoked": revoked},
                                [f"  ✓ password changed for '{a.name}'",

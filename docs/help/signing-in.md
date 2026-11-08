@@ -47,6 +47,12 @@ so a session someone else might hold can never outlive the old credentials.
 Removing a passkey counts too: it is what you do when one is lost. Sign in again
 with the new details.
 
+**How do I change my password?** Settings → Security → *Change password*.
+Confirm it's you first (your password and a 2FA code, or a passkey); then the box
+appears, already filled with a strong generated password. The eye shows it in
+full, wrapped onto as many lines as it needs. Press *Save new password* within
+two minutes of confirming; after that the box closes and you confirm again.
+
 **My password-reset link stopped working.** A link works once, for one day, and
 only for the account it was made for. It also ends when an admin sends a newer
 one, when the password is changed another way, or when the account is renamed.

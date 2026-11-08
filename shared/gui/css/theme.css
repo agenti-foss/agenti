@@ -2795,6 +2795,16 @@ mark.docs-mark {
   position: absolute; top: 50%; right: 5px; transform: translateY(-50%);
   display: flex; align-items: center; gap: 2px;
 }
+/* Shown, the password wraps: every character visible, broken anywhere (it is
+ * one word), in the same mono face; the icons sit on its first line. */
+.field .pw-box > textarea.pw-wrap {
+  display: block; width: 100%; max-width: none; padding-right: 116px; resize: none; overflow: hidden;
+  font-family: var(--mono); letter-spacing: 0.02em; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.pw-box.shown .pw-actions { top: calc((var(--pw-one-line, 40px) - 34px) / 2); transform: none; }
+@media (prefers-reduced-motion: reduce) { .field .pw-box > textarea.pw-wrap { transition: none; } }
 .pw-btn, .pw-actions button.copy-btn {
   width: 34px; height: 34px; min-height: 0; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); box-shadow: none; cursor: pointer;
