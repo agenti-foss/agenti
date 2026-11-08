@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """test_preflight.py — shared/preflight.py's engagement, approval and
-immutability checks against the organisation engagement record (CLAUDE.md
+immutability checks against the organization engagement record (CLAUDE.md
 "Current plan", phase 1 of the cybersecurity refocus), plus the
 manifest-driven exemption from phase 5 of the generic-launcher arc.
 
@@ -105,7 +105,7 @@ try:
     check("an unknown scope class -> None (no engagement kind)", preflight.agent_scope_kind(), None)
     (master_dir / "capabilities.json").write_text(json.dumps({"scope_kind": "CIDRScope"}))
 
-    section("check_engagement(): a run against the organisation record")
+    section("check_engagement(): a run against the organization record")
     ok, _, detail = run_check(preflight.check_engagement)
     check("no engagement record: FAILS", ok, False)
     check("...naming the set command and the GUI page",

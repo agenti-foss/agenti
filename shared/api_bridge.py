@@ -6,7 +6,7 @@ Until audit run 1 agenti-api's sudo rule allowed /usr/bin/agenti with any
 arguments, and every verb had to remember to refuse it. Several did not
 (`<agent> logs` passing options to journalctl, `export` to any folder, a
 trailing --help reaching `vault`, set-key, account creation with the admin
-role ...), and every password a user typed into an enrolment or reset link
+role ...), and every password a user typed into an enrollment or reset link
 was written by sudo into the system journal, because it was on the command
 line (F10-F17, N05).
 

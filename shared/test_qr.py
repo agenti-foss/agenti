@@ -134,7 +134,7 @@ section("version selection and capacity")
 check("1 byte -> version 1", (len(qr.encode("a")) - 17) // 4, 1)
 check("14 bytes fit version 1 at M", (len(qr.encode("a" * 14, "M")) - 17) // 4, 1)
 check("15 bytes need version 2 at M", (len(qr.encode("a" * 15, "M")) - 17) // 4, 2)
-check("min_version is honoured", (len(qr.encode("a", min_version=5)) - 17) // 4, 5)
+check("min_version is honored", (len(qr.encode("a", min_version=5)) - 17) // 4, 5)
 check("version 40 at L holds 2953 bytes", (len(qr.encode("a" * 2953, "L")) - 17) // 4, 40)
 try:
     qr.encode("a" * 2954, "L"); check("2954 bytes at L refused", False, True)

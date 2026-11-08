@@ -38,7 +38,7 @@ check("plain LVM under /dev/mapper is NOT taken for encryption", de.status("/x")
 scripted("/dev/mapper/vg-root", ["lvm", "crypt", "part", "disk"])
 check("LVM on LUKS (full-disk encryption) is encrypted", de.status("/x")["how"], "full-disk")
 scripted("/dev/mapper/agenti_vault", ["crypt", "loop"], mapper="agenti_vault")
-check("the Agenti vault is recognised as the vault", de.status("/x")["how"], "vault")
+check("the Agenti vault is recognized as the vault", de.status("/x")["how"], "vault")
 scripted("tmpfs", [])
 check("a source that is not a block device: unknown, not 'encrypted'",
       (de.status("/x")["encrypted"], de.status("/x")["how"]), (None, "unknown"))

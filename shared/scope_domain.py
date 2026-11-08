@@ -74,7 +74,7 @@ class DomainCeiling(list):
     """The allowed domains, plus the `excluded` ones that are never in scope
     even under an allowed parent (engagement and per-agent out_of_scope). A
     list subclass, so every caller that treats a ceiling as a list of domains
-    keeps working; contains() and narrow() also honour `excluded`."""
+    keeps working; contains() and narrow() also honor `excluded`."""
 
     def __init__(self, domains=(), excluded=()):
         super().__init__(domains)
@@ -103,7 +103,7 @@ class DomainScope:
     def ceiling_from_engagement(self, engagement) -> list[str]:
         """The allowed domains, carrying the excluded ones (out_of_scope) with
         them. An exclusion that does not start with a domain refuses the run:
-        an exclusion that cannot be honoured must not be ignored."""
+        an exclusion that cannot be honored must not be ignored."""
         if not engagement.in_scope:
             sys.exit("REFUSING: in_scope is empty — nothing is authorized.")
         domains = []

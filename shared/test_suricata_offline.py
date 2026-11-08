@@ -149,7 +149,7 @@ rows = [
     {"event_type": "anomaly", "anomaly": {"event": "malformed_data"}},
 ]
 eve.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
-out = so.summarise(eve, console="i: pcap: read 1 file, 10171 packets, 962530 bytes\n", rules_note="rules from suricata-update")
+out = so.summarize(eve, console="i: pcap: read 1 file, 10171 packets, 962530 bytes\n", rules_note="rules from suricata-update")
 check("it says how much was read", out.splitlines()[0], "Suricata read 10,171 packets (962,530 bytes).")
 check("it states which rules were used", "Rules: rules from suricata-update." in out, True)
 check("alerts are counted and grouped by signature, most frequent first",
@@ -160,11 +160,11 @@ check("the total is stated", "Alerts: 3 (2 distinct)" in out, True)
 check("anomalies and event counts are listed", ("malformed_data x1" in out, "flow 2" in out, "dns 1" in out), (True, True, True))
 
 eve.write_text('{"event_type":"flow"}\nthis is not json\n[1,2]\n"str"\n')
-out = so.summarise(eve, console="", rules_note="")
-check("a damaged eve.json is summarised, not fatal", ("flow 1" in out, "1 unreadable line" in out), (True, True))
+out = so.summarize(eve, console="", rules_note="")
+check("a damaged eve.json is summarized, not fatal", ("flow 1" in out, "1 unreadable line" in out), (True, True))
 check("with no alerts it says so", "Alerts: none." in out, True)
-check("a missing eve.json is summarised, not fatal", so.summarise(tmp / "nope.json").startswith("Suricata ran."), True)
-check("a missing eve.json yields no event list", "Events by type" in so.summarise(None), False)
+check("a missing eve.json is summarized, not fatal", so.summarize(tmp / "nope.json").startswith("Suricata ran."), True)
+check("a missing eve.json yields no event list", "Events by type" in so.summarize(None), False)
 
 check("only warnings and errors are passed on from the console",
       so.warnings_only("i: noise\nW: threshold-config: Error opening file\nE: bad\nNotice: x\nC: fatal\n"),
@@ -215,7 +215,7 @@ else:
             and any(q.get("rrname") == "example.com" for q in e["dns"].get("queries", []))
             for e in events), True)
         check("...and a flow record", "flow" in kinds, True)
-        summary = so.summarise(outp / "eve.json", console=console, rules_note="test")
+        summary = so.summarize(outp / "eve.json", console=console, rules_note="test")
         check("the summary reads it back", ("1 packets" in summary, "dns 1" in summary, "flow 1" in summary),
               (True, True, True))
 

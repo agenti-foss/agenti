@@ -205,7 +205,7 @@ for flag, why in (("-c /etc/suricata/suricata.yaml", "the model must not choose 
                   ("--pcap", "live capture"),
                   ("-q 0", "inline mode"),
                   ("-F filter.bpf", "a BPF file"),
-                  ("-k none", "checksum behaviour is set in the config"),
+                  ("-k none", "checksum behavior is set in the config"),
                   ("--runmode workers", "runmode is not the model's"),
                   ("--unix-socket", "a control socket"),
                   ("-T", "test mode"),
@@ -286,7 +286,7 @@ check("john with an off-path wordlist is refused",
               attached=HATT, mention="wordlist path"), True)
 check("john with a bad format is refused",
       refused("john --format=N T hashes.txt", attached=HATT), True)
-check("john with a pipe is refused (| treated as an unrecognised positional file)",
+check("john with a pipe is refused (| treated as an unrecognized positional file)",
       refused("john --format=NT hashes.txt | tee out", attached=HATT, mention="not a file attached"), True)
 check("john with --no-log is refused (it is in prepend, not a user flag)",
       refused("john --no-log --format=NT hashes.txt", attached=HATT, mention="does not allow"), True)
@@ -335,7 +335,7 @@ check("hashcat with an arbitrary rules path is refused",
       refused("hashcat -m 1000 -a 0 --wordlist=/wordlists/rockyou.txt "
               "-r /tmp/evil.rule hashes.txt",
               attached=HATT, mention="wordlist path"), True)
-check("hashcat with a pipe is refused (| treated as an unrecognised positional file)",
+check("hashcat with a pipe is refused (| treated as an unrecognized positional file)",
       refused("hashcat -m 1000 -a 0 hashes.txt | tee out", attached=HATT, mention="not a file attached"), True)
 check("hashcat --potfile-path is refused (prepend handles it)",
       refused("hashcat -m 1000 -a 0 --potfile-path=/tmp/x hashes.txt", attached=HATT, mention="does not allow"), True)

@@ -8,20 +8,20 @@ a higher bar than usual: a bug here can widen what an AI agent is allowed to tou
 - **Security problems:** do not open a public issue. Use GitHub's private
   "Report a vulnerability" on this repository.
 - **Bugs and ideas:** open an issue first for anything bigger than a small fix.
-- **Be authorised.** Only test Agenti against systems you own or have written
+- **Be authorized.** Only test Agenti against systems you own or have written
   permission to test.
 
-## Licence and contributor agreement
+## License and contributor agreement
 
 Agenti's open core is licensed under the **GNU Affero General Public License v3.0**
 (`LICENSE`). Some additional agents are offered separately under a commercial
-licence.
+license.
 
-To keep that possible, **every contributor must agree to the Contributor Licence
+To keep that possible, **every contributor must agree to the Contributor License
 Agreement (CLA) before a pull request can be merged.** The CLA lets the project
 keep distributing your contribution under the AGPL and also under its commercial
-licence; you keep the copyright in your work. A bot will ask you to sign on your
-first pull request. (The CLA text is being finalised; until it is published,
+license; you keep the copyright in your work. A bot will ask you to sign on your
+first pull request. (The CLA text is being finalized; until it is published,
 pull requests from outside the project cannot be merged.)
 
 The name "Agenti" and its logo are trademarks of the project; see `TRADEMARKS.md`.
@@ -56,8 +56,8 @@ you did that. How the package is built and what apt does at each step:
 4. **No real data in the repo.** No client names, real addresses, keys, or lab
    details. Use documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`) and
    `example.com`.
-5. **Tests with the change.** New behaviour gets a suite in `shared/test_*.py`.
-6. **Help text:** user-facing behaviour gets a page in `docs/help/`.
+5. **Tests with the change.** New behavior gets a suite in `shared/test_*.py`.
+6. **Help text:** user-facing behavior gets a page in `docs/help/`.
 
 ## Pull requests
 

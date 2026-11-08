@@ -1,7 +1,7 @@
 # Trademarks
 
 "Agenti" and the Agenti logo identify this project and its official releases.
-The AGPL licence covers the code; it does not grant any right to use the name or
+The AGPL license covers the code; it does not grant any right to use the name or
 logo.
 
 You may, without asking: say that your software works with, or is based on,

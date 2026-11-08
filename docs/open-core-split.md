@@ -42,7 +42,7 @@ points before the repo can be published without them:
    open core's suites against it.
 3. Packaging: `agenti` (open) and `agenti-agents-pro` (closed, private apt source).
 4. Site: say which agents are free and which are paid; update the Requirements
-   and Licence text.
+   and License text.
 5. CLA text (lawyer-reviewed) and CLA bot; trademark registration.
 6. Publish `agenti-foss/agenti` after the open-source audit.
 
@@ -63,7 +63,7 @@ points before the repo can be published without them:
 | Source of truth | The public repo `agenti-foss/agenti` is where the open core is developed. Each closed agent has its own private repo (`agenti-exploit`, `agenti-cracker`; operator, 2026-10-24: sold individually) that pins it at a tag. No export or sync tooling. |
 | Paid-package hosting | A managed private apt service (Cloudsmith/Gemfury class) with one token per customer. Revoking a token stops that customer's updates. |
 | Signing | Two keys. The open-core apt key lives on a hardware token and the operator signs each release by hand; CI never holds it. The pro repo is signed by the managed host's per-repo key (or an uploaded one). |
-| Entitlement | Download gate only. No licence check in the code. If a licence file is ever added, it must never gate scope or validation. |
+| Entitlement | Download gate only. No license check in the code. If a license file is ever added, it must never gate scope or validation. |
 | Pro live tests | A manual release checklist on the box. No self-hosted runner. |
 
 ### How it runs

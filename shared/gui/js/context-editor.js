@@ -1,5 +1,5 @@
 /* context-editor.js — one editor for the instruction files an agent reads
- * (system prompt, skills, organisation policy, a user's preferences).
+ * (system prompt, skills, organization policy, a user's preferences).
  *
  *   AgentiContextEditor.mount(el, {
  *     url:        "admin/context/system-prompt?agent=enum"   // GET: current + history
@@ -70,7 +70,7 @@
             description: `${what} — ${describe()}.`,
             submit: (creds) => run({ password: creds.password || undefined, totp: creds.totp || undefined, reauth: creds.reauth }),
           });
-          if (!r) return;      // cancelled
+          if (!r) return;      // canceled
         } else {
           await run();
         }

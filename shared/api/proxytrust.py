@@ -18,7 +18,7 @@ A header is trusted only when BOTH hold:
   1. the deploy was made with --behind-proxy (AGENTI_BEHIND_PROXY=1), and
   2. the TCP peer is loopback.
 configure.sh refuses --behind-proxy with a non-loopback bind, so (2) is
-structurally true; it is checked again here anyway, because a header honoured
+structurally true; it is checked again here anyway, because a header honored
 from an arbitrary peer lets one client claim a fresh address per attempt, which
 switches the throttle off for exactly the caller it exists to slow down.
 
@@ -44,7 +44,7 @@ def is_loopback_peer(peer: str) -> bool:
 
 
 def parse_ip(value: str) -> Optional[str]:
-    """A bare IP address, normalised, or None. Rejects ports, names, junk."""
+    """A bare IP address, normalized, or None. Rejects ports, names, junk."""
     value = (value or "").strip()
     if not value or len(value) > 45:
         return None

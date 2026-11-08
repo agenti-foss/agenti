@@ -227,7 +227,7 @@ check("list answers JSON with limits", json.loads(cli.stdout)["limits"]["file_by
 
 section("handing a run's output to another agent")
 src_slot = tmp / "org" / "scanner" / "instances" / "alice"
-dst_slot = tmp / "org" / "analyser" / "instances" / "alice"
+dst_slot = tmp / "org" / "analyzer" / "instances" / "alice"
 for d_ in (src_slot, dst_slot):
     for sub in ("reports", "analysis", "scans", "state"):
         (d_ / sub).mkdir(parents=True, exist_ok=True)
@@ -259,7 +259,7 @@ check("a run with nothing yet has empty lists, not an error",
       rf.sources(tmp / "nowhere")["reports"], [])
 
 res = rf.send(src_slot, ["report:scan-1.md", "output:tshark_1.txt", "file:cap.pcap"],
-              [("analyser", "pending", dst_slot)], by="alice (sent from scanner)")
+              [("analyzer", "pending", dst_slot)], by="alice (sent from scanner)")
 check("all three arrive in the receiving run's waiting files",
       sorted(e["name"] for e in rf.pending_files(dst_slot)), ["cap.pcap", "scan-1.md", "tshark_1.txt"])
 check("...with the content intact", (rf.pending_dir(dst_slot) / "scan-1.md").read_text().startswith("# Report"), True)
@@ -269,29 +269,29 @@ check("...and the SHA-256 of what was sent", rf.pending_files(dst_slot)[0]["sha2
 check("the sender's own run is untouched", sorted(e["name"] for e in rf.run_files(src_slot)), ["cap.pcap"])
 check("the result says what was sent and gives the receiver's notice",
       (len(res["sent"]), res["failed"], "attached" in res["agent_message"]), (3, [], True))
-res = rf.send(src_slot, ["report:scan-1.md"], [("analyser", "pending", dst_slot)], by="alice (sent from scanner)")
+res = rf.send(src_slot, ["report:scan-1.md"], [("analyzer", "pending", dst_slot)], by="alice (sent from scanner)")
 check("sending the same name again keeps both, numbering the second (never overwrites)",
       sorted(e["name"] for e in rf.pending_files(dst_slot) if e["name"].startswith("scan-1")),
       ["scan-1-2.md", "scan-1.md"])
 
 # one that cannot be sent does not stop the rest
-res = rf.send(src_slot, ["output:nmap_1.txt", "output:missing.txt"], [("analyser", "pending", dst_slot)], by="alice")
+res = rf.send(src_slot, ["output:nmap_1.txt", "output:missing.txt"], [("analyzer", "pending", dst_slot)], by="alice")
 check("a missing item is reported while the others still go",
       ([x["name"] for x in res["sent"]], [f["item"] for f in res["failed"]]), (["nmap_1.txt"], ["output:missing.txt"]))
 check("nothing sendable is an error that names the item",
-      "missing.txt" in (refused(rf.send, src_slot, ["output:missing.txt"], [("analyser", "pending", dst_slot)], by="a") or ""), True)
-check("no items is an error", refused(rf.send, src_slot, [], [("analyser", "pending", dst_slot)], by="a") is not None, True)
+      "missing.txt" in (refused(rf.send, src_slot, ["output:missing.txt"], [("analyzer", "pending", dst_slot)], by="a") or ""), True)
+check("no items is an error", refused(rf.send, src_slot, [], [("analyzer", "pending", dst_slot)], by="a") is not None, True)
 for bad in ("report:../state/x", "report:/etc/passwd", "output:a/b", "nonsense:x", "report:", "report", "file:.hidden"):
     check(f"a malformed item {bad!r} is refused",
-          refused(rf.send, src_slot, [bad], [("analyser", "pending", dst_slot)], by="a") is not None, True)
+          refused(rf.send, src_slot, [bad], [("analyzer", "pending", dst_slot)], by="a") is not None, True)
 check("an attached file that is not part of this run cannot be named",
-      refused(rf.send, src_slot, ["file:other.pcap"], [("analyser", "pending", dst_slot)], by="a") is not None, True)
+      refused(rf.send, src_slot, ["file:other.pcap"], [("analyzer", "pending", dst_slot)], by="a") is not None, True)
 
 # the sending AGENT writes reports/, analysis/ and scans/: links in there must not be followed
 (src_slot / "reports" / "link.md").symlink_to("/etc/hostname")
 check("a symlink in the report folder is not listed", "link.md" in [e["name"] for e in rf.sources(src_slot)["reports"]], False)
 check("...and cannot be sent",
-      refused(rf.send, src_slot, ["report:link.md"], [("analyser", "pending", dst_slot)], by="a") is not None, True)
+      refused(rf.send, src_slot, ["report:link.md"], [("analyzer", "pending", dst_slot)], by="a") is not None, True)
 elsewhere = tmp / "elsewhere"
 elsewhere.mkdir()
 (elsewhere / "secret.txt").write_text("not yours\n")
@@ -300,16 +300,16 @@ os.rename(src_slot / "analysis", src_slot / "analysis.real")
 check("a saved-output FOLDER swapped for a symlink is not followed either",
       (rf.sources(src_slot)["outputs"] and any(e["name"] == "secret.txt" for e in rf.sources(src_slot)["outputs"])), False)
 check("...and its contents cannot be sent",
-      refused(rf.send, src_slot, ["output:secret.txt"], [("analyser", "pending", dst_slot)], by="a") is not None, True)
+      refused(rf.send, src_slot, ["output:secret.txt"], [("analyzer", "pending", dst_slot)], by="a") is not None, True)
 os.unlink(src_slot / "analysis")
 os.rename(src_slot / "analysis.real", src_slot / "analysis")
 
 # a run going now: the file joins it
-live = tmp / "org" / "analyser" / "instances" / "bob"
+live = tmp / "org" / "analyzer" / "instances" / "bob"
 (live / "reports").mkdir(parents=True)
-rf.attach(io.BytesIO(b"x"), [("analyser", "pending", live)], name="seed.txt", by="bob")
+rf.attach(io.BytesIO(b"x"), [("analyzer", "pending", live)], name="seed.txt", by="bob")
 rf.begin_run(live)
-res = rf.send(src_slot, ["report:scan-1.md"], [("analyser", "run", live)], by="bob (sent from scanner)")
+res = rf.send(src_slot, ["report:scan-1.md"], [("analyzer", "run", live)], by="bob (sent from scanner)")
 check("sent to a run going now, it joins that run and says so",
       (res["live"], "scan-1.md" in {e["name"] for e in rf.run_files(live)}), (True, True))
 
@@ -317,27 +317,27 @@ check("sent to a run going now, it joins that run and says so",
 cli = subprocess.run([sys.executable, str(HERE / "run_files.py"), "sources", "--slot", str(src_slot)],
                      capture_output=True, text=True)
 check("sources answers JSON", (cli.returncode, "reports" in json.loads(cli.stdout)), (0, True))
-carol = tmp / "org" / "analyser" / "instances" / "carol"
+carol = tmp / "org" / "analyzer" / "instances" / "carol"
 carol.mkdir(parents=True)
 cli = subprocess.run([sys.executable, str(HERE / "run_files.py"), "send", "--slot", str(src_slot),
                       "--item", "output:tshark_1.txt", "--by", "carol (sent from scanner)",
-                      "--target", f"analyser:pending:{carol}"],
+                      "--target", f"analyzer:pending:{carol}"],
                      capture_output=True, text=True)
 check("send works from the command line", (cli.returncode, json.loads(cli.stdout)["sent"][0]["name"]), (0, "tshark_1.txt"))
 cli = subprocess.run([sys.executable, str(HERE / "run_files.py"), "send", "--slot", str(src_slot),
-                      "--item", "report:nope.md", "--by", "carol", "--target", f"analyser:pending:{dst_slot}"],
+                      "--item", "report:nope.md", "--by", "carol", "--target", f"analyzer:pending:{dst_slot}"],
                      capture_output=True, text=True)
 check("...and a refusal is JSON with an error and a non-zero exit", (cli.returncode, "error" in json.loads(cli.stdout)), (1, True))
 
 section("every start is its own run: waiting files move to the fresh slot")
 # `attach` with no --copy stages into the owner's plain slot; the next
-# unlabelled start creates a NEW slot and takes those files with it.
-stage = tmp / "org" / "analyser" / "instances" / "dave"
-fresh = tmp / "org" / "analyser" / "instances" / "dave.run-1a2b3c4d"
+# unlabeled start creates a NEW slot and takes those files with it.
+stage = tmp / "org" / "analyzer" / "instances" / "dave"
+fresh = tmp / "org" / "analyzer" / "instances" / "dave.run-1a2b3c4d"
 for d_ in (stage, fresh):
     (d_ / "reports").mkdir(parents=True)
-rf.attach(io.BytesIO(b"hash1\n"), [("analyser", "pending", stage)], name="h1.txt", by="dave")
-rf.attach(io.BytesIO(b"hash2\n"), [("analyser", "pending", stage)], name="h2.txt", by="dave")
+rf.attach(io.BytesIO(b"hash1\n"), [("analyzer", "pending", stage)], name="h1.txt", by="dave")
+rf.attach(io.BytesIO(b"hash2\n"), [("analyzer", "pending", stage)], name="h2.txt", by="dave")
 res = rf.transfer_pending(stage, fresh)
 check("both waiting files move", sorted(res["moved"]), ["h1.txt", "h2.txt"])
 check("...they are waiting in the new slot",

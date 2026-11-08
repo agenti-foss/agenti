@@ -213,10 +213,10 @@ WHAT YOU MUST EDIT (all marked TODO):
      anything, log REQUESTED/EXECUTING lines, save real output to disk if
      it's large, return a trimmed summary.
   3. TASK / _OPERATIONAL_NOTES — the prompt the agent actually sees.
-  4. The organisation engagement — set once for every agent by an
+  4. The organization engagement — set once for every agent by an
      admin (sudo agenti engagement set ..., or the GUI). This is
      the ONE master scope every launch reads. Model and caps are set at
-     launch time (agenti ... start --model ...), narrowed by the organisation's
+     launch time (agenti ... start --model ...), narrowed by the organization's
      own policy (the SAME engagement record) — there is nothing left to
      hardcode here.
 """
@@ -249,7 +249,7 @@ from {scope_module} import {class_name}
 SCOPE = {class_name}(agent_name="{name}")
 
 AGENTI_ROOT = paths.data_root()
-# Everything lives under the one organisation directory.
+# Everything lives under the one organization directory.
 ORG_DIR = AGENTI_ROOT / "org"
 AGENT_NAME = "{name}"
 AGENT_DIR = Path(os.environ.get("AGENTI_INSTANCE", str(ORG_DIR / AGENT_NAME)))
@@ -257,7 +257,7 @@ SHARED_DIR = AGENTI_ROOT / "shared"
 
 
 # Placeholder numbers — agent_runtime.load_run_config() ALWAYS overwrites
-# every one of these before a run starts, resolved against the organisation's
+# every one of these before a run starts, resolved against the organization's
 # policy (CLAUDE.md "Current plan"). model=None is never actually used to
 # run anything: --model is mandatory at launch, checked there. Still a
 # one-entry dict (not a bare Profile) so AgentContract's own "profiles must
@@ -931,11 +931,11 @@ attention before it does anything real.
      (or Settings → Engagement in the GUI).
   4. Run it:
        sudo agenti {args.name} start -t <target> --model sonnet
-     (--model is mandatory, from the organisation's allowed list set in step 3.)
+     (--model is mandatory, from the organization's allowed list set in step 3.)
 
 There is no standalone "run it by hand, no deployment needed" shortcut any
 more (CLAUDE.md "Current plan"): the model and caps are resolved from the
-organisation's own engagement record at launch, so a real deployment is what
+organization's own engagement record at launch, so a real deployment is what
 makes a run of ANY kind possible now, not an extra step for commercial use.
 """)
     return 0

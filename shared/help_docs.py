@@ -204,7 +204,7 @@ def snippet(text: str, terms: list) -> str:
     found = [t for t in terms if t in low]
     if not found:
         return text if len(text) <= SNIPPET else text[:SNIPPET].rsplit(" ", 1)[0] + "…"
-    # Centre on the whole phrase if it is there, else on the rarest word.
+    # Center on the whole phrase if it is there, else on the rarest word.
     phrase = " ".join(terms)
     at = low.find(phrase) if len(terms) > 1 else -1
     if at < 0:

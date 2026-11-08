@@ -99,7 +99,7 @@ cs.snapshot(root, agent="enum", owner="op1", dest=slot, group=None)
 print("\n=== the prompt builder ===")
 ctx = rt.load_run_context(slot)
 text = rt.compose_instructions(ctx)
-order = [text.index(t) for t in ("AGENT INSTRUCTIONS", "ORGANISATION POLICY", "SKILLS (all agents)", "OPERATOR PREFERENCES")]
+order = [text.index(t) for t in ("AGENT INSTRUCTIONS", "ORGANIZATION POLICY", "SKILLS (all agents)", "OPERATOR PREFERENCES")]
 check("layers appear highest priority first", order == sorted(order), True)
 check("operator preferences are framed as unable to widen anything", "can widen your scope" in text, True)
 check("the report names each file's version", any("system-prompt.md" in l and "sha256" in l for l in rt.context_versions_markdown(ctx)), True)
@@ -115,7 +115,7 @@ import iam  # noqa: E402
 sample = "line one\nline two\n"
 check("iam's grant hash equals the hash the store records",
       iam.context_text_sha256(sample), cs._sha(cs.validate_text(sample)))
-check("CRLF and LF text hash the same (the API normalises, the store normalises)",
+check("CRLF and LF text hash the same (the API normalizes, the store normalizes)",
       iam.context_text_sha256("a\r\nb\n"), iam.context_text_sha256("a\nb\n"))
 cs.set_text(root, "skills", "x\n", by="u", agent="enum")
 cs.append_text(root, "skills", "y", by="u", agent="enum")

@@ -410,7 +410,7 @@ else:
         # CPU seconds count every thread. A 4-thread john hit a 1800 s CPU
         # ceiling after ~8 wall minutes and was reported as "exit 137"
         # (run 78473136). The ceiling now scales with cores, and a CPU kill is
-        # recognised from the CPU used, not the wall time.
+        # recognized from the CPU used, not the wall time.
         import dataclasses
         check("the cracker's CPU ceiling is one wall clock per core",
               sandbox.PROFILES["cracker"].cpu_seconds,

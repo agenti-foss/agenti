@@ -12,7 +12,7 @@ first, as test_recon_runner.py does). What matters:
     the recon tools (no run_scan, nothing that can reach a network);
   * it takes no target: a leftover run-target stops the run;
   * configure() needs no engagement, resolves the model and caps against the
-    organisation's policy, and builds the instructions the model will read;
+    organization's policy, and builds the instructions the model will read;
   * the report names the attached files with their SHA-256, leaves out the
     engagement lines it does not have, and is written even for a run that
     produced nothing.
@@ -78,7 +78,7 @@ import run_files  # noqa: E402
 
 def write_manifest(name, programs, folder=None, **extra):
     d = root / "agents" / (folder or name); d.mkdir(parents=True, exist_ok=True)
-    m = {"name": name, "title": "Pcap Analyser", "description": "test", "kind": "analysis",
+    m = {"name": name, "title": "Pcap Analyzer", "description": "test", "kind": "analysis",
          "scope_kind": "files", "tool_names": ["analyze_file", "read_output"],
          "programs": programs, **extra}
     p = d / "manifest.json"; p.write_text(json.dumps(m)); return p
@@ -95,8 +95,8 @@ def refuses(fn):
 
 
 section("a manifest binds the runner to one agent and its programs")
-ar.setup(write_manifest("pcap", [{"name": "tshark", "purpose": "decode"}, {"name": "capinfos", "purpose": "summarise"}]))
-check("identity follows the manifest", (ar.AGENT_NAME, ar.AGENT_TITLE), ("pcap", "Pcap Analyser"))
+ar.setup(write_manifest("pcap", [{"name": "tshark", "purpose": "decode"}, {"name": "capinfos", "purpose": "summarize"}]))
+check("identity follows the manifest", (ar.AGENT_NAME, ar.AGENT_TITLE), ("pcap", "Pcap Analyzer"))
 check("the scope boundary is the attached files", ar.SCOPE.kind, "files")
 check("the programs are exactly the two", ar.PROGRAMS, {"tshark", "capinfos"})
 check("analyze_file and read_output are offered",
@@ -109,7 +109,7 @@ analyze = next(t for n, t in zip(ar.CONTRACT.tool_names, ar.CONTRACT.tools) if n
 check("the model is told about exactly the programs it has",
       "tshark" in analyze.description and "capinfos" in analyze.description, True)
 
-ar.setup(write_manifest("only-info", [{"name": "capinfos", "purpose": "summarise"}]))
+ar.setup(write_manifest("only-info", [{"name": "capinfos", "purpose": "summarize"}]))
 analyze = next(t for n, t in zip(ar.CONTRACT.tool_names, ar.CONTRACT.tools) if n == "analyze_file")
 check("an agent given one program is told about one program",
       ("capinfos" in analyze.description, "tshark" in analyze.description), (True, False))
@@ -127,7 +127,7 @@ msg = refuses(lambda: ar.setup(write_manifest("evil", [{"name": "tshark", "purpo
 check("a manifest in another agent's folder is refused", msg is not None and "must match" in msg, True)
 
 section("configure(): no engagement, no target, an explicit model")
-ar.setup(write_manifest("pcap", [{"name": "tshark", "purpose": "decode"}, {"name": "capinfos", "purpose": "summarise"}]))
+ar.setup(write_manifest("pcap", [{"name": "tshark", "purpose": "decode"}, {"name": "capinfos", "purpose": "summarize"}]))
 slot = root / "org" / "pcap" / "instances" / "alice"
 slot.mkdir(parents=True)
 os.environ["AGENTI_INSTANCE"] = str(slot)
@@ -153,7 +153,7 @@ check("a leftover target stops the run — this kind takes none", msg is not Non
 
 (slot / "run-config.json").write_text(json.dumps({"model": "haiku", "max_turns": 999999}))
 msg = refuses(lambda: ar.configure(prof))
-check("a cap above the organisation's ceiling is refused", msg is not None and "ceiling" in msg, True)
+check("a cap above the organization's ceiling is refused", msg is not None and "ceiling" in msg, True)
 
 (slot / "run-config.json").write_text(json.dumps({"model": "haiku", "max_turns": 7}))
 final = ar.configure(prof)
@@ -178,9 +178,9 @@ path = ar.write_report(final, None, time.time() - 5, "incomplete", findings="The
                        note="ended early")
 text = path.read_text()
 check("a report is written even though no run produced a result", path.exists(), True)
-check("the title names the agent, with no engagement id", text.startswith("# Pcap Analyser — Analysis Report\n"), True)
+check("the title names the agent, with no engagement id", text.startswith("# Pcap Analyzer — Analysis Report\n"), True)
 check("no client/authorization lines (there is no engagement)", ("**Client:**" in text, "Authorized by" in text), (False, False))
-check("the scope line says what was analysed", "**Scope analysed (this run):**" in text, True)
+check("the scope line says what was analyzed", "**Scope analyzed (this run):**" in text, True)
 import hashlib  # noqa: E402
 check("the attached file is listed with its real SHA-256",
       "cap.pcap" in text and hashlib.sha256(b"\x00" * 64).hexdigest() in text, True)

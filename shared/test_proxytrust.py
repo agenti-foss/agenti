@@ -31,7 +31,7 @@ check("proxy: missing header -> empty (never the shared 127.0.0.1 bucket)",
 check("proxy: garbage header -> empty", pt.client_addr("127.0.0.1", hdr({"cf-connecting-ip": "evil'; DROP"}), behind_proxy=True) == "")
 check("proxy: hostname rejected", pt.client_addr("127.0.0.1", hdr({"cf-connecting-ip": "example.com"}), behind_proxy=True) == "")
 check("proxy: ip:port rejected", pt.client_addr("127.0.0.1", hdr({"cf-connecting-ip": "1.2.3.4:80"}), behind_proxy=True) == "")
-check("proxy: ipv6 normalised",
+check("proxy: ipv6 normalized",
       pt.client_addr("127.0.0.1", hdr({"cf-connecting-ip": "2001:DB8:0::1"}), behind_proxy=True) == "2001:db8::1")
 check("proxy: XFF uses the RIGHT-most entry (what our proxy appended)",
       pt.client_addr("127.0.0.1", hdr({"x-forwarded-for": "6.6.6.6, 198.51.100.7"}),

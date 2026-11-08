@@ -36,7 +36,7 @@ def status(root: Path, owner: str, agent: str = "") -> dict:
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(allow_abbrev=False, description="List live provider models allowed by this organisation; keys are never displayed.")
+    ap = argparse.ArgumentParser(allow_abbrev=False, description="List live provider models allowed by this organization; keys are never displayed.")
     ap.add_argument("--root", required=True)
     ap.add_argument("--owner", default="")
     ap.add_argument("--agent", default="")
@@ -61,7 +61,7 @@ def main(argv=None):
                                     relay=os.environ.get("AGENTI_RELAY", "http://127.0.0.1:8429"))
             result = {"provider": p.name, "models": [m for m in models if mr.allowed(m, policy["allowed_models"])],
                       "allowed_models": policy["allowed_models"]}
-        print(json.dumps(result) if args.json or args.status else "\n".join(result["models"]) or "No models returned within the organisation's allowed list.")
+        print(json.dumps(result) if args.json or args.status else "\n".join(result["models"]) or "No models returned within the organization's allowed list.")
         return 0
     except (OSError, RuntimeError, ValueError, SystemExit) as e:
         print(json.dumps({"error": str(e)}) if args.json else f"ERROR: {e}")

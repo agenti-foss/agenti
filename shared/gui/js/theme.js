@@ -33,7 +33,7 @@
   const MODE_KEY = "agenti-gui-theme";
   const SKIN_KEY = "agenti-gui-skin";
 
-  // The catalogue the Settings page draws its theme cards from. `swatch`
+  // The catalog the Settings page draws its theme cards from. `swatch`
   // holds just enough of each mode's palette to paint a small preview
   // without loading the skin; `display` is the heading font the card's own
   // title is set in, so the preview shows the real thing. Adding a skin is:
@@ -42,7 +42,7 @@
   const SKINS = {
     original: {
       label: "Original",
-      blurb: "Clean and quiet. Content first, colour only for status and action.",
+      blurb: "Clean and quiet. Content first, color only for status and action.",
       display: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif",
       favicon: "favicon.svg",
       swatch: {

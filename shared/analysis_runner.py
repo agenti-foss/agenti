@@ -1,6 +1,6 @@
 """
 analysis_runner.py — the ONE runner every file-analysis agent uses (a pcap
-analyser, and any other agent an admin builds of this kind in Settings ->
+analyzer, and any other agent an admin builds of this kind in Settings ->
 Agents).
 
 A file-analysis agent works on files an operator attaches to a run, with
@@ -72,7 +72,7 @@ CONTRACT = None
 MCP_SERVER = None
 TOOL_ALLOWLIST_HOOK = None
 
-TASK = "Analyse the attached file(s) as your instructions describe, then report what you found."
+TASK = "Analyze the attached file(s) as your instructions describe, then report what you found."
 _OPERATIONAL_NOTES = """\
 You work only on the files the operator attached to this run. Use list_files to
 see them, analyze_file to run an analysis program on one, and read_output to
@@ -85,7 +85,7 @@ search what a command saved. You cannot reach the network or any other file.
 # agent's own instructions (written by an admin) ask for credentials.
 PREAMBLE = """\
 You are a file-analysis agent. An operator has attached one or more files to
-this run (packet captures, for example) and you analyse them as the AGENT
+this run (packet captures, for example) and you analyze them as the AGENT
 INSTRUCTIONS below describe.
 
 HOW YOU WORK
@@ -111,7 +111,7 @@ WHAT YOU REPORT
   was found (frame, protocol, account) and the value. Otherwise refer to it by
   location only ("a password is sent in clear text in frame 5321") and never
   reproduce it.
-- You analyse only. Never try to log in to, exploit or contact anything the
+- You analyze only. Never try to log in to, exploit or contact anything the
   file mentions. A negative result ("no cleartext credentials in the
   protocols present") is a finding; say it plainly.
 """
@@ -222,7 +222,7 @@ def configure(profile: Profile) -> Profile:
     target = AGENT_DIR / "run-target"
     SCOPE.narrow([], target.read_text() if target.exists() else "", required=False)
 
-    # Model and caps resolve against the organisation's policy (platform
+    # Model and caps resolve against the organization's policy (platform
     # defaults when it has no engagement yet), narrowed by the launch flags.
     profile = agent_runtime.load_run_config(profile, AGENT_DIR, org_dir=ORG_DIR,
                                             logger=LOG, strict=True)
@@ -264,7 +264,7 @@ def write_report(profile: Profile, result, started: float, status: str,
     findings = findings or agent_runtime.findings_text(result)
     L = agent_runtime.report_header(
         title=f"{AGENT_TITLE} — Analysis Report", engagement=None, status=status,
-        agent_name=AGENT_NAME, profile=profile, scope_label="analysed",
+        agent_name=AGENT_NAME, profile=profile, scope_label="analyzed",
         scope_desc=SCOPE.describe(), started=started, result=result,
         resumed_from=resumed_from,
     )
@@ -301,7 +301,7 @@ async def run(profile: Profile) -> int:
 def main(manifest_path: Path | str) -> int:
     agent_runtime.install_sigterm_handler()
     ap = argparse.ArgumentParser(allow_abbrev=False, 
-        description="File-analysis agent: analyses files an operator attached, in a sandbox. "
+        description="File-analysis agent: analyzes files an operator attached, in a sandbox. "
                     "Model and caps are set at launch (agenti ... start --model ...), not by a flag here.")
     ap.parse_args()
     setup(Path(manifest_path))

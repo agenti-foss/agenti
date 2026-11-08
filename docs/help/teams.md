@@ -27,7 +27,7 @@ whole task is over, so a question gets an answer while the work is still going.
 
 ## Reading the group chat
 
-- Your messages are on the right; each agent has its own colour.
+- Your messages are on the right; each agent has its own color.
 - **→ name** means the message is addressed to one teammate. Everyone can still
   read it.
 - A card at the top lists who is on the project and what each is doing.

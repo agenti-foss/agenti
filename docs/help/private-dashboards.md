@@ -6,8 +6,8 @@
 
 - **Only you can see the agents you launch.** Their live activity, Task
   History, reports and kept files (Outputs) all belong to you.
-- **There is one organisation.** The header shows your name. Everyone you
-  work with is in the same organisation; only your runs are yours.
+- **There is one organization.** The header shows your name. Everyone you
+  work with is in the same organization; only your runs are yours.
 - **Admins can look, but they can't act for you.** An admin may open your
   dashboard from **Settings → Users**. There they can stop a run, mark it
   complete, and download or delete kept files. They can never launch, send a

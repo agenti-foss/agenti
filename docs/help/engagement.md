@@ -1,6 +1,6 @@
 # The engagement
 
-The engagement is your organisation's one authorization record: the client,
+The engagement is your organization's one authorization record: the client,
 who authorized the work, the dates, and the scope (networks and domains)
 agents may touch. Every agent shares it, and no agent starts without it.
 Admins edit it in **Settings → Engagement** (or `sudo agenti engagement set --help`).
@@ -70,5 +70,5 @@ The confirmation after saving names every run that was stopped and why.
 | "the engagement changed after you opened it" | Someone saved, approved or withdrew a change while your window was open. | Close the window, open it again and redo your change. |
 | "another admin approves it" | The second-approver policy is on and you made this change. | Ask another admin, or withdraw it. |
 | "…was made against an older version" | The version in force changed after this change was saved. | Save it again on top of the current version, or reject it. |
-| "…does not start with an IP or CIDR" | An exclusion is free text. A run could not honour it. | Start it with the address, range or domain, then a note, e.g. `10.0.5.0/24 (payroll)`. |
+| "…does not start with an IP or CIDR" | An exclusion is free text. A run could not honor it. | Start it with the address, range or domain, then a note, e.g. `10.0.5.0/24 (payroll)`. |
 | "is not approved as it stands" | An older record nobody approved. | Open the engagement and press **Save and close** (or, with the second approver on, another admin approves it). |

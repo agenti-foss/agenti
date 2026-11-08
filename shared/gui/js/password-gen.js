@@ -88,7 +88,7 @@ window.AgentiPassword = (() => {
     input.classList.add("pw-input");
 
     // The wrapped view while shown. Not a form field of its own (no name),
-    // labelled by the same <label> through aria-labelledby on the input's id.
+    // labeled by the same <label> through aria-labelledby on the input's id.
     const wrap = document.createElement("textarea");
     wrap.className = "pw-input pw-wrap";
     wrap.rows = 1;

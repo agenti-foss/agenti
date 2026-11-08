@@ -40,7 +40,7 @@ class FilesScope:
     def narrow(self, ceiling, run_target_text: str, *, required: bool) -> list[str]:
         if run_target_text and run_target_text.strip():
             sys.exit(
-                f"REFUSING: '{self.agent_name}' analyses attached files and takes no target.\n"
+                f"REFUSING: '{self.agent_name}' analyzes attached files and takes no target.\n"
                 f"  start it without -t:   agenti {self.agent_name} start --model <model>\n"
                 f"  give it files with:    agenti {self.agent_name} attach <file>")
         return []

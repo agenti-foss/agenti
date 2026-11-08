@@ -92,7 +92,7 @@ check("scope cut: the target is out", why("enum", "cidr", "10.0.0.5").startswith
 save(record(scope={"cidr": {"in_scope": ["10.0.0.0/24"], "out_of_scope": ["10.0.0.5"]},
                    "domain": {"in_scope": ["acme.example"]}}))
 check("the target is now excluded", "no longer in scope" in why("enum", "cidr", "10.0.0.5"), True)
-check("...a neighbour that is not excluded is still covered", why("enum", "cidr", "10.0.0.6"), "")
+check("...a neighbor that is not excluded is still covered", why("enum", "cidr", "10.0.0.6"), "")
 save(record(valid_until="2021-01-01"))
 check("the window ended", "authorized window" in why("enum", "cidr", "10.0.0.5"), True)
 save(record())

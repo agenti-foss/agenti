@@ -141,12 +141,12 @@
             { credential }, { noRedirect: true });
           done(resp);
         } catch (err) {
-          // A cancelled/timed-out ceremony (the person backed out of the
+          // A canceled/timed-out ceremony (the person backed out of the
           // OS picker, or has no passkey for this site) is not an error
           // worth alarming over — the password form is right there.
           const name = err && err.name;
           if (name === "NotAllowedError" || name === "AbortError") {
-            Agenti.banner(bannerEl, "err", "Passkey sign-in was cancelled — use your password instead.");
+            Agenti.banner(bannerEl, "err", "Passkey sign-in was canceled — use your password instead.");
           } else {
             Agenti.banner(bannerEl, "err", Agenti.errorText(err));
           }
@@ -160,7 +160,7 @@
         Agenti.forgetClosedBanners();   // banners closed with ✕ come back at each sign-in
         if (resp.mfa_setup_required) {
           // The require-2fa policy: the session is real, but the API refuses
-          // it everything except the enrolment routes until an authenticator
+          // it everything except the enrollment routes until an authenticator
           // app is set up. Say so here, then go straight to that form.
           Agenti.banner(bannerEl, "ok",
             "Logged in. Two-factor authentication is required for this account " +

@@ -10,7 +10,7 @@ reports/
 secrets.env
 
 # Per-agent engagement configs. RETIRED as a concept (CLAUDE.md §4 item 42:
-# engagement belongs to the organisation now, as org/engagement.json), but
+# engagement belongs to the organization now, as org/engagement.json), but
 # ignored rather than merely absent for two reasons: a scaffold created
 # before that phase can still have one on disk, and this file is what makes
 # CLAUDE.md's long-standing "gitignored, never committed" claim about them

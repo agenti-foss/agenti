@@ -60,7 +60,7 @@ from scope_cidr import CIDRScope
 # 0. RUN PROFILE
 # ---------------------------------------------------------------------------
 # The profile's caps/model change WHERE capture may happen and HOW MUCH may
-# be spent, resolved fresh per run against the organisation's policy. They
+# be spent, resolved fresh per run against the organization's policy. They
 # never change WHAT is permitted: the BPF scope filter, the snaplen rule,
 # the tool allow-list and the target validator are fixed in code.
 
@@ -87,7 +87,7 @@ class Profile(agent_runtime.Profile):
 
 
 AGENTI_ROOT = paths.data_root()
-# Everything lives under the one organisation directory.
+# Everything lives under the one organization directory.
 ORG_DIR = AGENTI_ROOT / "org"
 AGENT_NAME = "trafficmon"
 AGENT_TITLE = "Traffic monitor"              # shown in the GUI
@@ -108,7 +108,7 @@ SHARED_DIR = AGENTI_ROOT / "shared"
 
 # Placeholder numbers for the ceiling-governed fields — agent_runtime.
 # load_run_config() ALWAYS overwrites max_turns/max_budget_usd/timeout_s/
-# model before a run starts, resolved against the organisation's policy
+# model before a run starts, resolved against the organization's policy
 # (CLAUDE.md "Current plan"). window_s is NOT part of that ceiling system
 # (it is a capture-length knob, not a cost cap — see
 # agent_runtime._OTHER_NUMERIC_OVERRIDES) so it keeps a REAL default here,
@@ -562,7 +562,7 @@ def _collect(profile, bpf, iface, stamp, base, pcap, started, seconds) -> dict:
     if FILTER_ERRORS:
         manifest["filter_errors"] = list(FILTER_ERRORS)
     if not manifest["sources"]:
-        LOG.warning("COLLECT | capture succeeded but no analyser produced output")
+        LOG.warning("COLLECT | capture succeeded but no analyzer produced output")
 
     # Retention: the pcap is the only artifact holding packet bytes. When the
     # engagement forbids payload capture there is no reason to keep it once the

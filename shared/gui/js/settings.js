@@ -8,8 +8,8 @@
 //
 // Admin routes: GET/POST /admin/users…, GET /admin/bindings,
 // GET /admin/policy, GET/POST /engagement (+ /approve), GET/POST
-// /context/org, the /admin/agent-* control-centre routes and the
-// /admin/agent-builder/* ones. One organisation, one list of users, two
+// /context/org, the /admin/agent-* control-center routes and the
+// /admin/agent-builder/* ones. One organization, one list of users, two
 // roles (operator, admin).
 //
 // Granting a role, renaming, deleting or re-enabling a user all go through
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   renderNav("settings");
   const esc = Agenti.esc;
 
-  // ---------- icons on the labelled buttons ----------
+  // ---------- icons on the labeled buttons ----------
   // Markup carries the words (so a failed fetch never leaves a blank
   // button); the glyph is added here from the shared set.
   applyIcons(document);
@@ -42,7 +42,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   // ---------- a fixed-window pager over an already-fetched array ----------
   // Client-side only: the backend routes this page calls (list-users) return their full result set every time, unfiltered by page —
   // this caps how much of that gets painted into the DOM at once, which is
-  // what actually costs time for an organisation with hundreds of accounts.
+  // what actually costs time for an organization with hundreds of accounts.
   function makePager(containerEl, { onChange }) {
     let page = 1;
     let size = 25;
@@ -167,7 +167,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   })();
 
   // ---------- Appearance ----------
-  // Theme cards from theme.js's catalogue, each painting both modes from
+  // Theme cards from theme.js's catalog, each painting both modes from
   // its swatch in its own heading face, and a System / Light / Dark switch.
   // Applied instantly (the whole page re-skins in place) and remembered per
   // browser; every other wired control (the nav toggle) follows via
@@ -241,8 +241,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   const showEngagementBtn = canEditEngagement || canApproveEngagement;
   const showUsers = canReadIam;
   const showPlatform = canManage || canReadIam;
-  // Agents: admins (and readers, view only). The agent catalogue, the control
-  // centre, building and removing agents.
+  // Agents: admins (and readers, view only). The agent catalog, the control
+  // center, building and removing agents.
   const showAgents = canManage || canReadIam;
   tabs.querySelector('[data-pane="agents"]').hidden = !showAgents;
   tabs.querySelector('[data-pane="providers"]').hidden = !canManage;
@@ -253,7 +253,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   showPane(paneFromHash(), { push: false });
 
   // The require-2fa policy (rbac.MFA_SETUP_ALLOWED_PATHS): this session may
-  // only enrol until it has. Every other panel on this page would 403, so
+  // only enroll until it has. Every other panel on this page would 403, so
   // say why once, at the top, and put the person in front of the form.
   const mfaRequired = !!me.mfa_setup_required || mfaParam;
   if (mfaRequired) {
@@ -293,7 +293,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       submit: (creds) => Agenti.post("auth/password/start",
         { current: creds.password || undefined, totp: creds.totp || undefined, reauth: creds.reauth }),
     });
-    if (!r) return; // cancelled — nothing changed
+    if (!r) return; // canceled — nothing changed
     pwGrant = r.grant;
     pwGen.regenerate();
     pwStartPanel.hidden = true;
@@ -338,7 +338,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   });
 
-  // ---------- 2FA enrol/re-enrol ----------
+  // ---------- 2FA enroll/re-enroll ----------
   // Re-authentication (current password + a current code from the OLD
   // factor, if any) happens ONCE, in the universal popup, at "start" — it
   // mints a single-use grant server-side (iam.mint_action_grant) that
@@ -371,7 +371,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       submit: (creds) => Agenti.post("auth/mfa/enrol/start",
         { current: creds.password || undefined, totp: creds.totp || undefined, reauth: creds.reauth }),
     });
-    if (!r) return; // cancelled
+    if (!r) return; // canceled
     const secretEl = document.getElementById("mfa-secret");
     secretEl.textContent = r.secret;
     secretEl.parentElement.querySelectorAll("button.copy-btn").forEach((b) => b.remove());
@@ -427,7 +427,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   // ---------- passkeys ----------
   // Registration is a real WebAuthn ceremony (Agenti.webauthnCreate — see
   // api.js), gated by the SAME current-password(+2FA)-first discipline as
-  // password change / TOTP enrolment above — collected by the universal
+  // password change / TOTP enrollment above — collected by the universal
   // popup, not fields on this page: reauthenticate_self runs inside
   // agenti-authd's op_webauthn_register_begin, so a hijacked session cookie
   // cannot silently add a persistent login method. Removal opens the same
@@ -439,7 +439,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // The whole section exists only where passkeys can work: turned on, a
   // domain set, and this tab open at that domain (operator note 2026-11-06 —
-  // opened by IP, it used to show a red warning and a greyed button).
+  // opened by IP, it used to show a red warning and a grayed button).
   const passkeysHere = await Agenti.passkeysUsable();
   document.getElementById("passkeys-panel").hidden = !passkeysHere;
 
@@ -480,7 +480,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       submit: (creds) => Agenti.post(`auth/webauthn/passkeys/${encodeURIComponent(credentialId)}/remove`,
         { current: creds.password || undefined, totp: creds.totp || undefined, reauth: creds.reauth }),
     });
-    if (!r) return; // cancelled
+    if (!r) return; // canceled
     // Removing a passkey signs the account out everywhere (a session opened
     // with a lost passkey must not outlive it), this one included.
     Agenti.banner(passkeyBanner, "ok", "Passkey removed. Signing you out everywhere — sign in again.");
@@ -510,7 +510,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             } catch (ceremonyErr) {
               const ceremonyName = ceremonyErr && ceremonyErr.name;
               const msg = (ceremonyName === "NotAllowedError" || ceremonyName === "AbortError")
-                ? "Passkey setup was cancelled."
+                ? "Passkey setup was canceled."
                 : Agenti.errorText(ceremonyErr);
               throw new Error(msg);
             }
@@ -523,7 +523,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             return Agenti.post("auth/webauthn/register/finish", { name, credential });
           },
         });
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         Agenti.banner(passkeyBanner, "ok", "Passkey added.");
         passkeyName.value = "";
         await loadPasskeys();
@@ -534,7 +534,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   // Every section below loads independently; each is started here and awaited
-  // together at the end, so the slowest one (the control centre) no longer
+  // together at the end, so the slowest one (the control center) no longer
   // holds up the Users list or the Platform cards.
   const tasks = [];
 
@@ -584,7 +584,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  // ---------- Agents: control centre + per-agent scope (admin) ----------
+  // ---------- Agents: control center + per-agent scope (admin) ----------
   async function paintAgentScope(deployedAgents) {
     const panel = document.getElementById("agent-scope-panel");
     if (!canManage) { panel.hidden = true; return; }
@@ -920,7 +920,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     Agenti.banner(banner, "ok", `Removed “${pv.title}”.`);
   }
 
-  let deployed = [];   // the latest catalogue; read at click time by the Build button below
+  let deployed = [];   // the latest catalog; read at click time by the Build button below
   if (showAgents) {
     const list = document.getElementById("deployed-agents-list");
     list.addEventListener("click", (e) => {
@@ -951,9 +951,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     })());
   }
   // ---------- Engagement (admin) ----------
-  // The organisation's ONE engagement record: client, authorization, the
+  // The organization's ONE engagement record: client, authorization, the
   // scope every agent is narrowed from, the validity window and the
-  // operational policy (caps, models). A card summarises it; the dialog
+  // operational policy (caps, models). A card summarizes it; the dialog
   // edits it. Operator decision 2026-11-06:
   //   * the second-approver policy OFF (default): one "Save and close", one
   //     confirmation — the save also records you as its approver;
@@ -1209,7 +1209,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       setView(data.pending ? "pending" : "current");
     }
     // Exposed on window so gui_check.py (and a future deep link) can open the
-    // dialog without synthesising a click.
+    // dialog without synthesizing a click.
     window.__agentiOpenEngagement = openEngagement;
     $id("eng-edit-btn").addEventListener("click", openEngagement);
     $id("engagement-cancel").addEventListener("click", () => engDlg.close());
@@ -1363,12 +1363,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       });
     });
 
-    // The organisation's own instructions (org.md): rules every agent reads,
-    // e.g. report style or contacts. Guides behaviour only.
+    // The organization's own instructions (org.md): rules every agent reads,
+    // e.g. report style or contacts. Guides behavior only.
     if (canReadIam) {
       AgentiContextEditor.mount(document.getElementById("org-policy-editor"), {
         url: "context/org", postUrl: "context/org",
-        title: "Organisation instructions", where: "everyone", reauth: true, blurb: "",
+        title: "Organization instructions", where: "everyone", reauth: true, blurb: "",
       });
       if (window.applyIcons) applyIcons(document.getElementById("org-policy-editor"));
     }
@@ -1570,7 +1570,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           submit: (creds) => Agenti.post("admin/vault/enable", { size, passphrase: pass,
             password: creds.password, totp: creds.totp, reauth: creds.reauth }),
         });
-        if (!r) { Agenti.banner(vBanner, "warn", "Cancelled — nothing was changed."); return; }
+        if (!r) { Agenti.banner(vBanner, "warn", "Canceled — nothing was changed."); return; }
         Agenti.banner(vBanner, "ok", "The vault is on. After every restart of the server, someone must unlock it at its terminal: sudo agenti vault unlock");
         await paintVault();
       } catch (err) {
@@ -1674,11 +1674,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         try {
           const r = await Agenti.requireApproval({
             title: `Save the ${p.name} settings`,
-            description: `Confirm it's you to save the organisation's ${p.name} ${p.id === "local" ? "server" : "key"}. Runs started from now on use it.`,
+            description: `Confirm it's you to save the organization's ${p.name} ${p.id === "local" ? "server" : "key"}. Runs started from now on use it.`,
             submit: (creds) => Agenti.post("admin/api-key", { key, provider: p.id, base_url,
               password: creds.password, totp: creds.totp, reauth: creds.reauth }),
           });
-          if (!r) { Agenti.banner(banner, "warn", "Cancelled — nothing was changed."); return; }
+          if (!r) { Agenti.banner(banner, "warn", "Canceled — nothing was changed."); return; }
           form.reset();
           if (addrEl) addrEl.dispatchEvent(new Event("input"));
           Agenti.banner(banner, "ok", `Saved. Runs started from now on use this ${p.id === "local" ? "server" : "key"}. Use Check connection to confirm it works.`);
@@ -1749,7 +1749,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const WEB_ROLES = ["operator", "admin"];
     const roleLabel = Agenti.roleLabel;
     const userUrl = (name, action) => `admin/users/${encodeURIComponent(name)}/${action}`;
-    const describeAccess = (role) => `${roleLabel(role)} access for the whole organisation`;
+    const describeAccess = (role) => `${roleLabel(role)} access for the whole organization`;
 
     // The table's Role cell is read-only plain text: just the role word(s).
     // Removing access only happens from inside the Grant dialog.
@@ -1972,7 +1972,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       resetPasswordDirectConfirm.disabled = true;
       try {
         const r = await resetPasswordWithApproval(name, "direct", value);
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         resetPasswordDirectForm.hidden = true;
         Agenti.banner(resetBanner, "ok", `Password reset for '${r.user}' (approved by `
           + `${r.approved_by}); ${r.sessions_revoked} session(s) revoked.`);
@@ -1987,7 +1987,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       resetPasswordLinkBtn.disabled = true;
       try {
         const r = await resetPasswordWithApproval(name, "link");
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         const url = `${location.origin}/reset-password.html?token=${encodeURIComponent(r.reset_token)}`;
         resetPasswordLinkValue.textContent = url;
         resetPasswordLinkValue.parentElement.querySelectorAll("button.copy-btn").forEach((b) => b.remove());
@@ -2005,7 +2005,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       resetMfaBtn.disabled = true;
       try {
         const r = await resetMfaWithApproval(name);
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         Agenti.banner(resetBanner, "ok", `2FA reset for '${r.user}' (approved by `
           + `${r.approved_by}); ${r.passkeys_removed} passkey(s) removed.`);
       } finally {
@@ -2037,7 +2037,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     document.getElementById("grant-cancel").addEventListener("click", () => dlg.close());
     // Runs the actual re-authenticated grant through the ONE universal
     // approval popup (api.js requireApproval). Returns the API response on
-    // success, or null if the admin cancelled the popup.
+    // success, or null if the admin canceled the popup.
     async function grantWithApproval(name, role) {
       return Agenti.requireApproval({
         title: "Grant access",
@@ -2100,7 +2100,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       btn.disabled = true;
       try {
         const r = await grantWithApproval(name, role);
-        if (!r) { Agenti.banner(grantBanner, "err", "Cancelled — nothing was saved."); return; }
+        if (!r) { Agenti.banner(grantBanner, "err", "Canceled — nothing was saved."); return; }
         dlg.close();
         Agenti.banner(usersBanner, "ok", `${name} now has ${describeAccess(role)}.`);
         await paintUsers();
@@ -2123,7 +2123,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       usersBanner.className = "banner";
       if (enableName) {
         const r = await enableWithApproval(enableName);
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         Agenti.banner(usersBanner, "ok", `'${r.user}' can sign in again (approved by ${r.approved_by}).`);
         await paintUsers();
       } else if (grantName) {
@@ -2132,7 +2132,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         openRenameUser(renameName);
       } else if (deleteName) {
         const r = await deleteWithApproval(deleteName);
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         Agenti.banner(usersBanner, "ok", `'${r.name}' was permanently deleted (approved by ${r.approved_by}).`);
         await paintUsers();
       } else if (disableName) {
@@ -2143,7 +2143,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           submit: (creds) => Agenti.post(userUrl(disableName, "disable"),
             { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
         });
-        if (!r) return; // cancelled
+        if (!r) return; // canceled
         Agenti.banner(usersBanner, "ok", `'${disableName}' is disabled (approved by ${r.approved_by}).`);
         await paintUsers();
       } else if (relinkName) {
@@ -2181,7 +2181,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
       renameUserDlg.close();
       const r = await renameWithApproval(oldName, newName);
-      if (!r) return; // cancelled
+      if (!r) return; // canceled
       Agenti.banner(usersBanner, "ok", `'${r.old}' is now '${r.new}' (approved by ${r.approved_by}).`);
       await paintUsers();
     });
@@ -2239,7 +2239,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               name, kind, role, no_link: kind === "service",
               password: creds.password, totp: creds.totp, reauth: creds.reauth }),
           });
-          if (!r) return;     // cancelled: nothing was created; the wizard stays open
+          if (!r) return;     // canceled: nothing was created; the wizard stays open
           newUserDlg.close();
           await paintUsers();
           if (r.enrolment_token) {

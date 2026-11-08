@@ -204,7 +204,7 @@ with tempfile.TemporaryDirectory() as td:
     print("render_capability_dropin: every real file-analysis agent's capfile actually asks for the sandbox cap")
     # Found live 2026-10-08: cracker-agent/cracker.capabilities was ALL COMMENTS
     # ("capability-dropin.sh adds CAP_SYS_ADMIN for every file-analysis agent
-    # regardless of this file") describing behaviour render_capability_dropin
+    # regardless of this file") describing behavior render_capability_dropin
     # does not and never did implement — it only grants what a capfile lists
     # literally. The rendered drop-in came out with an empty
     # CapabilityBoundingSet=, bubblewrap couldn't create its sandbox, and

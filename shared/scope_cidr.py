@@ -96,7 +96,7 @@ class CIDRScope:
         optionally followed by a human label, e.g.
         '10.0.0.0/24 (internal server VLAN)' — the leading token is parsed,
         the rest is for humans. An exclusion that cannot be parsed refuses the
-        run: an exclusion that cannot be honoured must not be ignored."""
+        run: an exclusion that cannot be honored must not be ignored."""
         if not engagement.in_scope:
             sys.exit("REFUSING: in_scope is empty — nothing is authorized.")
         try:

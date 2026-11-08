@@ -70,7 +70,7 @@ command an agent wants to run, and the checker could be fooled.
 
 | Rating | What could happen | Fixed by |
 |---|---|---|
-| High | A scan command could carry an out-of-scope target the checker did not recognise (a host name, a range, IPv6, a number written another way, a target hidden inside an option). | Every target must be a plain IP address or range, or a URL with one, and is checked against the scope. Anything the checker does not understand is refused. |
+| High | A scan command could carry an out-of-scope target the checker did not recognize (a host name, a range, IPv6, a number written another way, a target hidden inside an option). | Every target must be a plain IP address or range, or a URL with one, and is checked against the scope. Anything the checker does not understand is refused. |
 | High | The checker read the command as text, but the computer ran it split into words, so the two could disagree. | The command is split into words once, checked, and run exactly as checked. |
 | High | Some programs' dangerous options (running modules, writing files) slipped past a text filter. | Each program has a reviewed list of allowed options. Anything not on it is refused by name. |
 | Medium | Hosts marked "out of scope" inside an allowed range were not actually blocked. | Exclusions are cut out of the allowed scope everywhere: at launch, for every command, and in the kernel's network fence. |

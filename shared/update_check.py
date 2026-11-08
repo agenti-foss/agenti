@@ -101,7 +101,7 @@ def fetch_latest(opener=urllib.request.urlopen):
     except (ValueError, KeyError, TypeError) as e:
         raise RuntimeError("GitHub's reply was not a release description") from e
     if parse_version(tag) is None:
-        raise RuntimeError(f"the latest release has an unrecognised version tag {tag!r}")
+        raise RuntimeError(f"the latest release has an unrecognized version tag {tag!r}")
     if url and not url.startswith(f"https://github.com/{REPO}/"):
         url = f"https://github.com/{REPO}/releases"
     return tag.lstrip("v"), url

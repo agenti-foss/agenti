@@ -82,7 +82,7 @@ from scope_domain import DomainScope
 # 0. RUN PROFILE
 # ---------------------------------------------------------------------------
 # The profile's caps/model change WHERE the agent may fetch/search and HOW
-# MUCH it may spend, resolved fresh per run against the organisation's policy.
+# MUCH it may spend, resolved fresh per run against the organization's policy.
 # They never change WHAT is permitted: http(s)-only, no redirect-following,
 # the per-run fetch/search caps, and the domain boundary are fixed in code.
 
@@ -104,7 +104,7 @@ EXTERNAL_TOOLS = [
 # window_s), so it's used directly rather than subclassed.
 
 AGENTI_ROOT = paths.data_root()
-# Everything lives under the one organisation directory.
+# Everything lives under the one organization directory.
 ORG_DIR = AGENTI_ROOT / "org"
 AGENT_NAME = "research"
 AGENT_TITLE = "OSINT research"              # shown in the GUI
@@ -124,12 +124,12 @@ SHARED_DIR = AGENTI_ROOT / "shared"
 
 
 # Placeholder numbers — agent_runtime.load_run_config() ALWAYS overwrites
-# every one of these before a run starts, resolved against the organisation's
+# every one of these before a run starts, resolved against the organization's
 # policy (CLAUDE.md "Current plan": the retired --dev/commercial split's
 # separate caps — this agent used to default lower than enum's, 30t/$8/2400s
 # — are now the ONE platform-wide default in engagement_context.py, since
 # the whole point of an organisation-level ceiling is one number, not
-# one per agent; an organisation that genuinely needs research capped tighter than
+# one per agent; an organization that genuinely needs research capped tighter than
 # enum sets its own ceiling). model=None is never actually used to run
 # anything: --model is mandatory at launch, checked there. Still a
 # one-entry dict (not a bare Profile) so AgentContract's own "profiles must
@@ -449,7 +449,7 @@ def configure(profile: Profile) -> Profile:
     PROFILE = profile
 
     # -- 1. load the engagement this run is bound to --------------------------
-    # CLAUDE.md "Current plan": ONE master scope, the organisation's
+    # CLAUDE.md "Current plan": ONE master scope, the organization's
     # engagement record, viewed through this agent's scope kind. Editing/
     # approving it from the GUI is what makes it the single source of truth
     # for every launch. Every failure the loader raises names the fix.

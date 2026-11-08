@@ -14,7 +14,7 @@
 //   <tool> / call         a tool call as it is issued, with its arguments —
 //                         the "what is it doing right now" line, marked as
 //                         running until its result lands;
-//   <tool> / ok | error   the result, summarised — a finding;
+//   <tool> / ok | error   the result, summarized — a finding;
 //   operator:* / received a note or message the run consumed.
 // A message the person sends is shown at once as "queued" and replaced by
 // the real operator:message row when the run consumes it at a turn
@@ -386,7 +386,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   // ---------- engagement (CLAUDE.md "Current plan", phase 1: engagement is
-  // the organisation's, shared by every agent — read-only
+  // the organization's, shared by every agent — read-only
   // here, always. Authoring and approving it lives in Settings.) Own /tools fetch rather than sharing loadTools()'s (that
   // IIFE isn't awaited, so its result isn't reliably ready by the time
   // perms is) — the descriptor is small and cheap, and this keeps the two
@@ -553,7 +553,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
   });
-  // A single visible control is an unlabelled glyph with no siblings to give
+  // A single visible control is an unlabeled glyph with no siblings to give
   // it context — a finished run leaves just "▶". One control gets its name;
   // several stay compact, where their grouping and tooltips carry it.
   const shownControls = Array.from(els.controls.querySelectorAll("[data-action]"))

@@ -82,7 +82,7 @@
     {
       "name": "sslyze",
       "group": "tls",
-      "purpose": "analyse a service's TLS configuration",
+      "purpose": "analyze a service's TLS configuration",
       "extra_denied": []
     },
     {

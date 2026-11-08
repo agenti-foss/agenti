@@ -17,7 +17,7 @@
 # starting a system service, therefore needs root. Run the whole command under
 # sudo — the script never invokes sudo behind your back.
 #
-# ONE ORGANISATION: everything lives under <vault>/org — the engagement, each
+# ONE ORGANIZATION: everything lives under <vault>/org — the engagement, each
 # agent's runs (org/<agent>/instances/<user>), teams and kept outputs. Every
 # run is some user's own (private to them); users share one Linux service
 # account, so the kernel-level separation between them is the slot unit's
@@ -26,7 +26,7 @@
 set -euo pipefail
 # Every `python3 -c` helper below would otherwise put the CALLER'S working
 # directory first on its import path, so a json.py planted where root runs
-# `sudo agenti` would run as root (audit run 1, F14). Python 3.11+ honours this.
+# `sudo agenti` would run as root (audit run 1, F14). Python 3.11+ honors this.
 # It also stops a script's own folder being added, so PYTHONPATH is set to the
 # code folder below, once it is known (root-owned, read-only).
 export PYTHONSAFEPATH=1
@@ -120,7 +120,7 @@ need_root() { [[ $EUID -eq 0 ]] || die "this needs root. Try: sudo agenti $ORIG_
 # otherwise have.
 SVC_USER="agenti-run"
 
-# engagement_store.py — the root-side reader/writer for the organisation's engagement
+# engagement_store.py — the root-side reader/writer for the organization's engagement
 # record (CLAUDE.md "Current plan", phase 1). Same two-tier resolution
 # cmd_tools/cmd_engagement already use for gen_capabilities.py/
 # engagement_store.py: $LIBDIR is the real, installed copy in production; the
@@ -269,7 +269,7 @@ recreate it:  sudo dpkg-reconfigure agenti"
 
 require_org() {
     require_data
-    [[ -d "$(org_dir)" ]] || die "the organisation directory $(org_dir) does not exist.
+    [[ -d "$(org_dir)" ]] || die "the organization directory $(org_dir) does not exist.
 recreate it:  sudo dpkg-reconfigure agenti"
 }
 
@@ -394,7 +394,7 @@ ensure_slot_userkey_dropin() {
 
 # A domain run obeys the exclusions it loaded when it started. This root-owned
 # record of them lets _stop_uncovered_runs tell a NEW exclusion under the
-# run's target (the run must stop) from one it already honours (audit run 2).
+# run's target (the run must stop) from one it already honors (audit run 2).
 record_run_exclusions() {
     local agent="$1"
     local dir; dir=$(agent_dir "$agent")
@@ -635,7 +635,7 @@ json_str() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"; 
 # rare direct-root case, and finally "unknown" rather than leaving it unset.
 invoking_user() { printf '%s' "${SUDO_USER:-$(whoami 2>/dev/null || echo unknown)}"; }
 
-# Returns 0 (true) iff `$1` holds permission `$2` (on the organisation), per
+# Returns 0 (true) iff `$1` holds permission `$2` (on the organization), per
 # iam.py's own `can` command — the CLI's own independent re-check of an
 # action the API already claims to have authorized (see cmd_start's own call
 # site for why this cannot just trust the API). Fails closed: a missing
@@ -814,7 +814,7 @@ start options
                            or haiku | sonnet | opus — must be on the allowed list
                            (agenti engagement show)
       --budget <usd>       spend ceiling for this run — left blank, defaults
-                           to the organisation's own ceiling; may only NARROW it
+                           to the organization's own ceiling; may only NARROW it
       --turns <n>          max agentic turns — same narrowing-only rule
       --timeout <sec>      ceiling on the time the agent spends WORKING — same
                            narrowing-only rule. Time spent waiting for your answer
@@ -1033,7 +1033,7 @@ cmd_start() {
     # every other agent must be given one.
     local scope_kind; scope_kind=$(_agent_scope_kind "$agent")
     if [[ "$scope_kind" == files ]]; then
-        [[ -z "$target" ]] || die "'$agent' analyses attached files and takes no target (-t).
+        [[ -z "$target" ]] || die "'$agent' analyzes attached files and takes no target (-t).
 Attach the file(s) and start it without one:
   sudo agenti $agent attach <file>
   sudo agenti $agent start --model sonnet"
@@ -1098,13 +1098,13 @@ $(printf '%s\n' "$pre" | sed 's/^/  - /')"
 
     local dir svc_user; dir=$(agent_dir "$agent"); svc_user=$SVC_USER
 
-    # An analysis run with nothing to analyse would only spend a model's time
+    # An analysis run with nothing to analyze would only spend a model's time
     # finding that out. Files waiting for the next run are what it will get.
     if [[ "$scope_kind" == files ]]; then
         _run_files list --slot "$dir"
         local waiting; waiting=$(printf '%s' "$RF_OUT" | python3 -c 'import json,sys
 print(len(json.load(sys.stdin).get("pending") or []))' 2>/dev/null || echo 0)
-        [[ "$waiting" -gt 0 ]] || die "'$agent' has no file to analyse: none is waiting for this run.
+        [[ "$waiting" -gt 0 ]] || die "'$agent' has no file to analyze: none is waiting for this run.
 Attach one first (or use the paperclip on Launch):
   sudo agenti $agent attach <file>"
     fi
@@ -1172,7 +1172,7 @@ Attach one first (or use the paperclip on Launch):
     fi
 
     # Written FRESH every start, so anything not given falls back to the
-    # organisation's engagement ceiling (agent_runtime.load_run_config) — per-run
+    # organization's engagement ceiling (agent_runtime.load_run_config) — per-run
     # settings never leak into the next run. "model" is always present
     # (mandatory, checked above); turns/budget/timeout are only written when
     # the operator actually gave one — left out, the ceiling itself applies.
@@ -1554,7 +1554,7 @@ cmd_show() {
     printf '  rewritten on every start, so they never carry over.%s\n' "$c_0"
 }
 
-# `agenti <agent> engagement` — a per-AGENT VIEW of the organisation's
+# `agenti <agent> engagement` — a per-AGENT VIEW of the organization's
 # engagement record, through this agent's own scope kind. It is a READ, not a
 # second copy: the record lives in org/, this only asks engagement_store.py to
 # show it filtered to $AGENT's scope kind.
@@ -1656,7 +1656,7 @@ cmd_org_engagement_digest() {
     _run_engagement_store digest "$@"
 }
 
-# set/approve are the only two engagement verbs that write; both honour
+# set/approve are the only two engagement verbs that write; both honor
 # --dry-run (nothing is written, the intended call is echoed) and accept
 # --by/--via overrides for the same reason `start`'s --launched-by and
 # `admin-approve`'s --approved-by do: an API-driven call has no controlling
@@ -2186,7 +2186,7 @@ print("\n  the model never gets raw shell; scope is enforced in root-owned files
 PY
 }
 
-# The agent-TYPE catalogue, read straight from every master copy's own
+# The agent-TYPE catalog, read straight from every master copy's own
 # capabilities.json. Always emits {"vault":"off"|"locked"|"unlocked",
 # "agents":[{agent,scope_kind,category,title,description,built,tools,programs},...]}
 # regardless of $JSON; formatting for a human is each caller's own job.
@@ -2402,7 +2402,7 @@ cmd_scans() {
     # but a passive agent writes scans/window-<ts>/{tshark,suricata}/*.log —
     # a top-level *.txt glob reports "(none)" for a directory full of evidence,
     # which reads like the run collected nothing. Paths are shown relative to
-    # scans/ so the window and analyser are visible without being verbose.
+    # scans/ so the window and analyzer are visible without being verbose.
     # The run chose every name here: listed by run_files (descriptor walk,
     # sizes from it), printed escaped, never handed to another program.
     local dir; dir=$(agent_dir "$1")
@@ -2583,7 +2583,7 @@ cmd_set_user_key() {
     local u="${1:-}"
     [[ -n "$u" && "$u" != -* ]] || die "usage: sudo agenti admin set-user-key <user> [--provider anthropic|openai|local]
   Installs <user>'s own API key (Anthropic unless --provider says otherwise); their runs use it ahead of the agent,
-  organisation and shared keys. Remove it with: sudo rm $AGENTI_ROOT/org/users/<user>/secrets.env"
+  organization and shared keys. Remove it with: sudo rm $AGENTI_ROOT/org/users/<user>/secrets.env"
     python3 "$IAM_PY" --json user-exists "$u" 2>/dev/null \
         | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("exists") else 1)' 2>/dev/null \
         || die "no user named '$u' — list them: sudo agenti admin user list"
@@ -3421,7 +3421,7 @@ list them:  sudo agenti $agent copies"
 
 # promote-output (CLAUDE.md "Current plan", phase 3 of the generic-launcher
 # arc, decision 8): copy one report out of an agent's own reports/ into the
-# organisation's permanent Outputs store, gated by the two-level quota
+# organization's permanent Outputs store, gated by the two-level quota
 # (shared/iam.py's outputs_check). Reports already never age out on their
 # own — this is the mechanism the plan describes for making that lifecycle
 # explicit and visible in the Outputs store rather than something that just
@@ -3559,7 +3559,7 @@ _slot_cat() {
     local -a extra=(); [[ -n "${3:-}" ]] && extra=(--tail "$3")
     python3 "$py" cat --slot "$1" --path "$2" "${extra[@]}"
 }
-# <slot dir>: the run's state.json as one line of JSON, parsed and re-serialised,
+# <slot dir>: the run's state.json as one line of JSON, parsed and re-serialized,
 # or {} when it is missing, refused (a link, FIFO ...) or not a JSON object. Root
 # never echoes the raw bytes a run wrote (audit run 2: a link to a root-only
 # file came back to the web in an error page).
@@ -3615,11 +3615,11 @@ _parse_attach_args() {
 }
 
 # A start that failed: its files go back to waiting for the next attempt.
-STAGE_DIR=""   # set by an unlabelled start: where its waiting files came from
+STAGE_DIR=""   # set by an unlabeled start: where its waiting files came from
 _files_back() {
     [[ $DRY_RUN -eq 1 ]] && return 0
     ( _run_files unbegin --slot "$1" --group "$SVC_USER" ) >/dev/null 2>&1 || true
-    # An unlabelled start made a fresh slot just for this attempt; if it
+    # An unlabeled start made a fresh slot just for this attempt; if it
     # failed, the files go back to where `attach` staged them so the next
     # start (a different fresh slot) still gets them.
     if [[ -n "$STAGE_DIR" && -d "$STAGE_DIR" ]]; then
@@ -3698,7 +3698,7 @@ usage: $usage" ;;
     [[ -d "$src_dir" ]] || die "'$OWNER' has no runs of '$agent'${COPY:+ (copy '$COPY')} yet, so there is nothing to send."
     # The files wait for the receiver's NEXT run: in the slot named by
     # --to-copy (the GUI reserves one per launch), else the owner's plain
-    # staging slot, which the next unlabelled start moves them out of.
+    # staging slot, which the next unlabeled start moves them out of.
     [[ -z "$to_copy" ]] || valid_name "$to_copy" || die "invalid --to-copy label '$to_copy'"
     local saved_slot="$SLOT" mode=pending dest_dir
     SLOT="$OWNER${to_copy:+.$to_copy}"
@@ -3790,7 +3790,7 @@ print(json.dumps([l.rstrip("\n") for l in sys.stdin]))'
     fi
 }
 
-# `agenti <agent> approval` — a per-AGENT VIEW of the organisation's
+# `agenti <agent> approval` — a per-AGENT VIEW of the organization's
 # approval status. The approval is bound to the record's content digest, so
 # "approved" here means "current", not merely "a file exists".
 #
@@ -4151,7 +4151,7 @@ usage: sudo agenti setup-code [--new] [--if-needed]
 
 Shows the one-time setup code. Until the first admin exists, the GUI's setup
 page asks for it, so only someone who can read this machine's terminal can
-claim the organisation. The page opens in any browser that reaches the GUI
+claim the organization. The page opens in any browser that reaches the GUI
 directly (this machine, or another computer on its network), never through a
 tunnel or proxy (agenti gui status shows the address).
 
@@ -4712,7 +4712,7 @@ reinstall it:  $REINSTALL"
     if [[ "${1:-}" == set-policy && ( "${2:-}" == model-price || "${2:-}" == model_prices ) ]]; then
         console_only "admin set-policy model-price"
         [[ $# -eq 3 ]] || die "usage: sudo agenti admin set-policy model-price provider:model=INPUT,OUTPUT
-Prices are USD per million tokens; this uses the organisation's engagement policy."
+Prices are USD per million tokens; this uses the organization's engagement policy."
         cmd_org_engagement set --model-price "$3"
         return
     fi
@@ -5388,7 +5388,7 @@ must match ^[a-z0-9][a-z0-9_-]{0,57}\$ — no '/', '.', or other path characters
     ensure_vault
     require_org
     local tdir tf; tdir=$(teams_dir); tf=$(team_file "$name")
-    # Team names are unique across the organisation. Someone else's team is not yours to
+    # Team names are unique across the organization. Someone else's team is not yours to
     # know about, so that case names no owner.
     if [[ -f "$tf" ]]; then
         [[ "$(_team_owner "$name")" == "$OWNER" ]] && die "team '$name' already exists — it's yours.
@@ -5729,7 +5729,7 @@ $(printf '%s\n' "$pre_result" | sed 's/^/  - /')"
     # look at the channel already finds the roster, and its instructions —
     # built from this entry when it starts — already name every teammate and
     # what each is doing. Posted on EVERY start, not only when roles were given:
-    # a team of unlabelled members still needs to know who else is on it. A
+    # a team of unlabeled members still needs to know who else is on it. A
     # member with no --role this call keeps whatever role it already had (its
     # existing run-role file). A member with no target is skipped below, so it
     # is left out of the roster: nobody should wait on a teammate that is not
@@ -6794,7 +6794,7 @@ case "${1:-}" in
 reinstall it:  $REINSTALL"
         exec "$LIBDIR/verify.sh" "$@" ;;
     gui)   shift; cmd_gui "$@"; exit 0 ;;
-    # No need_root (CLAUDE.md "Current plan" phase 3): the agent catalogue is
+    # No need_root (CLAUDE.md "Current plan" phase 3): the agent catalog is
     # not sensitive — see cmd_agents' own comment for why it can read straight
     # off disk without sudo.
     agents) cmd_agents; exit 0 ;;
@@ -6808,7 +6808,7 @@ reinstall it:  $REINSTALL"
         shift
         cmd_team "$@"
         exit 0 ;;
-    # The engagement is a property of the organisation, not of any one agent,
+    # The engagement is a property of the organization, not of any one agent,
     # so it is intercepted the same way — "engagement" is not an agent name.
     engagement)
         need_root

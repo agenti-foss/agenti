@@ -161,8 +161,8 @@ window.AgentiModels = (() => {
         const models = (result.models || []).map((name) => (name.startsWith(p + ":") ? name.slice(p.length + 1) : name));
         fillSelect(models, models.length ? "" : "No allowed model listed");
         hint.textContent = models.length
-          ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organisation.`
-          : "This provider offers no model on the organisation's allowed list. An admin can change the list in Settings → Engagement, or choose “Other model…”.";
+          ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organization.`
+          : "This provider offers no model on the organization's allowed list. An admin can change the list in Settings → Engagement, or choose “Other model…”.";
       } catch (err) {
         if (request !== sequence) return;
         fillSelect([], "Couldn't load the list");

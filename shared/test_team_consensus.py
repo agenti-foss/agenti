@@ -216,7 +216,7 @@ check("the kickoff is NOT re-delivered (the roster is already in the agent's ins
       "roster: a=internal" in text, False)
 check("a plain message is delivered", "starting the external scan" in text, True)
 check("a vote's reasoning is delivered", "internal scan done, no findings" in text, True)
-check("...and labelled as a vote, not a plain message",
+check("...and labeled as a vote, not a plain message",
       "says the project is complete" in text, True)
 check("a note is STILL never delivered — the one property this file exists "
       "to protect, extended to two more kinds", "SECRET internal note" in text, False)
@@ -583,7 +583,7 @@ async def _wait_clock_tests():
     finally:
         ar.OPERATOR_WAIT_CAP_S = old_cap
 
-    # ---- a runner that never bound a clock still works (old behaviour, no crash) ----
+    # ---- a runner that never bound a clock still works (old behavior, no crash) ----
     d4, s4 = fresh("unbound")
     n = {"n": 0}
 

@@ -128,7 +128,7 @@ def raises(fn):
 
 check("not JSON", bool(raises(lambda: uc.fetch_latest(opener_for(b"<html>")))), True)
 check("no tag", bool(raises(lambda: uc.fetch_latest(opener_for({"name": "x"})))), True)
-check("odd tag refused", "unrecognised" in (raises(lambda: uc.fetch_latest(opener_for({"tag_name": "rm -rf /"}))) or ""), True)
+check("odd tag refused", "unrecognized" in (raises(lambda: uc.fetch_latest(opener_for({"tag_name": "rm -rf /"}))) or ""), True)
 check("oversize refused", "large" in (raises(lambda: uc.fetch_latest(opener_for(b"x" * (uc.MAX_BYTES + 5)))) or ""), True)
 
 

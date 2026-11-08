@@ -234,27 +234,27 @@ if command -v objdump >/dev/null; then
     [[ -n "$glibc" ]] || glibc="2.17"
 fi
 # Debian's copyright and changelog. Everything inside is someone else's
-# software, unmodified; each part's licence ships with it.
+# software, unmodified; each part's license ships with it.
 doc="$ROOT/usr/share/doc/agenti-runtime"
 install -d "$doc"
 cat > "$doc/copyright" <<'COPYRIGHT'
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: agenti-runtime
 Comment: Agenti's bundled Python. It contains third-party software, unmodified;
- each part keeps its own licence, shipped beside it. The exact versions are in
+ each part keeps its own license, shipped beside it. The exact versions are in
  /usr/lib/agenti-runtime/BUILD-INFO.json.
 
 Files: usr/lib/agenti-runtime/python/*
 Copyright: Python Software Foundation; the CPython and python-build-standalone contributors
 License: PSF-2.0
- The full text, with the licences of the libraries built into this Python
+ The full text, with the licenses of the libraries built into this Python
  (OpenSSL, SQLite, zlib, bzip2, expat, xz, zstd, libffi, ncurses and others), is
  /usr/lib/agenti-runtime/python/lib/python3.*/LICENSE.txt.
 
 Files: usr/lib/agenti-runtime/agent/* usr/lib/agenti-runtime/api/* usr/lib/agenti-runtime/authd/*
 Copyright: the authors of each Python package
 License: various
- Each package's licence is in its *.dist-info folder under
+ Each package's license is in its *.dist-info folder under
  /usr/lib/agenti-runtime/<env>/lib/python3.*/site-packages/. The Claude Agent SDK
  (MIT) needs Anthropic's Claude Code program, which is under Anthropic's own
  terms and is NOT in this package: fetch-claude-code downloads it from PyPI at

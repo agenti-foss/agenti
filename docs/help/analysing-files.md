@@ -1,11 +1,11 @@
-# Analysing a file
+# Analyzing a file
 
-*For anyone who launches a file-analysis agent such as the Pcap analyser.*
+*For anyone who launches a file-analysis agent such as the Pcap analyzer.*
 
 ## The short version
 
 - A **file-analysis agent** reads a file you give it and reports what it
-  found. The first one is a **packet-capture (pcap) analyser**, built on
+  found. The first one is a **packet-capture (pcap) analyzer**, built on
   Wireshark's command-line engine (`tshark`), with Suricata available too.
 - **Attach the file, then run it.** On **Launch**, pick the agent, choose or
   drop the file (up to 100 MB), pick a model and press **Run**. There is no
@@ -13,7 +13,7 @@
 - It never touches the network. Every program runs in a **sandbox** with no
   network, no access to the rest of the server, hard limits on time, memory and
   output, and a **syscall filter** that removes the kernel features a file
-  parser has no use for. A capture that is crafted to attack its analyser can
+  parser has no use for. A capture that is crafted to attack its analyzer can
   only hurt itself.
 - The report names the file, who attached it and its **SHA-256**, lists every
   command the agent ran, and keeps each command's full output.
@@ -45,7 +45,7 @@ Suricata is only as good as its **rules**. This server uses, in this order:
    if an admin has run it. These are real threat signatures.
 2. Otherwise only the **event rules that ship with the Suricata package**.
    These flag protocol oddities (a malformed SMB request, a bad ICMP code).
-   They do **not** recognise exploits or malware.
+   They do **not** recognize exploits or malware.
 
 When only the package rules are present, the agent is told to say so, because
 an empty alert list then means nothing. To install the real signatures, an admin
@@ -67,7 +67,7 @@ refused with the reason, and the refusal is listed in the report.
 ## What it reports about passwords
 
 Whether a password's **value** appears in the report depends on the agent's
-instructions, which an admin writes. The Pcap analyser's instructions ask for
+instructions, which an admin writes. The Pcap analyzer's instructions ask for
 credentials, so it reports where each was found (frame, protocol, account) and
 the value. An agent without that instruction refers to a credential by location
 only.
@@ -76,7 +76,7 @@ only.
 LM hash in a Windows credential dump, for example), the agent reports the
 hash, the account and the frame. Turning a hash back into a password means
 cracking it, which these agents don't do. The **Hash cracker** does: use
-**Send output** to hand it the analyser's report and the output that holds the
+**Send output** to hand it the analyzer's report and the output that holds the
 hashes.
 
 ## The Hash cracker
@@ -104,24 +104,24 @@ sandbox.
 
 ## Why there is no engagement or target
 
-A network agent is bounded by what the organisation authorised it to touch. A
+A network agent is bounded by what the organization authorized it to touch. A
 file-analysis agent touches nothing: it only reads a file an operator chose to
 give it. So it needs no target, no engagement and no approval to start. The
-record of what it analysed is the file's name, its SHA-256 and who attached it,
+record of what it analyzed is the file's name, its SHA-256 and who attached it,
 in every report.
 
 ## Messages you may see
 
 | Message | What it means |
 |---|---|
-| *Attach at least one file for this agent to analyse.* | Add a file before pressing Run. |
-| *'x' has no file to analyse: none is waiting for this run.* | Same, from a terminal: `agenti <agent> attach <file>` first. |
+| *Attach at least one file for this agent to analyze.* | Add a file before pressing Run. |
+| *'x' has no file to analyze: none is waiting for this run.* | Same, from a terminal: `agenti <agent> attach <file>` first. |
 | *takes no target (-t)* | This kind of agent has no target; start it without `-t`. |
 | *DENIED: … does not allow '-w' here* | The agent asked for an option it may not use. The message lists the allowed ones; the agent usually corrects itself. |
 | *DENIED: … is not a file attached to this run* | It named a file you didn't attach. |
 | *the sandbox is not available on this host* | `bubblewrap` or `libseccomp2` is missing, or the host refuses unprivileged user namespaces; an admin needs to fix the server. |
 | *stopped: exceeded the … time limit* | The program ran too long and was stopped. The agent sees this and can narrow its filter. |
 | *DENIED: /wordlists/… does not exist on this host* | The cracker named a wordlist or rules file that isn't installed. The message lists what is there. |
-| *No hashes in a recognised format were found* | extract_hashes found nothing it knows. Attach a clean hash file (one hash per line) instead. |
+| *No hashes in a recognized format were found* | extract_hashes found nothing it knows. Attach a clean hash file (one hash per line) instead. |
 
 For an admin building one, see **Building your own agent**.

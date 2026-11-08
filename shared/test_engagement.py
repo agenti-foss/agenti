@@ -12,7 +12,7 @@ gets only ITS kind's scope entries from the shared record (a CIDR agent
 must never inherit a domain, nor vice versa), and (2) an approval is bound
 to the record's CONTENT — editing a single scope entry, date or note after
 approval must make approval_status().current false, or the approval gate
-would be theatre. The store CLI is exercised as a real subprocess, exactly
+would be theater. The store CLI is exercised as a real subprocess, exactly
 as shared/agenti calls it.
 """
 import json
@@ -99,7 +99,7 @@ try:
 
     section("normalize_record(): every refusal, against the real function")
     refuses("not an object", lambda: ec.normalize_record([1]), "JSON object")
-    refuses("unknown top-level key", lambda: ec.normalize_record(base(colour="red")), "unknown field", "colour")
+    refuses("unknown top-level key", lambda: ec.normalize_record(base(color="red")), "unknown field", "color")
     refuses("bad engagement_id (space)", lambda: ec.normalize_record(base(engagement_id="LAB 01")), "engagement_id")
     refuses("bad engagement_id (leading dash)", lambda: ec.normalize_record(base(engagement_id="-x")), "engagement_id")
     refuses("empty client", lambda: ec.normalize_record(base(client="  ")), "client cannot be empty")
@@ -214,7 +214,7 @@ try:
             "no engagement yet", "sudo agenti engagement set", "--cidr-in", "Settings")
     (org_dir / ec.ORG_ENGAGEMENT_FILENAME).write_text(json.dumps(base(scope={"cidr": {"in_scope": ["10.0.0.0/24"]}})))
     got = ec.load_engagement("cidr", org_dir=org_dir)
-    check("loads the organisation record", got.in_scope, ["10.0.0.0/24"])
+    check("loads the organization record", got.in_scope, ["10.0.0.0/24"])
     refuses("a kind with no entries is refused, naming the kind and the flag",
             lambda: ec.load_engagement("domain", org_dir=org_dir),
             "no domain scope entries", "--domain-in")

@@ -455,7 +455,7 @@ check("default: the whole public web comes back (background research)",
       ("sub.example.com/found" in t, "evil.example/found" in t), (True, True))
 check("...each result says whether it is inside the target scope",
       ("[in scope]" in t, "outside" in t), (True, True))
-check("...and snippets are labelled untrusted", "untrusted" in t, True)
+check("...and snippets are labeled untrusted", "untrusted" in t, True)
 import scope_domain
 ctx4.extra["engagement_ceiling"] = scope_domain.DomainCeiling(["example.com", "evil.example"])
 t = run(web_search({"query": "tagged"}))["content"][0]["text"]

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-engagement_store.py — the root-side reader/writer for a organisation's engagement
+engagement_store.py — the root-side reader/writer for a organization's engagement
 record (CLAUDE.md "Current plan", phase 1 of the cybersecurity refocus).
 
 Invoked by `shared/agenti` (as root) for `agenti engagement
 show|set|approve|approve-pending|reject-pending|withdraw-pending|history`,
 and — through the same verbs — by the API and the GUI. It owns these files
-in the organisation's directory:
+in the organization's directory:
 
     org/engagement.json           the record (engagement_context.py's
                                        schema) — root:<service group> 0640,
@@ -193,7 +193,7 @@ def _locked(org_dir: Path):
 def _paths(args) -> tuple[Path, Path, Path, Path, Path]:
     org_dir = Path(args.org_dir)
     if not org_dir.is_dir():
-        raise StoreError(f"organisation directory {org_dir} does not exist (vault unlocked? provisioned?)")
+        raise StoreError(f"organization directory {org_dir} does not exist (vault unlocked? provisioned?)")
     shared_dir = Path(args.shared_dir) if args.shared_dir else org_dir.parent / "shared"
     return (org_dir, shared_dir,
             org_dir / ec.ORG_ENGAGEMENT_FILENAME,
@@ -335,7 +335,7 @@ def cmd_show(args) -> dict:
         if error:
             out["view"]["error"] = error
         if args.agent:
-            # What THIS agent would actually be held to: the organisation scope
+            # What THIS agent would actually be held to: the organization scope
             # narrowed by the agent's own scope (never wider).
             av = _agent_scope_view(org_dir, rec_path, args.agent, args.scope_kind)
             out["view"].update({"in_scope": av["effective_in_scope"], "usable": bool(av["effective_in_scope"]),
@@ -344,7 +344,7 @@ def cmd_show(args) -> dict:
     elif args.scope_kind:
         out["view"] = {"scope_kind": args.scope_kind, "in_scope": [], "out_of_scope": [],
                        "usable": False}
-    # The EFFECTIVE policy (organisation override narrowing the platform default),
+    # The EFFECTIVE policy (organization override narrowing the platform default),
     # always present even for a brand-new install with no record at all —
     # what the launch page/CLI error messages read to say "here's what's
     # actually allowed", never the raw (possibly-empty) record.get("policy").
@@ -429,9 +429,9 @@ def _merged_record(base: dict | None, invalid: str | None, args) -> dict:
     if created:
         missing = [_META_FLAGS[f] for f in _CREATE_REQUIRED if getattr(args, f) is None]
         if missing:
-            why = (f"the organisation already has an engagement file that cannot be read "
+            why = (f"the organization already has an engagement file that cannot be read "
                    f"({invalid}), so replacing it" if invalid else
-                   f"the organisation has no engagement yet, so creating one")
+                   f"the organization has no engagement yet, so creating one")
             raise StoreError(f"{why} needs every core field: missing {', '.join(missing)}")
     new = dict(start)
     for field in ec.LEGACY_RECORD_FIELDS:   # retired: a save drops it
@@ -631,7 +631,7 @@ def _set_pending(args, org_dir, rec_path, appr_path, hist_path, gid,
 
 
 def _agent_scope_view(org_dir: Path, rec_path: Path, agent: str, kind: str) -> dict:
-    """Organisation ceiling, the agent's own narrowing, and the overlap a run
+    """Organization ceiling, the agent's own narrowing, and the overlap a run
     enforces — including a pending change's narrowing (what runs are held to)."""
     record, invalid = _load_existing(rec_path)
     org_in = out_org = []
@@ -667,17 +667,17 @@ def cmd_agent_scope_show(args) -> dict:
 
 def cmd_agent_scope_set(args) -> dict:
     """Replace the agent's own scope (both lists; empty in_scope = inherit the
-    organisation's). Refused if any in_scope entry is wider than the organisation's."""
+    organization's). Refused if any in_scope entry is wider than the organization's."""
     org_dir, _s, rec_path, _a, hist_path = _paths(args)
     gid = _gid(args.group)
     with _locked(org_dir):
         record, invalid = _load_existing(rec_path)
         if record is None:
-            raise StoreError(f"the organisation has no usable engagement yet, so there is "
+            raise StoreError(f"the organization has no usable engagement yet, so there is "
                              f"no scope to narrow. Set the engagement first.")
         agent_dir = org_dir / args.agent
         if not agent_dir.is_dir():
-            raise StoreError(f"agent '{args.agent}' has no instance in the organisation yet "
+            raise StoreError(f"agent '{args.agent}' has no instance in the organization yet "
                              f"(run: agenti {args.agent} provision)")
         new = ec.normalize_agent_scope({"in_scope": args.in_scope or [],
                                         "out_of_scope": args.out_of_scope or []}, args.scope_kind)
@@ -710,12 +710,12 @@ def cmd_approve(args) -> dict:
         record, invalid = _load_existing(rec_path)
         if invalid:
             raise StoreError(
-                f"the organisation's engagement file cannot be read ({invalid}) — nothing to "
+                f"the organization's engagement file cannot be read ({invalid}) — nothing to "
                 f"approve until it is re-set:\n"
                 f"  sudo agenti engagement set --engagement-id <id> --client <name> ...")
         if record is None:
             raise StoreError(
-                f"the organisation has no engagement to approve — set one first:\n"
+                f"the organization has no engagement to approve — set one first:\n"
                 f"  sudo agenti engagement set --engagement-id <id> --client <name> ...")
         if args.engagement_id and args.engagement_id != record["engagement_id"]:
             raise StoreError(
@@ -852,7 +852,7 @@ def cmd_import(args) -> dict:
         existing, _invalid = _load_existing(rec_path)
         if existing is not None and not args.force:
             raise StoreError(
-                f"the organisation already has an engagement (id "
+                f"the organization already has an engagement (id "
                 f"{existing['engagement_id']!r}) — import refuses to overwrite it "
                 f"without --force")
         try:
@@ -890,9 +890,9 @@ def cmd_digest(args) -> dict:
     org_dir, _, rec_path, _, _ = _paths(args)
     record, invalid = _load_existing(rec_path)
     if invalid:
-        raise StoreError(f"the organisation's engagement file cannot be read: {invalid}")
+        raise StoreError(f"the organization's engagement file cannot be read: {invalid}")
     if record is None:
-        raise StoreError(f"the organisation has no engagement yet")
+        raise StoreError(f"the organization has no engagement yet")
     return {"ok": True, "engagement_id": record["engagement_id"],
             "digest": ec.record_digest(record)}
 
@@ -926,9 +926,9 @@ def _render_text(verb: str, out: dict) -> str:
     if verb.startswith("agent-scope"):
         if out.get("unchanged"):
             lines.append("no change.")
-        lines.append(f"agent '{out['agent']}' in the organisation  ({out['scope_kind']} scope)")
+        lines.append(f"agent '{out['agent']}' in the organization  ({out['scope_kind']} scope)")
         lines.append(f"  org allows    : {', '.join(out['org_in_scope']) or '(nothing)'}")
-        lines.append(f"  agent narrows : {', '.join(out['agent_in_scope']) or '(no narrowing — inherits the organisation)'}")
+        lines.append(f"  agent narrows : {', '.join(out['agent_in_scope']) or '(no narrowing — inherits the organization)'}")
         if out["agent_out_of_scope"]:
             lines.append(f"  agent excludes: {', '.join(out['agent_out_of_scope'])}")
         lines.append(f"  a run enforces: {', '.join(out['effective_in_scope']) or '(NOTHING)'}")
@@ -939,16 +939,16 @@ def _render_text(verb: str, out: dict) -> str:
         rec = out.get("record")
         pend = out.get("pending")
         if not rec and out.get("invalid"):
-            lines.append(f"the organisation has an engagement file that cannot be used: {out['invalid']}")
+            lines.append(f"the organization has an engagement file that cannot be used: {out['invalid']}")
             return "\n".join(lines)
         if not rec and pend:
-            lines.append(f"the organisation's first engagement, proposed by {pend['author']}, is waiting "
+            lines.append(f"the organization's first engagement, proposed by {pend['author']}, is waiting "
                          f"for another admin's approval:")
             lines.append(f"  approve:  sudo agenti engagement approve-pending --expect-digest {pend['digest']}")
             lines.append(f"  reject:   sudo agenti engagement reject-pending --expect-digest {pend['digest']}")
             return "\n".join(lines)
         if not rec:
-            lines.append(f"the organisation has no engagement yet.")
+            lines.append(f"the organization has no engagement yet.")
             lines.append(f"  set one:  sudo agenti engagement set --engagement-id <id> --client <name> \\")
             lines.append(f"              --authorizing-party <who> --authorizing-title <title> \\")
             lines.append(f"              --valid-from YYYY-MM-DD --valid-until YYYY-MM-DD --cidr-in '<cidr>' [--domain-in '<domain>']")
@@ -1050,8 +1050,8 @@ def _render_text(verb: str, out: dict) -> str:
 # ---------------------------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
     ap = _JsonAwareArgumentParser(allow_abbrev=False, prog="engagement_store.py",
-                                  description="read/write the organisation's engagement record (root)")
-    ap.add_argument("--org-dir", required=True, help="the organisation directory, e.g. /var/lib/agenti/data/org")
+                                  description="read/write the organization's engagement record (root)")
+    ap.add_argument("--org-dir", required=True, help="the organization directory, e.g. /var/lib/agenti/data/org")
     ap.add_argument("--shared-dir", default=None, help="the platform shared dir (default: <root>/shared)")
     ap.add_argument("--group", default=None, help="the service group for file ownership")
     ap.add_argument("--format", choices=("json", "text"), default="json")
@@ -1063,7 +1063,7 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("--scope-kind", choices=ec.SCOPE_KINDS, default=None,
                    help="also include the view one agent of this kind would get")
     s.add_argument("--agent", default=None,
-                   help="with --scope-kind: the view that agent is held to (organisation scope narrowed by its own)")
+                   help="with --scope-kind: the view that agent is held to (organization scope narrowed by its own)")
     s.add_argument("-n", type=int, default=20)
     s.add_argument("--second-approver", choices=("on", "off"), default=None, help=policy_help)
     s.add_argument("--approver", action="append", default=None, metavar="NAME",
@@ -1141,7 +1141,7 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("--clear-allowed-models", action="store_true",
                    help="revert to the platform default model list")
 
-    s = sub.add_parser("agent-scope-show", allow_abbrev=False, help="organisation scope, one agent's own narrowing, and the overlap a run enforces")
+    s = sub.add_parser("agent-scope-show", allow_abbrev=False, help="organization scope, one agent's own narrowing, and the overlap a run enforces")
     s.add_argument("--agent", required=True)
     s.add_argument("--scope-kind", choices=ec.SCOPE_KINDS, required=True)
 
@@ -1151,7 +1151,7 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("--by", required=True)
     s.add_argument("--via", choices=("cli", "api"), default="cli")
     s.add_argument("--in", dest="in_scope", action="append", default=[], metavar="ENTRY",
-                   help="an entry the agent may touch (repeatable; none = inherit the organisation's)")
+                   help="an entry the agent may touch (repeatable; none = inherit the organization's)")
     s.add_argument("--out", dest="out_of_scope", action="append", default=[], metavar="ENTRY",
                    help="an extra exclusion (repeatable)")
 

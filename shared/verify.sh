@@ -146,11 +146,11 @@ verify_gui() {
                                 || { fail "$AGENTI_LIBDIR/authd.py missing"; rc=1; }
     [[ -f "$AGENTI_LIBDIR/webauthn_lite.py" ]] && ok "$AGENTI_LIBDIR/webauthn_lite.py installed (WebAuthn/passkey parsing)" \
                                          || { fail "$AGENTI_LIBDIR/webauthn_lite.py missing"; rc=1; }
-    # The QR encoder is optional at runtime (enrolment still works from the
+    # The QR encoder is optional at runtime (enrollment still works from the
     # secret alone), so a missing copy is a warning: a code that will not
     # render is a worse first impression than a missing file is a failure.
     [[ -f "$AGENTI_LIBDIR/qr.py" ]] && ok "$AGENTI_LIBDIR/qr.py installed (2FA QR codes)" \
-                             || warn "$AGENTI_LIBDIR/qr.py missing — 2FA enrolment shows the secret without a QR code; reinstall: sudo apt install --reinstall agenti"
+                             || warn "$AGENTI_LIBDIR/qr.py missing — 2FA enrollment shows the secret without a QR code; reinstall: sudo apt install --reinstall agenti"
 
     # authd's dedicated venv — the one deliberate, hash-pinned dependency.
     # Checked by actually importing what verify_es256() needs, not just by

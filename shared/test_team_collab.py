@@ -144,7 +144,7 @@ txt = ar.format_team_messages([
     {"id": 7, "kind": "kickoff", "author": "alice", "body": "NOTHING"},
 ])
 check("a directed message names its addressee", "enum says to research: owns 10.0.0.5?" in txt, True)
-check("the operator is labelled as such", "alice (operator) says: focus on the web server" in txt, True)
+check("the operator is labeled as such", "alice (operator) says: focus on the web server" in txt, True)
 check("the kickoff is never delivered", "NOTHING" in txt, False)
 check("advice framing is always present", "not an order" in txt, True)
 
@@ -323,7 +323,7 @@ check("a very long findings section is cut with a pointer to the full report",
 tbl = "intro\n\n" + "\n".join(["| a | b |", "|---|---|"] + [f"| {i} | x |" for i in range(60)])
 check("a table is never cut in the middle of its rows",
       tr.clip_findings(tbl, "enum").count("| 59 | x |"), 1)
-check("the conversation reads as dialogue, with addressees",
+check("the conversation reads as dialog, with addressees",
       "**enum** → **research**" in doc and "Intro: I scan hosts." in doc, True)
 check("a note is marked as not shown to the agents", "not shown to the agents" in doc, True)
 rev = [dict(e) for e in entries] + [

@@ -4,13 +4,13 @@ for Settings -> Agents -> "Build an agent".
 
 A built agent is DATA, never code. There are two kinds (KINDS below):
 
-  recon     probes hosts and networks inside the organisation's engagement
+  recon     probes hosts and networks inside the organization's engagement
             scope. It may run reviewed command-line programs chosen from the
             baseline recon list and the reviewed catalog
             (shared/tool-catalog.json), nothing on the catalog's block list
             (shells, interpreters, exploitation tooling...). Run by
             shared/recon_runner.py, the same code enum runs.
-  analysis  analyses FILES an operator attaches to a run (packet captures
+  analysis  analyzes FILES an operator attaches to a run (packet captures
             today), in a sandbox. It may use the programs listed in
             shared/analysis_programs.py, each with its own reviewed option
             rules. It touches no network and needs no engagement. Run by
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 KINDS = {
     "recon": {
         "title": "Network recon",
-        "blurb": "Probes hosts and networks inside the organisation's engagement scope with reviewed "
+        "blurb": "Probes hosts and networks inside the organization's engagement scope with reviewed "
                  "command-line programs. Started with a target.",
         "stub": _STUB.format(runner="recon_runner"),
         "scope_kind": "cidr",
@@ -102,7 +102,7 @@ KINDS = {
     },
     "analysis": {
         "title": "File analysis",
-        "blurb": "Analyses files you attach to a run, such as a packet capture, in a sandbox with no "
+        "blurb": "Analyzes files you attach to a run, such as a packet capture, in a sandbox with no "
                  "network. Needs no target or engagement.",
         "stub": _STUB.format(runner="analysis_runner"),
         "scope_kind": "files",
@@ -407,7 +407,7 @@ def normalize_update(raw, root: Path) -> dict:
     if not isinstance(raw, dict):
         raise BuildError("the spec must be a JSON object.")
     if "system_prompt" in raw:
-        raise BuildError("instructions are edited in the control centre, not here.")
+        raise BuildError("instructions are edited in the control center, not here.")
     # The kind is fixed when an agent is built: a recon agent cannot become a
     # file-analysis one (different runner, tools and unit privileges). So the
     # kind is read from the agent itself, and a spec that names another is refused.

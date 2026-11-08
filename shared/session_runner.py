@@ -241,7 +241,7 @@ async def run_session(s: Session) -> int:
             # and a teammate told (audit run 2: it used to leave nothing).
             report = s.write_report(profile, None, started, "incomplete",
                                     note="Run was stopped before the model started (during its "
-                                         "preparation step). Nothing was analysed.",
+                                         "preparation step). Nothing was analyzed.",
                                     resumed_from=resume_session)
             if report:
                 agent_runtime.mark_stop_report_written()
@@ -448,7 +448,7 @@ async def run_session(s: Session) -> int:
             print(f"  error       : {result.result}")
         clean = (result.subtype == "success" and not result.is_error)
         # A resource cap (turns or budget) ending the run with no operator
-        # interrupt or exception is the organisation's own configured ceiling
+        # interrupt or exception is the organization's own configured ceiling
         # doing exactly its job (§1 invariant 7), not a crash.
         if reason is None:
             reason = agent_runtime.resource_cap_reason(result)
@@ -466,7 +466,7 @@ async def run_session(s: Session) -> int:
         elif reason in ("interrupted", "max_turns", "max_budget"):
             # The SDK reports an interrupted turn OR a resource-cap cutoff as
             # an error result; neither is a bug in the run — one is the
-            # operator's doing, the other is the organisation's own cap.
+            # operator's doing, the other is the organization's own cap.
             status = "incomplete"
         else:
             status = "completed" if (clean and not note) else \

@@ -386,7 +386,7 @@ const AgentiActivity = (() => {
   }
 
   // One hue per team member, in roster order. None sits near the accent blue,
-  // the operator's own colour. Shared by the team page and the dashboard card.
+  // the operator's own color. Shared by the team page and the dashboard card.
   const MEMBER_HUES = [168, 280, 28, 330, 120, 48, 200, 0];
 
   return { Feed, bodyHtml, plainify, parseReceived, MEMBER_HUES };

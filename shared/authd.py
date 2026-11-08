@@ -133,7 +133,7 @@ class AuthError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Session store — moved here, verbatim in behaviour, from api/sessions.py.
+# Session store — moved here, verbatim in behavior, from api/sessions.py.
 # Server-side rows, never JWTs: this platform launches network tools against
 # client networks, so "disable that account NOW" has to mean now, and a row
 # can be deleted while a signed token cannot be un-signed.
@@ -156,7 +156,7 @@ def create_session(runtime: sqlite3.Connection, principal: str, *,
 def rotate_session(runtime: sqlite3.Connection, old_sid: str) -> dict:
     """Second factor accepted: the pending session is REPLACED by a real one
     with a fresh id, not flipped in place. Rotating the id on privilege
-    change is the standard session-fixation defence."""
+    change is the standard session-fixation defense."""
     row = runtime.execute("SELECT principal FROM sessions WHERE id=?", (old_sid,)).fetchone()
     if row is None:
         raise AuthError(401, "session expired — start again")
@@ -333,7 +333,7 @@ class Service:
                     "totp_required": result.totp_required,
                     # No second factor enrolled, under a policy that requires
                     # one: the session is real but the API confines it to the
-                    # self-service MFA routes (rbac.py) until enrolment is done.
+                    # self-service MFA routes (rbac.py) until enrollment is done.
                     "mfa_setup_required": (not result.totp_required
                                            and iam.mfa_setup_required(conn, result.principal)),
                     "must_change_password": result.must_change_password,
@@ -391,7 +391,7 @@ class Service:
                 revoke_session(rt, sid)
                 raise AuthError(401, "account is disabled — session ended")
             # Re-read per request, like `active`: the moment the person
-            # enrols, the confinement lifts without a new login; the moment
+            # enrolls, the confinement lifts without a new login; the moment
             # an admin turns the policy on, every password-only session is
             # confined on its very next call.
             return {"principal": sess["principal"], "csrf": sess["csrf"],
@@ -427,7 +427,7 @@ class Service:
         to do is no longer kept by the web tier."""
         principal = _str(req, "principal", MAX_NAME)
         permission = _str(req, "permission", MAX_NAME)
-        resource = iam.ORG_RESOURCE   # the organisation is the only resource
+        resource = iam.ORG_RESOURCE   # the organization is the only resource
         via = _str(req, "via", MAX_NAME, required=False) or "api"
         conn, rt = self._iam(), self._runtime()
         try:
@@ -442,7 +442,7 @@ class Service:
         would write one per candidate and drown the log."""
         principal = _str(req, "principal", MAX_NAME)
         permission = _str(req, "permission", MAX_NAME)
-        resource = iam.ORG_RESOURCE   # the organisation is the only resource
+        resource = iam.ORG_RESOURCE   # the organization is the only resource
         conn = self._iam()
         try:
             return {"allowed": iam.check(conn, principal, permission, resource).allowed}
@@ -451,7 +451,7 @@ class Service:
 
     def op_permissions(self, req: dict) -> dict:
         principal = _str(req, "principal", MAX_NAME)
-        resource = iam.ORG_RESOURCE   # the organisation is the only resource
+        resource = iam.ORG_RESOURCE   # the organization is the only resource
         conn = self._iam()
         try:
             perms, _ = iam.effective_permissions(conn, principal, resource)
@@ -514,7 +514,7 @@ class Service:
             raise AuthError(400, "field 'action' must be an object whose op is one of "
                                  + ", ".join(cls.GRANT_OPS))
         op = action["op"]
-        # Every op carries the one resource there is — the organisation — so
+        # Every op carries the one resource there is — the organization — so
         # a grant is bound to it; the CLI re-checks the approver holds the
         # permission on it.
         resource = action.get("resource", iam.ORG_RESOURCE)
@@ -1280,7 +1280,7 @@ def main(argv: list[str] | None = None) -> int:
     # One connection held open for the life of the process, never used for a
     # query: it makes THIS account the creator of runtime.db's -wal/-shm
     # sidecars. The root CLI also writes runtime.db (self-service password
-    # changes, enrolment tokens, session revocation); if root's connection
+    # changes, enrollment tokens, session revocation); if root's connection
     # were the one to create those sidecars they would be root-owned and this
     # unprivileged process could no longer open the database at all.
     keeper = service._runtime()

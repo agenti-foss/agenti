@@ -91,7 +91,7 @@ async def _new_shape(raise_what: str) -> dict:
                         await asyncio.sleep(10)  # trips the 5s timeout
                     elif raise_what == "keyboard":
                         raise KeyboardInterrupt("simulated stop")
-                    elif raise_what == "cancelled":
+                    elif raise_what == "canceled":
                         raise asyncio.CancelledError("simulated cancel")
                     elif raise_what == "unexpected":
                         raise RuntimeError("simulated unexpected bug")
@@ -137,7 +137,7 @@ async def _run() -> int:
     check("KeyboardInterrupt still handled by its own clause",
           (r["reached_after_try"], r["unexpected_error"]), (True, False))
 
-    r = await _new_shape("cancelled")
+    r = await _new_shape("canceled")
     check("CancelledError still handled by the same clause as KeyboardInterrupt "
           "(this is the trafficmon-specific half of the fix)",
           (r["reached_after_try"], r["unexpected_error"]), (True, False))

@@ -22,7 +22,7 @@ WHAT THE RULES GUARANTEE (shared/test_analysis_programs.py pins each)
     passed as an argument list. A pipe, redirect or `;` is just an unexpected
     argument and is refused as one.
 
-This is defence in depth, not the boundary. The boundary is shared/sandbox.py
+This is defense in depth, not the boundary. The boundary is shared/sandbox.py
 (no network, no vault, read-only input, hard limits); these rules narrow what
 the agent can ASK for, so a mistake or a crafted instruction hits a clear
 refusal instead of reaching the sandbox at all.
@@ -272,7 +272,7 @@ def _capinfos_flags() -> dict[str, Flag]:
 
 CAPINFOS = Program(
     name="capinfos",
-    purpose="Summarise a capture file: packet count, duration, size, time range, file hashes.",
+    purpose="Summarize a capture file: packet count, duration, size, time range, file hashes.",
     flags=_capinfos_flags(),
     positional="files",
     examples=("capinfos capture.pcap", "capinfos -c -u -H capture.pcap"),
@@ -291,7 +291,7 @@ SURICATA = Program(
     name="suricata",
     purpose="Run an intrusion-detection engine over a capture: signature alerts, protocol anomalies "
             "and per-protocol records (dns, http, tls, smb, ssh, flows ...).",
-    flags={"-r": Flag("the attached capture to analyse (required)", "file", repeat=False, value_name="FILE")},
+    flags={"-r": Flag("the attached capture to analyze (required)", "file", repeat=False, value_name="FILE")},
     required=("-r",),
     prepend=("-c", "/cfg/suricata.yaml", "-l", "/out"),
     examples=("suricata -r capture.pcap",),
@@ -614,7 +614,7 @@ def parse_command(command: str, attached: set[str] | list[str], *,
                        f"{', '.join(sorted(allowed)) or '(none)'}. Give the program name alone "
                        f"(no path), then its options.")
     if not attached:
-        raise ArgError("no files are attached to this run, so there is nothing to analyse. "
+        raise ArgError("no files are attached to this run, so there is nothing to analyze. "
                        "Ask the operator to attach the file (the paperclip on this page).")
     prog = PROGRAMS[name]
 

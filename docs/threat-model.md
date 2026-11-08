@@ -1,6 +1,6 @@
 # Threat model (draft)
 
-Agenti is **auditable, bounded, isolated, and admin-authorised for real targets**.
+Agenti is **auditable, bounded, isolated, and admin-authorized for real targets**.
 It is not "safe". It lets an AI model drive security tools, and it assumes the
 model can be confused or manipulated by the data it reads. The limits that matter
 are therefore enforced outside the model.
@@ -13,7 +13,7 @@ key; the audit trail.
 
 ## What it is designed to defend against
 
-| Threat | Defence (design level) |
+| Threat | Defense (design level) |
 |---|---|
 | A manipulated or confused model acts outside scope | Scope, tool allow-lists and approvals live in root-owned files and an outer harness the model cannot write; out-of-scope commands are refused and logged |
 | An operator exceeds their authority | Operators can only narrow the approved scope; an admin approves it; an optional policy stops the approver also starting runs |
@@ -37,7 +37,7 @@ key; the audit trail.
 
 - **Offline hash cracking:** accepts only operator-attached files; no network.
 - **Exploitation:** off unless an admin enables it for the engagement; scope applies;
-  every module needs explicit human approval; organisation must be enrolled in
+  every module needs explicit human approval; organization must be enrolled in
   Anthropic's Cyber Verification Program.
 - **Update check:** off by default; when allowed it makes one request to GitHub only
   when an admin asks, reports a version, and installs nothing.

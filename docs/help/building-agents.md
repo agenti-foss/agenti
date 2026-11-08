@@ -13,9 +13,9 @@
     command-line programs against a target, checked on every command against
     the engagement's scope. It can only run the programs you tick, and it can
     never exploit anything: the denied patterns and the scope check are fixed.
-  - **File analysis** analyses files an operator attaches, such as a packet
+  - **File analysis** analyzes files an operator attaches, such as a packet
     capture, with `tshark`, `capinfos` and `suricata` in a sandbox. It has no target, no
-    network and needs no engagement. See **Analysing a file**.
+    network and needs no engagement. See **Analyzing a file**.
   The kind is fixed once the agent is built.
 - **Only global admins** can build or remove agents. Both actions ask for your
   password and a fresh 2FA code (or a passkey).
@@ -30,7 +30,7 @@
      later.
    - **What it does:** one sentence.
 2. **Programs.** Tick the programs it may run. Search by name or purpose. A
-   program that isn't installed on the server is greyed out and shows the
+   program that isn't installed on the server is grayed out and shows the
    `sudo apt install …` command. Only reviewed programs are listed. For network
    recon that is the baseline recon set and the program catalog (see below). For
    file analysis it is the short list a developer has written option rules for
@@ -50,7 +50,7 @@
 | Save raw output and read it back | Chain commands, redirect output or substitute commands (always refused) |
 | Ask the operator a question, message a team | Widen its own scope, programs or limits |
 
-Scope, approval and the model/caps limits come from the organisation's
+Scope, approval and the model/caps limits come from the organization's
 engagement and policy, exactly as for Network enumeration. Nothing typed into
 the builder can change them.
 
@@ -59,7 +59,7 @@ the builder can change them.
 - **Name, description, programs:** press **Edit** on its card. The wizard opens
   filled in; the short name is fixed. It skips the instructions step. A run
   already going keeps what it started with; the next run uses the changes.
-- **Instructions:** edit them in the **Agent control centre** further down the
+- **Instructions:** edit them in the **Agent control center** further down the
   same page. Every edit is kept and can be reverted.
 
 ## Removing a built agent

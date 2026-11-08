@@ -136,7 +136,7 @@ def safe_path(base: Path, rel: str) -> Path | None:
     Unifies enum's `_safe_scan_path`, research's `_safe_page_path` and
     trafficmon's `_safe_evidence_path` — functionally equivalent guards
     (verified: none of the three ever allowed an escape), written two
-    different ways. Standardised on `Path.relative_to()`, the shape
+    different ways. Standardized on `Path.relative_to()`, the shape
     trafficmon already used, because it has no separate case to get
     subtly wrong the way a hand-rolled `str(p).startswith(...)` prefix
     check theoretically could (e.g. a base of `/x/scan` vs. a candidate of
@@ -157,7 +157,7 @@ def safe_path(base: Path, rel: str) -> Path | None:
 
 def summarize_text(text: str, trim_bytes: int, *, index_markers: list | None = None) -> str:
     """head + optional jump-point index, exactly enum's `_summarize` shape
-    generalised: research and trafficmon's read-back tools don't build an
+    generalized: research and trafficmon's read-back tools don't build an
     index today (only the run/fetch side did, via a different function —
     _build_index — that stayed enum-specific since it is genuinely tuned to
     nmap/enum4linux/netexec output shapes, not generic text). This helper is
@@ -218,7 +218,7 @@ def retrieve(path: Path, *, pattern: str | None, start_line: Any, end_line: Any,
     invalid UTF-8 (raw tool output occasionally does); it can never cause
     one that would not already have happened. This is the same category of
     change as `safe_path`'s unification on `relative_to()` above — a safe
-    generalisation, not a functional rewrite — and is called out explicitly
+    generalization, not a functional rewrite — and is called out explicitly
     rather than silently folded in, per this phase's "prove no behavior
     change" standard."""
     if pattern:
@@ -711,7 +711,7 @@ def _build_fetch_external(ctx: ToolContext, *, http_get: Callable, extract_html:
         run's -t target) is refused too: it belongs to the client
       * a per-run cap, and every site visited is listed in the report so a
         human can see where the agent went
-      * what comes back is untrusted third-party text, and is labelled so
+      * what comes back is untrusted third-party text, and is labeled so
     """
     from agent_tools import tool
     from urllib.parse import urlsplit
@@ -890,7 +890,7 @@ def _build_list_evidence(ctx: ToolContext, *, manifest_key: str = "manifest"):
     from agent_tools import tool
 
     @tool("list_evidence",
-         "List the evidence collected in this window: which analysers ran, "
+         "List the evidence collected in this window: which analyzers ran, "
          "which files exist, how large each is. Call this first.", {})
     async def list_evidence(args):
         manifest = ctx.extra.get(manifest_key)
@@ -1103,7 +1103,7 @@ def _analyze_suricata(ctx: ToolContext, command: str, parsed, binary: str, agent
 
     saved = suricata_offline.harvest(logdir, ctx.workdir, stem)
     console = res.stdout + "\n" + res.stderr          # Suricata talks on stdout
-    summary = suricata_offline.summarise(saved.get("eve.json"), console=console, rules_note=rules_note)
+    summary = suricata_offline.summarize(saved.get("eve.json"), console=console, rules_note=rules_note)
     summary_name = f"{stem}_summary.txt"
     warn = suricata_offline.warnings_only(console)
     notes = []
@@ -1424,7 +1424,7 @@ def _build_extract_hashes(ctx: ToolContext, *, agent_dir: Path):
                                 "output": None})
             return {"content": [{"type": "text", "text":
                 f"{name} is a binary file. extract_hashes reads text (a report, a tshark dump, a "
-                f"hash list). For a capture, the pcap analyser's text output is the input."}],
+                f"hash list). For a capture, the pcap analyzer's text output is the input."}],
                 "is_error": True}
         try:
             found = hash_extract.extract(src)

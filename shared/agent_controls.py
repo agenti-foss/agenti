@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """agent_controls.py — everything that controls, manages or restricts ONE agent
-for this organisation, gathered for the GUI's per-agent control centre (Settings →
+for this organization, gathered for the GUI's per-agent control center (Settings →
 Agents), plus a DRIFT CHECK: does what systemd is actually enforcing right now
 match what the deploy files declare?
 
@@ -12,7 +12,7 @@ Each section says whether the admin can change it from the GUI (`editable`) and
 where. Settings that ARE the boundary (capabilities, isolation,
 the pre-tool-call guard) are `editable: False` on purpose: if a web page could
 change them, a stolen admin session could switch them off. They change only by
-a deploy at a terminal; the control centre shows them, and the drift check
+a deploy at a terminal; the control center shows them, and the drift check
 proves they are what is really running.
 
 Drift rows are `ok`, `fail` (declared and live disagree), or `unknown` (the
@@ -192,8 +192,8 @@ def build(args) -> dict:
         out["scope"] = view
         out["sections"].append({
             "id": "scope", "title": "Scope", "editable": True, "edit_where": "Agent scope panel below",
-            "rows": [["Organisation allows", ", ".join(view["org_in_scope"]) or "nothing"],
-                     ["This agent narrows to", ", ".join(view["agent_in_scope"]) or "no narrowing (inherits the organisation)"],
+            "rows": [["Organization allows", ", ".join(view["org_in_scope"]) or "nothing"],
+                     ["This agent narrows to", ", ".join(view["agent_in_scope"]) or "no narrowing (inherits the organization)"],
                      ["A run is held to", ", ".join(view["effective_in_scope"]) or "NOTHING — runs are refused"],
                      ["Always excluded", ", ".join(view["org_out_of_scope"] + view["agent_out_of_scope"]) or "—"]]})
 
@@ -205,7 +205,7 @@ def build(args) -> dict:
         for kind, who, label in (("system-prompt", {"agent": args.agent}, "System prompt (required)"),
                                  ("skills", {"agent": args.agent}, "Skills — this agent"),
                                  ("platform-skills", {}, "Skills — every agent"),
-                                 ("org", {}, "Organisation policy")):
+                                 ("org", {}, "Organization policy")):
             d = cs.show(root, kind, **who)
             what = {"edited": "edited", "default": "shipped default", "none": "not set"}[d["source"]]
             rows.append([label, f"{what}" + (f", {d['bytes']:,} bytes" if d["source"] != "none" else "")])
@@ -227,7 +227,7 @@ def build(args) -> dict:
         pass
     pol = ec.resolve_policy(rec)
     out["sections"].append({
-        "id": "limits", "title": "Run limits (set for the organisation)", "editable": True,
+        "id": "limits", "title": "Run limits (set for the organization)", "editable": True,
         "edit_where": "Settings → Engagement",
         "rows": [["Max turns", str(pol.get("max_turns_ceiling"))],
                  ["Max spend per run", f"${pol.get('max_budget_usd_ceiling')}"],
@@ -306,7 +306,7 @@ def build(args) -> dict:
     out["sections"].append({
         "id": "isolation", "title": "What a run can see and write", "editable": False,
         "edit_where": "deploy only (it is the boundary)",
-        "rows": [["Organisation folder", "replaced by an empty read-only one; only the items below are put back"],
+        "rows": [["Organization folder", "replaced by an empty read-only one; only the items below are put back"],
                  ["Writable", "its own run folder only (plus its team's chat channel, append-only, when it runs on a team)"],
                  ["Read-only", "the engagement and approval, this agent's scope file, and the model API key files"],
                  ["Its code and the shared library", "read-only (outside every writable path)"]]})

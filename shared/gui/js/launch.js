@@ -8,7 +8,7 @@
 // Selecting a card in single mode opens a run panel scoped to that one
 // agent; in team mode, cards multi-select and the panel becomes a roster
 // (role + target per member). A CIDR/domain agent's run panel shows the
-// organisation's own engagement ceiling for that scope kind (GET
+// organization's own engagement ceiling for that scope kind (GET
 // /agents/{agent}/engagement) and warns if it's missing or unapproved,
 // naming who can fix it; a live, client-side CIDR/domain containment check
 // nudges before submit, but SCOPE.narrow() server-side is what actually
@@ -166,14 +166,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     const kind = agentInfo.scope_kind;
     // A file-analysis agent has no network target: the files ARE its input.
     const filesKind = kind === "files";
-    document.getElementById("files-label").textContent = filesKind ? "Files to analyse" : "Files for the agent";
+    document.getElementById("files-label").textContent = filesKind ? "Files to analyze" : "Files for the agent";
     document.getElementById("files-need").textContent = filesKind ? "(at least one)" : "(optional)";
     runBtn.querySelector("span").textContent = "Run";
     runTitle.textContent = `Run ${agentInfo.agent}`;
     runVia.textContent = filesKind
-      ? `Analyses the files you attach, in a sandbox with no network.`
+      ? `Analyzes the files you attach, in a sandbox with no network.`
       : `Runs the ${agentInfo.agent} agent, inside its own bounded scope.`;
-    instructionsHint.dataset.tip = filesKind ? "Tell it what to look for — it can only analyse the files you attach."
+    instructionsHint.dataset.tip = filesKind ? "Tell it what to look for — it can only analyze the files you attach."
       : "Steers what it tries — never what it may touch.";
     targetField.hidden = filesKind;
     runTargetInput.required = !filesKind;
@@ -277,7 +277,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     syncFromInput();
   }
 
-  // One engagement for the organisation, presented per scope kind (CLAUDE.md item 42),
+  // One engagement for the organization, presented per scope kind (CLAUDE.md item 42),
   // so two cidr-scoped members of a team share one answer — fetched once per
   // kind rather than once per member.
   const ceilingCache = new Map();
@@ -333,7 +333,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  // Model is mandatory, and caps left blank default to the organisation's own
+  // Model is mandatory, and caps left blank default to the organization's own
   // ceiling, so this mounts the model picker (models.js) and shows each cap's
   // ceiling as its placeholder ("up to 40"). Reuses fetchCeiling()'s own
   // per-(kind) cache, so calling both for the same kind costs one request.
@@ -410,7 +410,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!t || !currentCeiling) { if (runBanner.classList.contains("warn")) runBanner.className = "banner"; return; }
     const bad = offendingTarget(t);
     if (bad) {
-      Agenti.banner(runBanner, "warn", `'${bad}' looks like it falls outside the organisation's authorized scope — the server will refuse it if so.`);
+      Agenti.banner(runBanner, "warn", `'${bad}' looks like it falls outside the organization's authorized scope — the server will refuse it if so.`);
     } else if (runBanner.classList.contains("warn")) {
       runBanner.className = "banner";
     }
@@ -447,7 +447,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         ${(a.scope_kind === "cidr" || a.scope_kind === "domain") ? `
         <div class="field">
           <label>Target for ${esc(a.agent)}</label>
-          <p class="hint">Pick from the organisation's authorized scope.</p>
+          <p class="hint">Pick from the organization's authorized scope.</p>
           <div class="target-bank" data-bank></div>
           <input type="text" class="team-target" placeholder="${esc(targetPlaceholder(a.scope_kind))}">
         </div>` : ""}
@@ -479,7 +479,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         bank.innerHTML = `<p class="target-bank-empty">${esc(Agenti.errorText(err))}</p>`;
       }
     });
-    // Model/caps policy is a organisation-wide property, not per-agent — the same
+    // Model/caps policy is a organization-wide property, not per-agent — the same
     // answer regardless of which member's own engagement route is asked —
     // so one shared model/caps section covers the whole team (one choice,
     // not per member). Fetched via the first selected member; fetchCeiling's own
@@ -560,7 +560,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       return;
     }
     if (agentInfo.scope_kind === "files" && !filePicker.files().length && !waitingCount) {
-      Agenti.banner(runBanner, "err", "Attach at least one file for this agent to analyse.");
+      Agenti.banner(runBanner, "err", "Attach at least one file for this agent to analyze.");
       return;
     }
     // This launch's own run (reserved when the form opened). Its label goes

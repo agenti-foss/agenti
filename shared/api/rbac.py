@@ -6,7 +6,7 @@ One dependency, declared by every route, resolving:
     credential  ->  principal  ->  bindings  ->  permission on THIS resource
 
 The permission is not inferred from the URL. Each route names its permission
-explicitly, and the one resource there is — the organisation — is what it is
+explicitly, and the one resource there is — the organization — is what it is
 checked against. **A route that declares no permission gets no access** — there is no fallback that grants, so a new endpoint added without a
 decision about who may call it fails closed rather than inheriting one.
 
@@ -54,7 +54,7 @@ class Caller:
 
 # A session that is real but must not be used for anything except setting
 # up the second factor its policy requires (iam.two_factor_required). The
-# list is the smallest set that lets a person comply: who am I, enrol, and
+# list is the smallest set that lets a person comply: who am I, enroll, and
 # leave. /auth/password is deliberately NOT here — it is a credential change
 # on an account the policy says is under-protected.
 MFA_SETUP_ALLOWED_PATHS = frozenset({
@@ -62,7 +62,7 @@ MFA_SETUP_ALLOWED_PATHS = frozenset({
     # A passkey satisfies the 2FA requirement on its own (see
     # iam.mfa_setup_required's docstring) — registering one is a second,
     # equally valid way to comply, so a confined session must be able to
-    # reach it exactly like TOTP enrolment above.
+    # reach it exactly like TOTP enrollment above.
     "/auth/webauthn/register/start", "/auth/webauthn/register/finish",
 })
 
@@ -98,7 +98,7 @@ def _authenticate(request: Request) -> Caller:
                 status_code=403,
                 detail={"code": "mfa_setup_required",
                         "message": "two-factor authentication is required for this "
-                                   "account and has not been set up yet — enrol an "
+                                   "account and has not been set up yet — enroll an "
                                    "authenticator app in Settings before doing "
                                    "anything else"})
         return Caller(r["principal"], "session", totp_enrolled=bool(r.get("totp_enrolled")),
@@ -122,7 +122,7 @@ def require(permission: str):
         def start(agent: AgentName, body: StartRequest,
                   caller: Caller = Depends(require("agent:start"))) -> dict:
 
-    The resource is always the organisation, so no route has to construct a
+    The resource is always the organization, so no route has to construct a
     resource string and get it wrong."""
     if permission not in iam.PERMISSIONS:
         # Raised at import time, not request time: a typo'd permission is a

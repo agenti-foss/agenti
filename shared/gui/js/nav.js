@@ -13,7 +13,7 @@
 // back. --nav-h tracks its height so other sticky things sit under it.
 //
 // renderNav(active) draws the bar synchronously so the page has its chrome
-// at once, then fills the identity from /auth/me (memoised, so
+// at once, then fills the identity from /auth/me (memoized, so
 // shared with the page's own calls).
 const NAV_ICONS = {
   menu: '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg>',
@@ -84,7 +84,7 @@ function renderNav(active) {
 
   wireStickyBar(mount);
 
-  // The identity, once the memoised call answers. Never fatal: a 401 already
+  // The identity, once the memoized call answers. Never fatal: a 401 already
   // went to login inside api.js, and anything else leaves the header blank
   // while the page reports why.
   const who = document.getElementById("whoami");
@@ -94,7 +94,7 @@ function renderNav(active) {
   }).catch(() => { /* the page reports its own errors */ });
 }
 
-// The bar's two scroll behaviours, wired once per page.
+// The bar's two scroll behaviors, wired once per page.
 //  * Compact: past a little scroll the bar slims down (CSS animates it). Two
 //    thresholds, so a page resting near the line does not flicker.
 //  * The page's back button: when the page's own .back-link scrolls up under
@@ -158,7 +158,7 @@ function wireStickyBar(mount) {
   }, { rootMargin: "-64px 0px 0px 0px" }).observe(orig);
 }
 
-// The menu's dropdown behaviour: click to toggle, click anywhere else or
+// The menu's dropdown behavior: click to toggle, click anywhere else or
 // press Escape to close, first item focused on open so the keyboard works,
 // and only one panel open at a time.
 const _openDropdowns = [];

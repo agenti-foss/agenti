@@ -16,7 +16,7 @@ Four kinds exist today, all on one shared harness:
 | Agent | Kind | Scope | Tools |
 |---|---|---|---|
 | `enum`, a recon agent built in the GUI | recon, data-driven (`manifest.json` + a 3-line stub over `shared/recon_runner.py`) | CIDR | `run_scan`, `read_scan` |
-| a file-analysis agent built in the GUI (e.g. the Pcap analyser) | analysis, data-driven (`manifest.json` + a stub over `shared/analysis_runner.py`) | the run's attached files | `analyze_file`, `read_output` |
+| a file-analysis agent built in the GUI (e.g. the Pcap analyzer) | analysis, data-driven (`manifest.json` + a stub over `shared/analysis_runner.py`) | the run's attached files | `analyze_file`, `read_output` |
 | `research` | hand-written | domain | `fetch_page`, `read_page`, `web_search`, `fetch_external` |
 | `trafficmon` | hand-written | CIDR | `list_evidence`, `read_evidence`, `capture_host` |
 
@@ -86,7 +86,7 @@ sudo ./shared/deploy.sh --verify # = sudo agenti verify
 A new shipped agent also goes into `OPEN_AGENTS` in `packaging/install-tree.sh`
 (its `<name>.deps` becomes the package's Recommends).
 
-Then set and approve the organisation's engagement (`agenti ... engagement
+Then set and approve the organization's engagement (`agenti ... engagement
 set`), and launch with `agenti ... <name> start -t <target> --model <model>`.
 
 ## Adding a program to the recon kind
@@ -124,7 +124,7 @@ there, with its reviewed options, and a form can then offer it.
 - Programs that execute code they are handed (interpreters, scripting engines,
   password crackers) do not belong here without a deliberate decision.
 
-The rules are defence in depth. The boundary is `shared/sandbox.py`: no network,
+The rules are defense in depth. The boundary is `shared/sandbox.py`: no network,
 no vault, read-only input, hard CPU/memory/output/time limits. It needs
 `bubblewrap`, and the agent's unit needs `CAP_SYS_ADMIN` in its bounding set
 (`capability-dropin.sh`, applied automatically to an agent built with this

@@ -95,7 +95,7 @@ section("effective_binaries — narrow-only / catalog-only-addition")
 check("no override -> baseline unchanged", tc.effective_binaries(BASELINE, {}, CATALOG), BASELINE)
 eff = tc.effective_binaries(BASELINE, {"enable": ["curl"], "disable": ["ping"]}, CATALOG)
 check("add one, remove one", eff, {"nmap", "netexec", "curl"})
-check("disabling something not in the baseline changes nothing (defence in depth)",
+check("disabling something not in the baseline changes nothing (defense in depth)",
       tc.effective_binaries(BASELINE, {"disable": ["curl"]}, CATALOG), BASELINE)
 check("enabling something already in the baseline changes nothing",
       tc.effective_binaries(BASELINE, {"enable": ["nmap"]}, CATALOG), BASELINE)
@@ -152,7 +152,7 @@ for p in real["programs"]:
 
 # ===========================================================================
 # tool_settings_store.py — exercised as a real subprocess against a real
-# temp organisation directory and a real capabilities.json, exactly as
+# temp organization directory and a real capabilities.json, exactly as
 # shared/agenti's cmd_tool_settings calls it.
 # ===========================================================================
 section("tool_settings_store.py CLI, as a real subprocess")

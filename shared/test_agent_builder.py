@@ -144,7 +144,7 @@ try:
                                 "programs": ["dig", "nmap"]}, root)
     check("an edit has no instructions in it", "system_prompt" in edit, False)
     check("an edit with instructions is refused",
-          refused(lambda: ab.normalize_update({**edit, "system_prompt": "x" * 40}, root), "control centre"), True)
+          refused(lambda: ab.normalize_update({**edit, "system_prompt": "x" * 40}, root), "control center"), True)
     check("a hand-built agent cannot be edited",
           refused(lambda: ab.normalize_update({**edit, "name": "enum"}, root), "not built")
           or refused(lambda: ab.normalize_update({**edit, "name": "enum"}, root), "no agent"), True)
@@ -192,7 +192,7 @@ check("a kind not in KINDS is refused", refused(lambda: ab.normalize({**GOOD, "k
 check("a spec with no kind is a recon agent (as every existing caller sends)", ab.normalize(GOOD, root)["kind"], "recon")
 
 section("file analysis: validation")
-PCAP = {"kind": "analysis", "name": "pcap-analyser", "title": "Pcap analyser",
+PCAP = {"kind": "analysis", "name": "pcap-analyser", "title": "Pcap analyzer",
         "description": "Reads packet captures.", "programs": ["tshark", "capinfos"],
         "system_prompt": "You read a packet capture and report credentials sent in clear text."}
 pspec = ab.normalize(PCAP, root)
@@ -247,7 +247,7 @@ section("file analysis: editing")
 os.chown = lambda *a, **k: None
 grp.getgrnam = lambda name: SimpleNamespace(gr_gid=os.getgid())
 try:
-    pedit = ab.normalize_update({"name": "pcap-analyser", "title": "Pcap analyser v2",
+    pedit = ab.normalize_update({"name": "pcap-analyser", "title": "Pcap analyzer v2",
                                  "description": "Reads captures.", "programs": ["tshark"]}, root)
     check("an edit that does not name the kind keeps the agent's own", pedit["kind"], "analysis")
     check("an edit cannot change the kind",

@@ -8,7 +8,7 @@ no network, no vault, read-only input, no capabilities, hard limits. What it
 did not do was narrow what the program may ASK THE KERNEL for. The usual way
 out of a container-like sandbox is not through the program's own files but
 through a kernel bug reached from a rarely used system call, so the practical
-defence is to take those calls away from a process that has no use for them.
+defense is to take those calls away from a process that has no use for them.
 
 This filter does that. It is applied by bubblewrap (`--seccomp FD`) at the
 last moment, after the sandbox's own mounts and namespaces exist and just
@@ -47,7 +47,7 @@ WHAT THIS IS NOT
   capability set and the missing filesystem are what limit those.
 
 It uses libseccomp through ctypes (standard library only; libseccomp2 is a
-dependency of bubblewrap's neighbours and is installed with Suricata). If the
+dependency of bubblewrap's neighbors and is installed with Suricata). If the
 library is missing the sandbox REFUSES to run rather than run unfiltered —
 the same stance as a missing bubblewrap.
 """

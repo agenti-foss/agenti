@@ -5,7 +5,7 @@ every agent an admin builds in Settings -> Agents).
 A recon agent is DATA, not code: its own folder holds a manifest.json (its
 name, title, description and the reviewed programs it may run) and a
 three-line stub that calls main() here. Nothing typed into a form ever
-becomes code, and there is no per-agent runner to review. The behaviour is
+becomes code, and there is no per-agent runner to review. The behavior is
 exactly what enum-agent.py always did — this file IS that code, with the
 agent-specific values (name, program allow-list) read from the manifest:
 
@@ -16,7 +16,7 @@ agent-specific values (name, program allow-list) read from the manifest:
   * Guardrails ...... a validated allow-list tool is the agent's only network
                       path, raw Bash is hard-denied by a hook, scope is a
                       hard boundary enforced by root-owned files, and every
-                      run reads the organisation's engagement record.
+                      run reads the organization's engagement record.
 
 >>> Only ever point this at networks you are explicitly authorized to test. <<<
 
@@ -60,7 +60,7 @@ from scope_cidr import CIDRScope
 # these module globals, exactly as enum-agent.py did with its own constants.
 # ---------------------------------------------------------------------------
 AGENTI_ROOT = paths.data_root()
-# Everything lives under the one organisation directory.
+# Everything lives under the one organization directory.
 ORG_DIR = AGENTI_ROOT / "org"
 SHARED_DIR = AGENTI_ROOT / "shared"
 
@@ -204,7 +204,7 @@ def setup(manifest_path: Path) -> None:
         else ORG_DIR / AGENT_NAME
 
     # Placeholder numbers — agent_runtime.load_run_config() ALWAYS overwrites
-    # every one of these before a run starts, resolved against the organisation's
+    # every one of these before a run starts, resolved against the organization's
     # own policy. Still a one-entry dict so AgentContract's "profiles must be
     # non-empty" invariant (§3f) holds.
     PROFILES = {"run": Profile(name="run", model=None, max_turns=0, max_budget_usd=0.0,
@@ -274,7 +274,7 @@ def configure(profile: Profile) -> Profile:
     PROFILE = profile
 
     # -- 1. load the engagement this profile is bound to ---------------------
-    # CLAUDE.md "Current plan": ONE master scope, the organisation's
+    # CLAUDE.md "Current plan": ONE master scope, the organization's
     # engagement record, viewed through this agent's scope kind — read by
     # BOTH profiles now, not a separate box-wide "lab" record only dev used
     # to read. Editing/approving it from the GUI is what makes it the

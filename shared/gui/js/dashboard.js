@@ -164,7 +164,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     })();
   }
 
-  // The agent catalogue: who may launch, and each agent's title — a card's
+  // The agent catalog: who may launch, and each agent's title — a card's
   // italic subtitle ("Hash cracker" under "amber-falcon").
   const cat = await Agenti.get("agents").catch(() => null);
   const agentTitles = Object.fromEntries(((cat && cat.agents) || []).map((a) => [a.name, a.title || a.name]));
@@ -423,7 +423,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             <span class="badge ${c}">${esc(l)}</span></a>`;
         }).join("") || `<p class="muted" style="margin:0;">No members.</p>`;
         const feed = card.querySelector("[data-feed]");
-        // Only the last thing said, in its speaker's own colour (the same hue
+        // Only the last thing said, in its speaker's own color (the same hue
         // the team page gives them). No ids, no bookkeeping entries, and no
         // Markdown symbols are lost: the message renders as on the team page.
         const roster = (t.members || []).map((m) => m.agent);

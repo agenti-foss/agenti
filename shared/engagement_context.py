@@ -14,7 +14,7 @@ Why a builder and not a static string:
     prompt explains the engagement; the validator remains the hard boundary.
 
 Since 2026-09-25 (CLAUDE.md "Current plan", phase 1 of the cybersecurity
-refocus) the engagement is a property of the ORGANISATION, not of each agent:
+refocus) the engagement is a property of the ORGANIZATION, not of each agent:
 one JSON record, `org/engagement.json`, written by root through
 `agenti engagement set` (or the GUI), holding the client, the
 authorizing party, the validity window, data-handling rules and a scope
@@ -45,7 +45,7 @@ nudging a cap is not a re-authorization of the engagement. This is what
 replaced the two-profile (--dev/commercial) split (CLAUDE.md "Current
 plan"): there is one profile now, and what used to be "dev" vs.
 "commercial" is just a cheaper vs. costlier choice of model/caps within
-whatever the organisation's policy allows.
+whatever the organization's policy allows.
 
 Usage from an agent's configure():
     from engagement_context import load_engagement, EngagementError
@@ -54,7 +54,7 @@ Usage from an agent's configure():
     options = ClaudeAgentOptions(system_prompt=build_system_prompt(ENGAGEMENT), ...)
 
 This module is deliberately standard-library only: it is imported by every
-agent (inside the vault venv), by preflight.py (as the organisation's service
+agent (inside the vault venv), by preflight.py (as the organization's service
 account) AND by shared/engagement_store.py (the root-side writer, from the
 code folder, possibly while the vault is locked).
 """
@@ -90,7 +90,7 @@ class Engagement:
     # rather than in a config constant somewhere.
     #
     # Every field defaults to the CONSERVATIVE choice, so an existing engagement
-    # config that predates them keeps working and gets the safe behaviour: no
+    # config that predates them keeps working and gets the safe behavior: no
     # payloads retained, nothing kept past the engagement.
     capture_payloads: bool = False     # may packet CONTENTS be stored, or metadata only?
     retention_days: int = 0            # 0 = destroy on engagement close
@@ -172,7 +172,7 @@ PERMITTED ACTIVITY
   provided tools only. This is a read-only assessment. Record findings.
 
 DATA HANDLING
-  Payload capture:   {"PERMITTED — minimise and redact anyway" if eng.capture_payloads
+  Payload capture:   {"PERMITTED — minimize and redact anyway" if eng.capture_payloads
                       else "NOT PERMITTED — metadata only, never packet contents"}
   Retention:         {f"{eng.retention_days} days" if eng.retention_days
                       else "destroy on engagement close"}
@@ -223,9 +223,9 @@ IMPORTANT
 
 
 # ---------------------------------------------------------------------------
-# The ORGANISATION engagement record  (CLAUDE.md "Current plan", phase 1)
+# The ORGANIZATION engagement record  (CLAUDE.md "Current plan", phase 1)
 #
-# One JSON document per organisation. The shape, with every field:
+# One JSON document per organization. The shape, with every field:
 #
 #   {
 #     "engagement_id":     "ACME-2026-03",          # filename/log token shape
@@ -291,7 +291,7 @@ _REQUIRED_TEXT: tuple[str, ...] = (
 LEGACY_RECORD_FIELDS: tuple[str, ...] = ("authorization_ref",)
 
 # Operational policy — caps, model allow-list, model prices — living in the
-# SAME organisation record the operator edits scope in (CLAUDE.md "Current
+# SAME organization record the operator edits scope in (CLAUDE.md "Current
 # plan": one master record, not a second rulebook). Deliberately excluded
 # from the approval digest (see record_digest()): nudging a turn cap is a
 # cost/ops decision, not a re-authorization of the engagement, and must not
@@ -305,7 +305,7 @@ _POLICY_KEYS: tuple[str, ...] = (
 # every run on the next start. `require_approval` went 2026-11-06.
 RETIRED_POLICY_KEYS: tuple[str, ...] = ("require_approval",)
 
-# Platform-wide fallback, used whenever an organisation's own record leaves a
+# Platform-wide fallback, used whenever an organization's own record leaves a
 # policy field null/empty — the same "platform default, per-agent
 # override, narrowing only" shape require-2fa already uses. These are
 # today's former "commercial" numbers: no regression for anyone who never
@@ -336,7 +336,7 @@ MAX_SCOPE_ENTRIES = 200
 
 
 class EngagementError(ValueError):
-    """An organisation engagement record is missing, malformed or unusable for the
+    """An organization engagement record is missing, malformed or unusable for the
     agent asking. The message always names what is wrong AND the command
     that fixes it, in the project's established error shape."""
 
@@ -393,7 +393,7 @@ def check_exclusions(record: dict) -> None:
                 example = "'10.0.5.0/24 (payroll)'" if kind == "cidr" else "'payroll.acme.example (production)'"
                 raise EngagementError(
                     f"the {kind} exclusion {entry!r} does not start with "
-                    f"{'an IP or CIDR' if kind == 'cidr' else 'a domain'}, so a run could not honour "
+                    f"{'an IP or CIDR' if kind == 'cidr' else 'a domain'}, so a run could not honor "
                     f"it and would refuse to start. Write it like {example}.")
 
 
@@ -473,8 +473,8 @@ def _validate_policy(data: Any) -> dict:
 
 
 def resolve_policy(record: dict | None) -> dict:
-    """The EFFECTIVE policy for an organisation: each field falls back to
-    PLATFORM_DEFAULT_POLICY where the organisation's own record leaves it
+    """The EFFECTIVE policy for an organization: each field falls back to
+    PLATFORM_DEFAULT_POLICY where the organization's own record leaves it
     null/empty. This is what preflight/load_run_config/the CLI actually
     enforce against — never the raw record.get("policy") directly, so a
     caller can never forget a fallback and silently treat "unset" as "no
@@ -681,7 +681,7 @@ def read_record(path: Path) -> dict:
 
 
 def engagement_path(*, org_dir: Path) -> Path:
-    """Where the engagement lives: the organisation's one record."""
+    """Where the engagement lives: the organization's one record."""
     return Path(org_dir) / ORG_ENGAGEMENT_FILENAME
 
 
@@ -785,7 +785,7 @@ def hold_to_pending(eng: Engagement, pending: dict, scope_kind: str) -> Engageme
 def load_engagement(scope_kind: str, *, org_dir: Path, agent: str = "",
                     require_approved: bool = False, with_pending: bool = True) -> Engagement:
     """The one call an agent's configure() makes. Every failure names the
-    fix: an organisation with no record yet is told which command (and which
+    fix: an organization with no record yet is told which command (and which
     GUI page) creates one; a record with no entries for THIS agent's kind is
     told which flag adds them.
 
@@ -843,15 +843,15 @@ def load_engagement(scope_kind: str, *, org_dir: Path, agent: str = "",
 
 
 # ---------------------------------------------------------------------------
-# Per-agent scope: a NARROWING of the organisation's scope, never a widening.
+# Per-agent scope: a NARROWING of the organization's scope, never a widening.
 #
-# The organisation's engagement is the ceiling. An admin may additionally say "in
+# The organization's engagement is the ceiling. An admin may additionally say "in
 # this agent may only touch X", where X must lie inside the
 # ceiling. The scope a run actually enforces is the OVERLAP of the two, worked
-# out again at every start (so a later organisation edit that shrinks the ceiling
+# out again at every start (so a later organization edit that shrinks the ceiling
 # narrows the agent too, and one that leaves no overlap refuses the run
 # instead of silently falling back to the wider list). out_of_scope is the
-# UNION: an agent can add exclusions, never remove the organisation's.
+# UNION: an agent can add exclusions, never remove the organization's.
 # Narrowing cannot widen authority, so the approval still stands.
 # ---------------------------------------------------------------------------
 def _scope_token(entry: str, scope_kind: str):
@@ -872,7 +872,7 @@ def _within(inner, outer, scope_kind: str) -> bool:
 def intersect_scope(scope_kind: str, org_entries: list[str],
                     agent_entries: list[str]) -> list[str]:
     """The overlap of two entry lists, as plain tokens (labels dropped). An
-    empty agent list means "no narrowing": the organisation's entries come back."""
+    empty agent list means "no narrowing": the organization's entries come back."""
     if not agent_entries:
         return list(org_entries)
     out: list = []
@@ -894,15 +894,15 @@ def intersect_scope(scope_kind: str, org_entries: list[str],
 def check_agent_scope_narrows(scope_kind: str, org_entries: list[str],
                               agent_entries: list[str]) -> None:
     """Save-time rule: every in-scope entry an agent is given must lie inside
-    the organisation's own scope. Anything wider is refused, naming it."""
+    the organization's own scope. Anything wider is refused, naming it."""
     org_scope = [_scope_token(e, scope_kind) for e in org_entries]
     for entry in agent_entries:
         a = _scope_token(entry, scope_kind)
         if not any(_within(a, t, scope_kind) for t in org_scope):
             raise EngagementError(
-                f"{entry.split()[0]!r} is outside this organisation's authorized {scope_kind} scope "
+                f"{entry.split()[0]!r} is outside this organization's authorized {scope_kind} scope "
                 f"({', '.join(str(t) for t in org_scope) or 'nothing authorized'}). An agent's scope can "
-                f"only NARROW the organisation's; widen the organisation engagement first if that is intended.")
+                f"only NARROW the organization's; widen the organization engagement first if that is intended.")
 
 
 def normalize_agent_scope(data: Any, scope_kind: str) -> dict:
@@ -944,14 +944,14 @@ def agent_scope_path(org_dir: Path, agent: str) -> Path:
 
 def apply_agent_scope(eng: "Engagement", agent_scope: dict | None,
                       scope_kind: str) -> "Engagement":
-    """The organisation view narrowed by the agent's own scope (see above)."""
+    """The organization view narrowed by the agent's own scope (see above)."""
     if not agent_scope or not (agent_scope["in_scope"] or agent_scope["out_of_scope"]):
         return eng
     in_scope = intersect_scope(scope_kind, eng.in_scope, agent_scope["in_scope"])
     if not in_scope:
         raise EngagementError(
             f"this agent's own {scope_kind} scope ({', '.join(agent_scope['in_scope'])}) no longer "
-            f"overlaps the organisation's authorized scope ({', '.join(eng.in_scope)}), so nothing is "
+            f"overlaps the organization's authorized scope ({', '.join(eng.in_scope)}), so nothing is "
             f"authorized for it. An admin fixes it in Settings → Agents, or widens the engagement.")
     out_of_scope = list(eng.out_of_scope) + [e for e in agent_scope["out_of_scope"]
                                              if e not in eng.out_of_scope]
@@ -960,7 +960,7 @@ def apply_agent_scope(eng: "Engagement", agent_scope: dict | None,
 
 
 def read_approval(path: Path) -> dict | None:
-    """The organisation's approval record, or None when there is none. A
+    """The organization's approval record, or None when there is none. A
     malformed file is treated as no approval (fail closed) and the reason
     is surfaced by approval_status()."""
     path = Path(path)
@@ -974,7 +974,7 @@ def read_approval(path: Path) -> dict | None:
 
 
 def approval_status(record: dict | None, approval: dict | None) -> dict:
-    """Is the organisation's engagement approved AS IT STANDS? `current` is the
+    """Is the organization's engagement approved AS IT STANDS? `current` is the
     answer preflight acts on: an approval exists AND names this engagement
     AND its digest matches the record's digest now — so editing the record
     after approval makes `current` false by construction, which is the
@@ -1009,7 +1009,7 @@ def approval_status(record: dict | None, approval: dict | None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Example — a fictional organisation record, printed as the prompt an agent of
+# Example — a fictional organization record, printed as the prompt an agent of
 # each kind would receive from it.
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

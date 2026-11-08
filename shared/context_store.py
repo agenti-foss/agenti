@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""context_store.py — the instruction files that shape an agent's behaviour,
+"""context_store.py — the instruction files that shape an agent's behavior,
 with edit history, and the snapshot a run actually reads. Root-side, stdlib.
 
 THE FILES (each plain text, at most MAX_BYTES):
@@ -7,7 +7,7 @@ THE FILES (each plain text, at most MAX_BYTES):
   system-prompt   per agent      REQUIRED. What the agent is for and how it works.
   skills          per agent      optional. Techniques it may try with its existing tools.
   platform-skills platform-wide  optional. The same, for every agent.
-  org             organisation   optional. The organisation's own policies and context.
+  org             organization   optional. The organization's own policies and context.
   memory          per agent and user
                                  optional. One user's preferences for that agent.
 

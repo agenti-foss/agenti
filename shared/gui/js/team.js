@@ -189,9 +189,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     done: () => { loadFiles(); setTimeout(refresh, 1500); },
   });
 
-  // ---------- colours, names, time ----------
+  // ---------- colors, names, time ----------
   // One hue per member, in roster order. None of these sits near the accent
-  // blue, which is the operator's own colour — "you" and "a member" must
+  // blue, which is the operator's own color — "you" and "a member" must
   // never read alike. Eight is plenty; a ninth member wraps.
   const MEMBER_HUES = AgentiActivity.MEMBER_HUES;
   let hueOf = {};
@@ -305,7 +305,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       els.controls.querySelectorAll("[data-action]").forEach((b) => { b.hidden = true; });
     }
 
-    // ---------- roster panel (avatars in each member's chat colour) ----------
+    // ---------- roster panel (avatars in each member's chat color) ----------
     els.roster.innerHTML = members.map((agent) => {
       const st = statusByAgent[agent];
       const [cls, label] = memberBadge(st);
@@ -351,7 +351,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // ---------- rendering the chat ----------
   // What the team SAID, in order: the kickoff as an opening card, messages as
-  // bubbles (you on the right, each agent in its own colour, "→ name" when
+  // bubbles (you on the right, each agent in its own color, "→ name" when
   // addressed to someone), a "says the project is done" card for a vote, and a
   // quiet line when someone finishes. With "Show each agent's work" on, each
   // member's own narration and a one-line count of the steps it took are

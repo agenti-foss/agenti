@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_agent_controls.py — the control-centre assembler and its drift check.
+"""test_agent_controls.py — the control-center assembler and its drift check.
 
     python3 shared/test_agent_controls.py
 

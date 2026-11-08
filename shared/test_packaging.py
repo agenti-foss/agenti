@@ -146,7 +146,7 @@ else:
 cli = (HERE / "agenti").read_text()
 _defined = set(re.findall(r"\b(c_[a-z0-9])=", cli))
 _used = set(re.findall(r"\$\{?(c_[a-z0-9])\b", cli))
-check("every colour the CLI prints with is defined (an undefined one killed `agenti setup`)",
+check("every color the CLI prints with is defined (an undefined one killed `agenti setup`)",
       sorted(_used - _defined), [])
 cfg = (HERE / "configure.sh").read_text()
 check("configure.sh checks it with visudo BEFORE it reaches sudoers.d",

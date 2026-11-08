@@ -1,14 +1,14 @@
 # Agenti
 
 Agentic security tooling for your own team. Agenti is a free, self-hosted tool
-that lets one organisation's security team run AI agents for network
+that lets one organization's security team run AI agents for network
 enumeration, OSINT and traffic analysis, on its own Kali Linux (or Debian 13 /
 Ubuntu 24.04) machine. It is built on the Claude Agent SDK.
 
 An administrator records and approves the engagement's scope. Every command an
 agent wants to run is checked against that scope by the system, not by the AI
 model, and every decision is logged. We describe Agenti as **auditable,
-bounded, isolated and admin-authorised for real targets**. We do not call it
+bounded, isolated and admin-authorized for real targets**. We do not call it
 "safe": a tool like this is only as safe as the people configuring it.
 
 ## How a run works
@@ -31,7 +31,7 @@ bounded, isolated and admin-authorised for real targets**. We do not call it
 |---|---|
 | `enum` | Network enumeration against an approved address range |
 | `research` | Open-source intelligence against an approved domain |
-| `trafficmon` | Passive packet capture, analysed and summarised |
+| `trafficmon` | Passive packet capture, analyzed and summarized |
 | your own | Admins build recon and file-analysis agents in Settings; a built agent is configuration, not code |
 
 Hash cracking (`agenti-cracker`) and approval-gated exploitation
@@ -72,7 +72,7 @@ checked against its pinned SHA-256. You need an Anthropic API key. Full guide:
 Please report vulnerabilities privately through this repository's
 **Security → Report a vulnerability**, never in a public issue.
 
-## Licence
+## License
 
 The open core (web interface, command line, safety harness and the agents
 above) is licensed under the GNU Affero General Public License v3.0

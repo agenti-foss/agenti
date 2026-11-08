@@ -13,8 +13,8 @@
  */
 
 /* ---------- design tokens ----------
- * Light is the reference; dark redefines the same names. Greys carry a
- * slight blue cast rather than being pure neutral — flat #000/#fff greys
+ * Light is the reference; dark redefines the same names. Grays carry a
+ * slight blue cast rather than being pure neutral — flat #000/#fff grays
  * read as "unstyled default" on a screen, which is most of what made the
  * first pass feel like a developer tool rather than a product.
  *
@@ -182,7 +182,7 @@ p { margin: 0 0 var(--space-2); line-height: 1.55; }
 }
 
 /* Thin, self-effacing scrollbars. The platform default is a heavy
- * light-grey slab that, inside a dark card, became the loudest element on
+ * light-gray slab that, inside a dark card, became the loudest element on
  * the page — visible in the very first screenshots of the dashboard. */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -241,8 +241,8 @@ p { margin: 0 0 var(--space-2); line-height: 1.55; }
 .topnav.compact .nav-icon-btn, .topnav.compact #theme-toggle { width: 30px; height: 30px; }
 .topnav.compact .nav-dash { height: 30px; }
 
-/* Dashboard, one tap from anywhere. A labelled pill on a wide screen, the
- * same round icon button as its neighbours on a phone. */
+/* Dashboard, one tap from anywhere. A labeled pill on a wide screen, the
+ * same round icon button as its neighbors on a phone. */
 .topnav .nav-dash {
   display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
   height: 34px; padding: 0 12px 0 10px; border-radius: 999px;
@@ -303,7 +303,7 @@ p { margin: 0 0 var(--space-2); line-height: 1.55; }
   .topnav.compact .nav-icon-btn, .topnav.compact #theme-toggle { width: 34px; height: 34px; }
   /* Room for the docked back button: the signed-in name gives way to it. */
   .topnav.has-back .whoami, .topnav.has-search .whoami { display: none; }
-  /* No room for a field: the docked search is a round button like its neighbours. */
+  /* No room for a field: the docked search is a round button like its neighbors. */
   .topnav .nav-search { flex: 0 0 auto; }
   .topnav.has-search .nav-search { max-width: 34px; }
   .topnav .nav-search-input { display: none; }
@@ -387,7 +387,7 @@ p { margin: 0 0 var(--space-2); line-height: 1.55; }
 .menu-item {
   display: flex;
   align-items: center;
-  /* Explicit, because the global `button` rule centres its flex content
+  /* Explicit, because the global `button` rule centers its flex content
    * and the Log out item IS a button: a menu reads left-aligned. min-height
    * keeps the <a> items and the <button> item the same height at every
    * width (the phone rules give only buttons a 40px minimum). */
@@ -620,7 +620,7 @@ main > h1 + .hint, main > h1 + p.hint { margin-bottom: var(--space-5); max-width
 .team-member-name small { display: block; font-weight: 400; font-size: 0.74rem; color: var(--text-dim); }
 
 /* A quiet caption above a secondary block inside a card, so a two-line log
- * box isn't an unlabelled mystery. Sentence case: an uppercase micro-label is
+ * box isn't an unlabeled mystery. Sentence case: an uppercase micro-label is
  * the same mistake the old h3 made, one size down. */
 .card-caption {
   font-size: 0.75rem;
@@ -630,7 +630,7 @@ main > h1 + .hint, main > h1 + p.hint { margin-bottom: var(--space-5); max-width
 }
 
 /* A run's agent type under its name: what KIND of thing this is, set apart
- * from the name a person gave it by italics, not by size or colour alone. */
+ * from the name a person gave it by italics, not by size or color alone. */
 .run-kind { font-style: italic; font-size: 0.8rem; color: var(--text-dim); line-height: 1.3; margin-top: 1px; }
 td .run-kind { font-size: 0.76rem; }
 .run-title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -667,9 +667,9 @@ td .run-kind { font-size: 0.76rem; }
   background: currentColor;
 }
 /* Running is the one state that is still happening, so it is the one that
- * moves: the accent colour (not the green Completed shares) and a dot that
+ * moves: the accent color (not the green Completed shares) and a dot that
  * sends out a slow ring, like a live broadcast light. Completed trades its dot
- * for a check, so the two read apart even in greyscale. */
+ * for a check, so the two read apart even in grayscale. */
 .badge.running   { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .badge.running::before { animation: badge-live 1.8s var(--ease, ease-out) infinite; }
 @keyframes badge-live {
@@ -757,7 +757,7 @@ td .run-kind { font-size: 0.76rem; }
 /* chat box */
 .chatbox { display: flex; gap: 8px; flex-wrap: wrap; }
 .chatbox input[type=text] {
-  /* A basis wide enough to type in. With three labelled action buttons
+  /* A basis wide enough to type in. With three labeled action buttons
    * beside it in a three-column grid, `flex: 1; min-width: 0` let the
    * input shrink to a 40px sliver showing one letter of its placeholder;
    * now the actions wrap under it instead. */
@@ -771,7 +771,7 @@ input, select, textarea {
   font-family: inherit;
   /* 16px, not smaller: iOS Safari zooms the whole page in when a focused
    * input's text is under 16px, which on a phone throws the layout off
-   * centre the moment someone taps a field. */
+   * center the moment someone taps a field. */
   font-size: 16px;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
@@ -812,7 +812,7 @@ label { font-size: 0.82rem; font-weight: 500; color: var(--text-dim); display: b
 .field-row { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 .field-row .field { flex: 1; min-width: 160px; }
 /* An inline radio/checkbox label is a choice, not a field label: full text
- * colour and normal weight, so a form doesn't read as all-grey. */
+ * color and normal weight, so a form doesn't read as all-gray. */
 .choice {
   display: inline-flex; align-items: center; gap: 7px;
   font-weight: 400; color: var(--text); margin-bottom: 0;
@@ -861,7 +861,7 @@ button:hover:not(:disabled), .btn:hover:not([aria-disabled="true"]) {
   border-color: var(--border-strong);
 }
 /* A real pressed state: the difference between a page that responds and one
- * that merely changes colour after the fact. */
+ * that merely changes color after the fact. */
 button:active:not(:disabled), .btn:active:not([aria-disabled="true"]) { transform: scale(0.975); }
 /* `.btn` is used on <a> elements too, where :disabled never matches — a
  * disabled-looking Send/Note pair on the agent page's composer stayed fully
@@ -888,7 +888,7 @@ button:disabled, .btn[aria-disabled="true"], .btn.disabled {
 .hint.warn { color: var(--warn); }
 
 /* An empty state should say what the thing is, why it's empty, and what to do
- * next — not just "Nothing yet." in grey. */
+ * next — not just "Nothing yet." in gray. */
 .empty-state {
   text-align: center;
   padding: var(--space-6) var(--space-4);
@@ -1263,8 +1263,8 @@ dialog.send-modal .field-row input { width: 100%; min-width: 0; }
  * itself is still on the title tooltip, just not taking up a whole column. */
 .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; box-sizing: border-box; }
 .status-dot.ok { background: var(--ok); }
-/* Disabled is a hollow ring, not just a different colour, so the two states
- * are told apart without colour — and the word is in the dot for a screen
+/* Disabled is a hollow ring, not just a different color, so the two states
+ * are told apart without color — and the word is in the dot for a screen
  * reader (.sr-only). */
 .status-dot.err { background: transparent; border: 2px solid var(--err); }
 /* Visually hidden, read aloud. */
@@ -1283,7 +1283,7 @@ button.link-btn:hover:not(:disabled) { color: var(--accent-hover); }
 .actions-gap { display: inline-block; width: var(--space-3); }
 .status-cell { text-align: center; }
 
-/* ---- the target bank: pick from the organisation's authorized scope ----------
+/* ---- the target bank: pick from the organization's authorized scope ----------
  * The engagement record already says exactly what an agent may be pointed
  * at, so the launch form offers those values to click instead of asking
  * someone to retype one from memory (and typo it into a refusal). Multi
@@ -1391,7 +1391,7 @@ code.value {
   word-break: break-all; max-width: 100%;
 }
 /* The 2FA QR code (api.js qrCode): round dots, rounded corner eyes, a soft
- * card, the favicon in the centre, and ONE colour for every dot (operator
+ * card, the favicon in the center, and ONE color for every dot (operator
  * note 2026-11-08). It follows the theme: black on white in light mode,
  * white on near-black in dark mode, which current authenticator apps and
  * phone cameras read. */
@@ -1431,11 +1431,11 @@ code.value {
 /* ---- the console (§4 item 25): activity + chat + controls in one pane ---- */
 /* ---------- team group chat ----------
  * One hue per member (set as --hue on each row by team.js, in roster
- * order); the operator is the accent colour and sits on the right. Every
- * member colour is derived with color-mix against the theme's own
+ * order); the operator is the accent color and sits on the right. Every
+ * member color is derived with color-mix against the theme's own
  * surfaces and text, so the same hue reads correctly in light and dark
  * without a second palette. Thoughts (a member's own narration) are the
- * same colour, dashed and dimmed — visibly "not said to the group". */
+ * same color, dashed and dimmed — visibly "not said to the group". */
 .chat {
   --hue: 215;
   display: flex;
@@ -1545,7 +1545,7 @@ code.value {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent);
 }
 /* A tool call (▸) or its result (↳): one quiet monospace line, indented
- * under the member's bubbles with its colour as a dot. */
+ * under the member's bubbles with its color as a dot. */
 .chat-tool {
   display: flex;
   align-items: baseline;
@@ -1560,7 +1560,7 @@ code.value {
 .chat-tool code { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 .chat-tool-who { flex: 0 0 auto; font-family: var(--font, inherit); font-weight: 650; font-size: 0.74rem; color: color-mix(in srgb, hsl(var(--hue) 60% 50%) 75%, var(--text)); }
 .chat-tool.error { color: var(--err); }
-/* Kickoff and completion votes: centred system pills. */
+/* Kickoff and completion votes: centered system pills. */
 .chat-system { text-align: center; margin: 4px 0; }
 .chat-system .pill {
   display: inline-block;
@@ -1926,8 +1926,8 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   cursor: pointer;
   text-align: left;
   /* A <button> with display:flex inherits the UA's `align-items: center`, so
-   * each child shrink-wrapped and centred — which is why the short card title
-   * rendered centred while the long description, filling the width anyway,
+   * each child shrink-wrapped and centered — which is why the short card title
+   * rendered centered while the long description, filling the width anyway,
    * looked left-aligned. `text-align: left` alone never fixed it. */
   align-items: stretch;
   font: inherit;
@@ -1944,7 +1944,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
 }
 /* A disabled card is not merely dimmer — clicking it does something DIFFERENT
  * (it jumps to the request form), so it has to look like a different thing,
- * not a greyed version of the same thing. */
+ * not a grayed version of the same thing. */
 /* Quieter than an available card, not louder: a dashed --border-strong edge
  * against a darker fill actually out-contrasted the real options in dark
  * mode, inverting the hierarchy the dashed style was meant to create. */
@@ -1989,7 +1989,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
 
 /* ---- motion ------------------------------------------------------------
  * Everything above animates at 100–400ms. Someone who has asked their OS for
- * reduced motion has asked for a reason; honour it globally rather than
+ * reduced motion has asked for a reason; honor it globally rather than
  * per-rule, the console's pulse included. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -2047,7 +2047,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
 /* A fixed-window pager over an already-fetched list (Settings' Users table
  * list) — page size, "N–M of T", prev/next. Client-side: the
  * point is capping how much gets painted into the DOM at once, which is
- * what actually costs time for an organisation with hundreds of accounts. */
+ * what actually costs time for an organization with hundreds of accounts. */
 .list-pager {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3); flex-wrap: wrap; margin: 8px 0 14px;
@@ -2216,7 +2216,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   .composer input[type=text] { flex: 1 1 100%; }
   .composer-controls { margin-left: auto; }
   /* Icon-only controls stay in proportion with the text (the tap target is
-   * widened invisibly, above); labelled ones get a 40px line. */
+   * widened invisibly, above); labeled ones get a 40px line. */
   .icon-btn, .btn-icon { width: 34px; height: 34px; min-height: 34px; padding: 0; }
   button.copy-btn { width: 30px; height: 30px; min-height: 30px; }
   .composer-controls .icon-btn.with-label { width: auto; }
@@ -2237,7 +2237,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   .hint { font-size: 0.8rem; }
   .btn, button { padding: 8px 13px; }
   .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
-  /* A labelled button in a crowded row keeps its icon and drops its word;
+  /* A labeled button in a crowded row keeps its icon and drops its word;
    * the name stays on title/aria-label. */
   .compact .btn-label, .btn.compact .btn-label { display: none; }
   /* Icon-only on a phone, so the same 44px floor as every other icon control. */
@@ -2278,7 +2278,7 @@ dialog#user-dashboard-dialog::backdrop { background: rgba(0,0,0,0.55); }
   dialog#user-dashboard-dialog { width: 100vw; height: 100vh; border-radius: 0; border: 0; }
   /* On a phone the Dashboard button is its icon alone (the name is in the
    * row's first column, and on the button's tooltip and accessible label),
-   * and the Status column — a coloured dot — drops its header word, which
+   * and the Status column — a colored dot — drops its header word, which
    * is wider than the column. Both keep the word on their tooltip. */
   #users-table .lbl-full { display: none; }
 
@@ -2660,7 +2660,7 @@ mark.docs-mark {
 /* ---- The agent console as a session (activity.js session mode) ------------
  * Read like a Claude Code session: what the agent said as plain text by a
  * dot, every step on its own line with a one-line result beneath it, what you
- * said as a prompt line. Quiet by default; colour only where something failed
+ * said as a prompt line. Quiet by default; color only where something failed
  * or the boundary refused a step. */
 .console.activity.session { gap: 10px; }
 .session .say {
@@ -2921,7 +2921,10 @@ dialog .dlg-section-head h3.dlg-section { margin: 0; padding: 0; border: 0; }
 /* A small circled "i" beside a title; the explanation lives in the bubble. */
 .info-tip {
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
-  width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0 0 0 5px; vertical-align: -2px;
+  width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0 0 0 5px;
+  /* In running text (a form label) center on the letters, the same place
+   * align-self: center puts it beside a flex heading. -2px sat it low. */
+  vertical-align: middle;
   border: 1.5px solid currentColor; border-radius: 50%; background: none; box-shadow: none;
   color: var(--text-faint); opacity: 0.8; cursor: help; align-self: center;
   font: 700 10px/1 var(--font); font-style: normal; letter-spacing: 0;

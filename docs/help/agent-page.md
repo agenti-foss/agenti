@@ -8,7 +8,7 @@ run (display only). Its parts, from top to bottom:
 
 It reads like a Claude Code session: everything the run did, in order.
 
-- What the agent says appears as text beside a grey dot. A long message is folded
+- What the agent says appears as text beside a gray dot. A long message is folded
   with **Show more**; the closing message of a finished run is its **Summary**, with
   a link to the full report.
 - Every step it takes has its own line: what it ran (for example
@@ -44,7 +44,7 @@ Enter or Tab to choose.
 
 | Command | What it does |
 |---|---|
-| `/model` | Switches the model. It lists the models your organisation allows from the run's provider; pick one, or type `/model` and a name. |
+| `/model` | Switches the model. It lists the models your organization allows from the run's provider; pick one, or type `/model` and a name. |
 | `/note <text>` | Adds a note, like **Note**. |
 | `/pause`, `/resume`, `/stop`, `/interrupt` | The same as the buttons below. |
 | `/attach` | Attaches a file, like **Attach**. |
@@ -97,7 +97,7 @@ The agent never gets a raw shell.
 
 ## Engagement
 
-Your organisation's authorization record: the client, who authorized the work, the dates,
+Your organization's authorization record: the client, who authorized the work, the dates,
 and the scope this agent may use. Every agent shares it. Admins edit and approve
 it under **Settings → Engagement**.
 

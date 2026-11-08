@@ -94,7 +94,7 @@
     // First-run setup (operator decision 2026-10-26). Step 1 sends the setup
     // code and a name to POST /setup/admin (no sign-in: nobody can sign in
     // yet; the code, checked by agenti-authd, stands in for it) and gets back
-    // a one-time enrolment token. Step 2 is the ordinary enrolment page
+    // a one-time enrollment token. Step 2 is the ordinary enrollment page
     // (password + 2FA). Step 3 is this page again, signed in.
     document.addEventListener("DOMContentLoaded", async () => {
       const banner = document.getElementById("setup-banner");
@@ -189,11 +189,11 @@
           try {
             const r = await Agenti.requireApproval({
               title: "Save the API key",
-              description: `Confirm it's you to save this ${name} key for the organisation's runs.`,
+              description: `Confirm it's you to save this ${name} key for the organization's runs.`,
               submit: (creds) => Agenti.post("admin/api-key", { key, provider,
                 password: creds.password, totp: creds.totp, reauth: creds.reauth }),
             });
-            if (!r) { Agenti.banner(kBanner, "warn", "Cancelled — nothing was saved."); return; }
+            if (!r) { Agenti.banner(kBanner, "warn", "Canceled — nothing was saved."); return; }
             kForm.reset();
             Agenti.banner(kBanner, "ok", `${name} key saved.`);
             paint({ api_key: "set", vault: "off" });

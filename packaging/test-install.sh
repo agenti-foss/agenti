@@ -56,7 +56,7 @@ expect "kali is now an admin with a password" sh -c \
 expect "the user database is 0640 root:agenti-authd" test "$(mode /var/lib/agenti/iam.db)" = "640 root:agenti-authd"
 expect "authd's session folder is 0700 agenti-authd" test "$(mode /var/lib/agenti/authd)" = "700 agenti-authd:agenti-authd"
 expect "the data root is 0751 root:root" test "$(mode /var/lib/agenti/data)" = "751 root:root"
-expect "the organisation folder exists" test -d /var/lib/agenti/data/org/teams
+expect "the organization folder exists" test -d /var/lib/agenti/data/org/teams
 expect "the sudoers grant is installed, 0440, and parses" sh -c \
     'test "$(stat -c %a /etc/sudoers.d/agenti-api)" = 440 && visudo -c -q -f /etc/sudoers.d/agenti-api'
 expect "the API account cannot read the user database" sh -c '! su -s /bin/sh agenti-api -c "cat /var/lib/agenti/iam.db" >/dev/null 2>&1'

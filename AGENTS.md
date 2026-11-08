@@ -17,7 +17,7 @@ The pieces, all in `shared/`:
 | File | What it is |
 |---|---|
 | `model_session.py` | The seam: `SessionSpec`, `open_session()`, the event classes (the Claude SDK's shapes) |
-| `engine_claude.py` | Claude through the Claude Agent SDK (unchanged behaviour) |
+| `engine_claude.py` | Claude through the Claude Agent SDK (unchanged behavior) |
 | `engine_openai.py` | Agenti's own loop over Chat Completions: OpenAI and self-hosted |
 | `model_registry.py` | `provider:model` names, providers, prices, live model lists |
 | `agent_tools.py` | The provider-neutral `@tool` every agent tool uses |

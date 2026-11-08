@@ -117,7 +117,7 @@ RunName = Annotated[str, Field(min_length=1, max_length=60), AfterValidator(_no_
 # A passkey re-authentication token (authd's reauth_webauthn_finish): what
 # any approval popup sends instead of a password and 2FA code.
 ReauthToken = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{16,64}$")]
-# An enrolment or password-reset link token (iam._link_token): base64url, never
+# An enrollment or password-reset link token (iam._link_token): base64url, never
 # a leading '-'. Bounded, so a junk path never reaches the root CLI (N13).
 LinkToken = Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9_-]{15,127}$")]
 
@@ -138,7 +138,7 @@ def _b64url_id_ok(v: str) -> str:
 
 Base64UrlId = Annotated[str, AfterValidator(_b64url_id_ok)]
 
-# uvicorn's access log goes to the journal, and an unused enrolment or reset
+# uvicorn's access log goes to the journal, and an unused enrollment or reset
 # link in it is a working credential (audit run 2, confirmed live): the token
 # part of those paths is blanked before the line is written.
 _LINK_PATH = re.compile(r"^(/(?:enrol|password-reset)/)[^/?#\s]+")
@@ -327,7 +327,7 @@ def _client_addr(request: Request) -> str:
     """The source address for login throttling.
 
     Direct deploys use the TCP peer and never read a forwarding header: with
-    nothing in front, a header is purely attacker-controlled, and honouring it
+    nothing in front, a header is purely attacker-controlled, and honoring it
     would let one client claim a fresh address per attempt. Behind a proxy
     (--behind-proxy) every peer is 127.0.0.1, so the real address comes from
     the proxy's header, trusted only from a loopback peer. Rules and tests:
@@ -406,7 +406,7 @@ def totp(body: TotpRequest, request: Request, response: Response) -> dict:
     if not sid:
         raise HTTPException(status_code=401, detail="no pending login — POST /auth/login first")
     # authd verifies the code AND rotates the session id on success — the
-    # standard session-fixation defence, done where the rows live.
+    # standard session-fixation defense, done where the rows live.
     r = _authd("totp", session_id=sid, code=body.code, addr=_client_addr(request))
     new = sessions.Session(r["session_id"], r["principal"], r["csrf"], False)
     sessions.set_cookie(response, new)
@@ -448,7 +448,7 @@ def me(caller: Caller = Depends(authenticated())) -> dict:
         "permissions": resolved_permissions(caller.principal),
         # Session callers only (a key has no second factor): whether 2FA is
         # enrolled, and whether the require-2fa policy is holding this session
-        # to the enrolment routes until it is (rbac.MFA_SETUP_ALLOWED_PATHS).
+        # to the enrollment routes until it is (rbac.MFA_SETUP_ALLOWED_PATHS).
         "totp_enrolled": caller.totp_enrolled,
         "mfa_setup_required": caller.mfa_setup_required,
     }
@@ -679,8 +679,8 @@ class SetupAdminRequest(BaseModel):
 @app.post("/setup/admin")
 def setup_first_admin(body: SetupAdminRequest, request: Request) -> dict:
     """Step 1 of the setup page: the setup code and the first admin's name.
-    Returns the admin's one-time enrolment token; the page goes on to the
-    enrolment page with it for the password and 2FA."""
+    Returns the admin's one-time enrollment token; the page goes on to the
+    enrollment page with it for the password and 2FA."""
     if not _setup_reachable(request):
         raise HTTPException(status_code=403, detail=(
             "setup is not offered through a tunnel or proxy: open Agenti at its own "
@@ -833,7 +833,7 @@ def dashboard(user: Optional[PrincipalName] = None,
 
 @app.get("/agents")
 def list_agent_types(caller: Caller = Depends(authenticated())) -> dict:
-    """The agent catalogue: which agents are installed on this box, with their
+    """The agent catalog: which agents are installed on this box, with their
     title, description, scope kind and programs. Not sensitive, so any
     authenticated caller may read it."""
     return _call("agents")
@@ -907,7 +907,7 @@ class CreatePrincipalRequest(BaseModel):
     kind: Literal["user", "service"] = "user"
     role: Literal["operator", "admin"] = "operator"
     # A service principal authenticates with an API key, never a password —
-    # minting it an enrolment link would be dead weight nobody consumes.
+    # minting it an enrollment link would be dead weight nobody consumes.
     no_link: bool = False
     # The creating admin re-authenticates for EVERY new account (operator
     # decision 2026-10-22): password + 2FA, or a passkey token.
@@ -1067,7 +1067,7 @@ def list_bindings(user: Optional[PrincipalName] = None, principal: Optional[Prin
 # genuine hard delete", "a real rename" — over the softer disable/display-
 # name conventions everything above this comment uses). Unlike the bounded
 # grants above, there is no ROLE the caller picks: the resource being
-# approved is always the organisation, so it is never taken from the request
+# approved is always the organization, so it is never taken from the request
 # body. Same re-authenticated, single-use action-grant mechanism as
 # grant_access(), because a rename re-points every audit/run-history record
 # that names the account, and a delete is irreversible: both are judged to
@@ -1218,7 +1218,7 @@ def principal_history(caller: Caller = Depends(require("iam:read"))) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Enrolment link consumption — the ONE pair of routes in this file with no
+# Enrollment link consumption — the ONE pair of routes in this file with no
 # `Depends(authenticated())` / `Depends(require(...))` at all, and that is
 # deliberate, not an oversight: the entire point is letting someone who does
 # not have an account yet set their first password. What stands in for
@@ -1290,7 +1290,7 @@ def list_outputs(user: Optional[PrincipalName] = None,
                  caller: Caller = Depends(require("agent:read"))) -> dict:
     """One user's kept files plus the two-level quota (decision 8): the
     caller's own, or — down the dashboard ladder — the user named by `user`.
-    Kept files are private like runs (§4 item 71); there is no organisation-wide
+    Kept files are private like runs (§4 item 71); there is no organization-wide
     listing."""
     owner = _owner(caller, user)
     rows = _call("admin", "outputs-list", "--user", owner)
@@ -1380,7 +1380,7 @@ def show(agent: AgentName, copy: Optional[CopyLabel] = None,
 
 
 # ---------------------------------------------------------------------------
-# Engagement: a property of the organisation, shared by every agent. The
+# Engagement: a property of the organization, shared by every agent. The
 # primary routes (GET/POST /engagement, POST /engagement/approve) are below;
 # this per-agent GET is that agent's own VIEW, filtered to its scope kind.
 # ---------------------------------------------------------------------------
@@ -1469,7 +1469,7 @@ def get_agent_controls(scope_agent: AgentName,
 
 
 # ---- instruction files (shared/context_store.py) ----------------------------
-# system-prompt / skills / platform-skills / the organisation policy file:
+# system-prompt / skills / platform-skills / the organization policy file:
 # admin only. Every save, reset or revert needs a
 # fresh re-authentication (an 'edit-context' approval grant bound to the file,
 # the change and the SHA-256 of the exact text); the root verb re-checks the
@@ -1638,7 +1638,7 @@ class ApiKeyRequest(BaseModel):
 @app.post("/admin/api-key")
 def set_api_key(body: ApiKeyRequest, request: Request,
                 caller: Caller = Depends(require("iam:manage"))) -> dict:
-    """Settings → Platform → API key: the organisation's Anthropic key (the
+    """Settings → Platform → API key: the organization's Anthropic key (the
     shared tier). Behind a fresh admin re-authentication bound to the key's
     SHA-256; the key goes to root as the request BODY on stdin, never an
     argument, and is never sent back."""
@@ -2107,7 +2107,7 @@ def _engagement_grant(request: Request, caller: Caller, body, action: dict, cli_
 def set_engagement(body: EngagementSetRequest, request: Request,
                           caller: Caller = Depends(require("engagement:manage"))) -> dict:
     """AUTHOR the engagement — client, authorized scope per kind,
-    validity window (CLAUDE.md "Current plan": the engagement belongs to the organisation,
+    validity window (CLAUDE.md "Current plan": the engagement belongs to the organization,
     not per agent). A SEPARATE, more powerful action than the approve
     route below: that answers "may a commercial run start against what is
     already on record"; this defines what the record IS.

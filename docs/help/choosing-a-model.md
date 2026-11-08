@@ -25,8 +25,8 @@ fresh approval. Keys are never shown again; replacing one affects future
 runs. **Check connection** asks the provider which of its models are on the
 allowed list, without starting a run. For a self-hosted server, the card
 shows the relay command for the address you type. Provider keys resolve independently:
-user, agent, organisation, then shared. Setting a user's Claude key does
-not hide the organisation's OpenAI key.
+user, agent, organization, then shared. Setting a user's Claude key does
+not hide the organization's OpenAI key.
 
 At the server, keys are entered at a hidden prompt:
 

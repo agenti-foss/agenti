@@ -225,9 +225,9 @@ iam.clear_failures(rt, "logintest")
 check("correct password works once cleared",
       iam.verify_login(conn, rt, "logintest", "s3cret-passphrase").ok, True)
 
-section("second factor: enrolment, replay, recovery codes")
+section("second factor: enrollment, replay, recovery codes")
 secret, codes = iam.enroll_totp(conn, "logintest", rt)
-check("enrolment returns 10 recovery codes", len(codes), iam.RECOVERY_CODE_COUNT)
+check("enrollment returns 10 recovery codes", len(codes), iam.RECOVERY_CODE_COUNT)
 check("login now demands a second factor",
       iam.verify_login(conn, rt, "logintest", "s3cret-passphrase").totp_required, True)
 
@@ -249,10 +249,10 @@ check("a DIFFERENT recovery code still works",
 old_secret = secret
 secret2, codes2 = iam.enroll_totp(conn, "logintest", rt)
 iam.clear_failures(rt, "logintest")
-check("re-enrolment invalidates the OLD secret",
+check("re-enrollment invalidates the OLD secret",
       iam.verify_second_factor(conn, rt, "logintest", iam.totp_code(old_secret)).ok, False)
 iam.clear_failures(rt, "logintest")
-check("re-enrolment invalidates OLD recovery codes",
+check("re-enrollment invalidates OLD recovery codes",
       iam.verify_second_factor(conn, rt, "logintest", codes[2]).ok, False)
 iam.clear_failures(rt, "logintest")
 check("new secret works", iam.verify_second_factor(conn, rt, "logintest", iam.totp_code(secret2)).ok, True)
@@ -366,7 +366,7 @@ check("web_grant_requires_password: an unknown/made-up role name also "
 
 iam.reset_totp(conn, "logintest", rt)  # back to a clean slate
 
-section("enrolment tokens: onboarding someone with NO credential yet")
+section("enrollment tokens: onboarding someone with NO credential yet")
 # require-2fa is ON by default (its own section below); these sections test
 # the token mechanics with a password-only sign-up, so switch it off here.
 iam.set_setting(conn, "require-2fa", "off")
@@ -402,7 +402,7 @@ except iam.IAMError as e:
     check("reusing the SAME token a second time: refused",
           "invalid or has expired" in str(e), True)
 
-section("enrolment tokens: never for an already-enrolled account (§4 item 23)")
+section("enrollment tokens: never for an already-enrolled account (§4 item 23)")
 # newperson now HAS a password. mint-enrolment-link and enrol-consume are
 # both reachable by the API service account, so a link for an enrolled
 # principal would let a compromised API reset anyone's credentials.
@@ -417,9 +417,9 @@ late = iam.mint_enrolment_token(rt, conn, "newperson-late", "admin-actor")
 iam.set_principal_password(conn, "newperson-late", "SetByAdminMeanwhile1!")
 try:
     iam.consume_enrolment_token(conn, rt, late, "AttackerPw1!")
-    check("a token minted BEFORE enrolment is dead once the account is enrolled", False, True)
+    check("a token minted BEFORE enrollment is dead once the account is enrolled", False, True)
 except iam.IAMError as e:
-    check("a token minted BEFORE enrolment is dead once the account is enrolled",
+    check("a token minted BEFORE enrollment is dead once the account is enrolled",
           "already enrolled" in str(e), True)
 check("...and the admin-set password survived untouched",
       iam.verify_login(conn, rt, "newperson-late", "SetByAdminMeanwhile1!").ok, True)
@@ -431,7 +431,7 @@ except iam.IAMError:
     check("...nor can it plant a 2FA factor on the enrolled account",
           conn.execute("SELECT totp_secret FROM principals WHERE name='newperson-late'").fetchone()[0] is None, True)
 
-section("enrolment tokens: expiry, and enrolling 2FA in the same step")
+section("enrollment tokens: expiry, and enrolling 2FA in the same step")
 iam.add_principal(conn, "newperson-exp", "user", "admin-actor")
 token2 = iam.mint_enrolment_token(rt, conn, "newperson-exp", "admin-actor")
 rt.execute("UPDATE enrolment_tokens SET expires_at=? WHERE token_hash=?",
@@ -453,7 +453,7 @@ principal3, codes3 = iam.consume_enrolment_token(
 check("consume + inline 2FA: sets the password", principal3, "newperson2")
 check("...and RETURNS the recovery codes (they were being discarded)", len(codes3), iam.RECOVERY_CODE_COUNT)
 check("...which work", iam.verify_second_factor(conn, rt, "newperson2", codes3[0]).ok, True)
-check("...and enrols the SAME secret that was verified",
+check("...and enrolls the SAME secret that was verified",
       iam.verify_second_factor(conn, rt, "newperson2", iam.totp_code(fresh_secret)).ok, True)
 
 try:
@@ -462,7 +462,7 @@ try:
 except iam.IAMError:
     check("minting a link for a nonexistent principal: refused", True, True)
 
-section("require-2fa: the policy resolver (organisation default ON, per-account override)")
+section("require-2fa: the policy resolver (organization default ON, per-account override)")
 conn.execute("DELETE FROM settings WHERE key='require-2fa'")
 conn.commit()
 iam.add_principal(conn, "tf-plain", "user", "admin-actor")
@@ -514,7 +514,7 @@ check("a service principal is never flagged", iam.mfa_setup_required(conn, "tf-s
 check("an unknown name is not flagged (nothing to confine)", iam.mfa_setup_required(conn, "tf-nobody"), False)
 iam.set_setting(conn, "require-2fa", "off")   # the remaining sections predate the policy
 
-section("outputs quota: two-level, organisation and per-operator")
+section("outputs quota: two-level, organization and per-operator")
 iam.ORG_ROOT = tmp / "vault"
 for _p in ("op1", "op2", "op3", "sc-admin"):
     iam.add_principal(conn, _p, "user", "test")
@@ -531,7 +531,7 @@ check("default total limit", iam.outputs_limit_total(conn), iam.OUTPUTS_DEFAULT_
 check("default operator limit", iam.outputs_limit_operator(conn, "op1"), iam.OUTPUTS_DEFAULT_OPERATOR_BYTES)
 iam.set_limit(conn, "outputs-bytes-total", 1000)
 iam.set_limit(conn, "outputs-bytes-per-operator", 400)
-check("organisation limit changed", iam.outputs_limit_total(conn), 1000)
+check("organization limit changed", iam.outputs_limit_total(conn), 1000)
 iam.set_limit(conn, "outputs-bytes-per-operator:op1", 500)
 check("a per-OPERATOR override wins for that principal", iam.outputs_limit_operator(conn, "op1"), 500)
 check("...and not for another principal", iam.outputs_limit_operator(conn, "op2"), 400)
@@ -556,14 +556,14 @@ check("operator usage is only that operator's own share", iam.outputs_usage_oper
 g = iam.outputs_check(conn, "op1")
 check("gate: under both quotas -> allowed", g["allowed"], True)
 g = iam.outputs_check(conn, "op1", incoming_bytes=1000)
-check("gate: this promotion alone would blow the TOTAL quota -> refused, naming the organisation",
-      (g["allowed"], "organisation" in g["reason"]), (False, True))
+check("gate: this promotion alone would blow the TOTAL quota -> refused, naming the organization",
+      (g["allowed"], "organization" in g["reason"]), (False, True))
 g = iam.outputs_check(conn, "op2", incoming_bytes=150)
 check("gate: under the total quota but over op2's OWN OPERATOR quota -> refused, naming OPERATOR",
       (g["allowed"], "OPERATOR" in g["reason"], "op2" in g["reason"]), (False, True, True))
 g = iam.outputs_check(conn, "op1", incoming_bytes=500)
 check("gate: total quota checked BEFORE operator quota when both would be exceeded",
-      "organisation" in g["reason"], True)
+      "organization" in g["reason"], True)
 g = iam.outputs_check(conn, "op3")
 check("a fresh operator with nothing promoted yet: allowed, no operator warning",
       (g["allowed"], [w["scope"] for w in g["warnings"]]), (True, []))
@@ -1341,13 +1341,13 @@ iam.set_principal_password(conn, "wrp-approver", "Approver-pw-1")
 check("who could approve a pending change: active admins who can sign in",
       "wrp-approver" in iam.engagement_approvers(conn) and "wdp-nonadmin" not in iam.engagement_approvers(conn), True)
 
-section("F08: no enrolment link for a service account or a passkey-only account")
+section("F08: no enrollment link for a service account or a passkey-only account")
 iam.add_principal(conn, "f08-svc", "service", "test", role="admin")
 try:
     iam.mint_enrolment_token(rt, conn, "f08-svc", "test")
-    check("a service account gets no enrolment link", False, True)
+    check("a service account gets no enrollment link", False, True)
 except iam.IAMError as e:
-    check("a service account gets no enrolment link", "service account" in str(e), True)
+    check("a service account gets no enrollment link", "service account" in str(e), True)
 iam.add_principal(conn, "f08-pk", "user", "test")
 conn.execute("INSERT INTO passkeys(credential_id, principal, alg, pubkey_x, pubkey_y, name, created_at, created_by) "
              "VALUES ('f08-cred', 'f08-pk', 'ES256', 'x', 'y', 'phone', 0, 'test')")
@@ -1383,9 +1383,9 @@ iam.add_principal(conn, "r2-keyed", "user", "test")
 iam.issue_key(conn, "r2-keyed", "test")
 try:
     iam.mint_enrolment_token(rt, conn, "r2-keyed", "test")
-    check("an account with a live API key gets no enrolment link", False, True)
+    check("an account with a live API key gets no enrollment link", False, True)
 except iam.IAMError as e:
-    check("an account with a live API key gets no enrolment link", "API key" in str(e), True)
+    check("an account with a live API key gets no enrollment link", "API key" in str(e), True)
 
 section("audit run 2: the write decides — parallel requests cannot outrun a lock or spend twice")
 import threading as _th
@@ -1449,7 +1449,7 @@ _ecode = iam.totp_code(_esec)
 _res = _race(8, lambda i, c, r: iam.consume_enrolment_token(
     iam.open_iam(readonly=False, path=tmp / "iam.db"), r, _et, f"first-password-{i}", _esec, _ecode))
 _ok = [x for x in _res if isinstance(x, tuple)]
-check("one enrolment link used by 8 parallel requests: exactly one sets the account up", len(_ok), 1)
+check("one enrollment link used by 8 parallel requests: exactly one sets the account up", len(_ok), 1)
 
 _sec_r, _ = iam.enroll_totp(conn, "r2-race", rt)
 _code = iam.totp_code(_sec_r)

@@ -10,7 +10,7 @@ and a Claude model's canonical form stays the bare id the Claude SDK expects
 
 This module checks the FORM of a name and which provider it belongs to; it
 never decides a name is "unknown" (any model a provider serves is fine — the
-provider answers). What is allowed is the organisation's policy
+provider answers). What is allowed is the organization's policy
 (engagement_context.model_allowed), which may list exact names or
 `<provider>:*`.
 
@@ -48,7 +48,7 @@ PROVIDERS: dict[str, Provider] = {
                        "https://api.openai.com/v1", relay_host="api.openai.com:443", wire="responses"),
     # Anything speaking the OpenAI-compatible Chat Completions API: Ollama,
     # vLLM, LM Studio, llama.cpp server, LiteLLM. Its address is the
-    # organisation's (LOCAL_LLM_BASE_URL); root adds it to the relay.
+    # organization's (LOCAL_LLM_BASE_URL); root adds it to the relay.
     "local": Provider("local", "Self-hosted (OpenAI-compatible)", "openai", "LOCAL_LLM_API_KEY", False,
                       "", base_url_env="LOCAL_LLM_BASE_URL"),
 }
@@ -136,7 +136,7 @@ def allowed(name: str, entries: list[str]) -> bool:
 
 # ---------------------------------------------------------------------------
 # Prices: USD per million tokens (input, output). Claude's spend is the Claude
-# SDK's own figure; for the OpenAI-compatible engine the organisation states
+# SDK's own figure; for the OpenAI-compatible engine the organization states
 # the price of each cloud model it allows (policy.model_prices), because a
 # table here would go stale and an unbounded spend must never be the default.
 # A self-hosted model costs nothing (turns and the wall clock still bound it).

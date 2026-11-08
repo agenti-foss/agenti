@@ -284,7 +284,7 @@ class UserMessage:
 class ResultMessage:
     pass
 
-def summarize(content):   # the agents' own summarisers collapse whitespace too
+def summarize(content):   # the agents' own summarizers collapse whitespace too
     return " ".join(" ".join(b.get("text", "") for b in content if isinstance(b, dict)).split())[:200]
 
 tr_store = state.StateStore(tmp / "tracker")
@@ -307,7 +307,7 @@ check("rows: says, call, result, call, error-result, says",
 check("narration keeps its line breaks, tidied", rows[0]["summary"], "Let me scan\nthe host.")
 check("single-argument call shows the bare value", rows[1]["summary"], "nmap -sV 10.0.0.5")
 check("multi-argument call shows key=value", rows[3]["summary"], "file=a.txt, pattern=open")
-check("result summarised by the agent's own summariser", rows[2]["summary"], "PORT STATE 22/tcp open")
+check("result summarized by the agent's own summarizer", rows[2]["summary"], "PORT STATE 22/tcp open")
 check("result carries the CALL's turn, not the current one", rows[2]["turn"], 1)
 check("blank narration skipped, long narration clipped", (len(rows), rows[5]["summary"].endswith("…"),
       len(rows[5]["summary"])), (6, False, 2500))
@@ -344,7 +344,7 @@ adir = tmp / "notes-agent"; adir.mkdir()
 ]) + "\n")
 lines_all = agent_runtime.operator_notes_section(adir)
 lines_run = agent_runtime.operator_notes_section(adir, since=2000.0)
-check("no filter: every entry ever (the old behaviour)", sum(1 for l in lines_all if l.startswith("- **")), 3)
+check("no filter: every entry ever (the old behavior)", sum(1 for l in lines_all if l.startswith("- **")), 3)
 check("since=start: only entries from this run", sum(1 for l in lines_run if l.startswith("- **")), 2)
 check("...the old one is gone", any("previous run" in l for l in lines_run), False)
 check("...one second of slack for a note sent as the run started",

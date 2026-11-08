@@ -66,7 +66,7 @@ check("a non-catalog name cannot be offered",
       raises(lambda: tc.validate_settings({"approvable": ["not-in-catalog"]}, CATALOG, BASE)) is not None, True)
 check("a program already effective is not approvable (nothing to approve)",
       tc.approvable_programs({"approvable": ["nmap"]}, CATALOG, BASE), set())
-check("a grant is honoured for an offered program", tc.granted_programs({"programs": ["curl"]}, S, CATALOG, eff), {"curl"})
+check("a grant is honored for an offered program", tc.granted_programs({"programs": ["curl"]}, S, CATALOG, eff), {"curl"})
 check("a grant for a program NOT offered grants nothing", tc.granted_programs({"programs": ["whois"]}, S, CATALOG, eff), set())
 S2 = tc.validate_settings({"approvable": []}, CATALOG, BASE)
 check("withdrawing the offer revokes an existing grant at once",

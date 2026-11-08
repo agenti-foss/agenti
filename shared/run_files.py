@@ -377,7 +377,7 @@ def transfer_pending(src, dst, group: str | None = None) -> dict:
 
     Every start is its own isolated run in a fresh slot, but `agenti <agent>
     attach <file>` with no --copy has no fresh slot to attach to yet, so it
-    stages into the owner's plain slot. The next unlabelled start calls this
+    stages into the owner's plain slot. The next unlabeled start calls this
     to hand those files to the run it just created. One that no longer fits
     stays where it was."""
     files = pending_files(src)

@@ -132,7 +132,7 @@ check("the LAN allow-list does not accidentally cover an unrelated blocked "
       ok, False)
 
 
-section("check_host — the optional organisation domain allow-list narrows further")
+section("check_host — the optional organization domain allow-list narrows further")
 allow = ["example.com", "example.org"]
 ok, reason = npmod.check_host("mail.example.com", domain_allowlist=allow,
                               resolver=fake_resolver({"mail.example.com": ["93.184.216.34"]}))

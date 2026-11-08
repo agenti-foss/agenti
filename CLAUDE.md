@@ -6,7 +6,7 @@ code wins**. Always update this file as you build.
 ## What Agenti is (product definition, 2026-10-06)
 
 An open-source, self-hosted, agentic **cybersecurity** tool for **one
-organisation's internal team**, running on a Kali Linux box, with Claude,
+organization's internal team**, running on a Kali Linux box, with Claude,
 OpenAI and compatible self-hosted models through one run loop. CLI binary `agenti`, shipped as a `.deb` (`docs/packaging.md`).
 
 - **One org, many users. Two roles:** `operator` and `admin`. Every operator may
@@ -35,7 +35,7 @@ Below is a summary for the sanding rules, but also make sure to always check `ME
 2. **Comprehensive error messages and `--help`, baked in from the start.** Every
    failure says what went wrong, why, and the exact command to fix it.
 3. **Real forks get asked, not decided silently** — security/crypto posture,
-   anything destructive, defaults with a behavioural trade-off. Routine
+   anything destructive, defaults with a behavioral trade-off. Routine
    implementation choices do not. (See `MEMORY.md` for working style.)
 4. **Live-hardware verification is the standard.** Unit tests plus a real run on
    the box through the real deployed units. Every "first real deploy" in the
@@ -220,7 +220,7 @@ from `/proc/<pid>/mountinfo`.
   **First run:** `setup.html`, direct browsers only (`_setup_reachable`: no proxy
   headers or cross-site requests) + the setup code (`agenti setup-code`; hash in
   runtime.db, 20 tries) → authd `setup_begin` grant → `admin setup-first-admin` →
-  enrolment link. Org API key from the web: `admin/api-key`, grant on its SHA-256.
+  enrollment link. Org API key from the web: `admin/api-key`, grant on its SHA-256.
 - **Agent controls (Settings → Agents):** system prompt / skills / org
   instructions / per-user memory with history and revert; per-agent scope that
   can only narrow; a reviewed **program catalog** (`tool-catalog.json` +
@@ -331,7 +331,7 @@ no-ops). WebAuthn needs the real origin; `http://127.0.0.1:8420` works for the r
   in `docs/open-core-split.md`; `test_plugin_isolation.py` proves the core works alone.
 - **Every start is its own run:** slot `<owner>.run-<8 hex>` (`--copy` pins it; the GUI
   always sends `?copy=`); no `--copy` = the run going, else the latest; `attach` with no
-  `--copy` stages in `<owner>` for the next unlabelled start.
+  `--copy` stages in `<owner>` for the next unlabeled start.
 - Remote access: `agenti gui configure --behind-proxy` + the user's own tunnel/proxy.
 
 ### Open questions / next work

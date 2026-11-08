@@ -139,7 +139,7 @@ that goes away once you save one.
 ## Before the first run: the engagement
 
 Agents only work inside an approved engagement: the client, the scope
-(addresses or domains), the dates and who authorised it.
+(addresses or domains), the dates and who authorized it.
 
 Fill it in under **Settings → Engagement** (or `sudo agenti engagement set
 --help`) and press **Save and close**: saving approves it, so agents can start.
@@ -190,9 +190,9 @@ server `sudo /usr/lib/agenti/set-secret.sh` (it asks before replacing the old on
 one agent its own key (`sudo agenti <agent> set-key`) or one user their own
 (`sudo agenti admin set-user-key <user>`), for example so each has its own
 spending limit in the Anthropic Console. A run uses the most specific key there
-is: the user's own, then the agent's, then the organisation's, then the shared
+is: the user's own, then the agent's, then the organization's, then the shared
 one. Each provider's key resolves independently: a user's Anthropic key does
-not hide an OpenAI key at the organisation or shared level. An explicitly
+not hide an OpenAI key at the organization or shared level. An explicitly
 exported environment value takes priority over files. Every secrets file
 that is read must still have restricted permissions.
 Before creating a run, Agenti checks that its provider has a key (if required)
@@ -229,7 +229,7 @@ commands to delete it yourself. A script can answer yes in advance:
 | The browser can't reach the address at all | Check the GUI listens on the network: `agenti gui status`. If it shows `127.0.0.1`, run `sudo agenti gui configure --bind 0.0.0.0 --tls`. A firewall on the machine must allow TCP port 8420. |
 | The browser says the connection is *not private* | Expected the first time: Agenti made its own certificate. Compare the fingerprint (`sudo agenti setup-code` while setup is pending, or `openssl x509 -in /var/lib/agenti/tls/api.crt -noout -fingerprint -sha256`), then accept. |
 | *that setup code is not right* | `sudo agenti setup-code` shows the current one. |
-| *there is no setup code right now* | Too many wrong tries cancelled it: `sudo agenti setup-code --new`. |
+| *there is no setup code right now* | Too many wrong tries canceled it: `sudo agenti setup-code --new`. |
 | *this machine's clock is wrong* (installer) | `sudo timedatectl set-ntp true`, check with `date -u`, then run the installer again. |
 | *this identity store is from an older Agenti (schema v1…)* | Agenti supports fresh installs only. Move the old store aside (the message gives the exact command) and run `sudo agenti setup`. |
 | *no Anthropic API key reached this run* | No key is set at any level. **Settings → AI providers**, or `sudo agenti setup`, or set one for the agent or the user (above). |

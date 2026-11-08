@@ -115,7 +115,7 @@ except iam.IAMError:
 ok = S({"op": "setup_begin", "code": code, "principal": "boss"})
 tok = iam.setup_first_admin(_c, _r, "boss", ok["grant"])
 check("setup_first_admin makes the admin", _c.execute("SELECT role FROM principals WHERE name='boss'").fetchone()[0], "admin")
-check("...and returns its enrolment link", iam.enrolment_token_principal(_r, tok), "boss")
+check("...and returns its enrollment link", iam.enrolment_token_principal(_r, tok), "boss")
 try:
     iam.setup_first_admin(_c, _r, "boss", ok["grant"])
     check("the grant works once", "twice", "once")
@@ -284,7 +284,7 @@ r = H({"op": "approve_action", "session_id": alice_sid, "password": "correct-hor
 check("a role the web may not grant is refused BEFORE any credential is spent", r["status"], 400)
 r = H({"op": "approve_action", "session_id": alice_sid, "password": "correct-horse",
        "action": {**act, "resource": "tenant/acme"}})
-check("a resource other than the organisation is refused likewise", r["status"], 400)
+check("a resource other than the organization is refused likewise", r["status"], 400)
 r = H({"op": "approve_action", "session_id": "nope", "password": "correct-horse", "action": act})
 check("no session -> 401", r["status"], 401)
 r = H({"op": "login", "principal": "bob", "password": "bob-pw-ok"})
@@ -442,7 +442,7 @@ check("a path-like version id is refused", r["status"], 400)
 tp_act = {"op": "edit-context", "kind": "org", "change": "set",
           "resource": "org", "sha256": iam.context_text_sha256("Org policy.\n")}
 r = H({"op": "approve_action", "session_id": gadmin_sid, "password": "gadmin-pw", "action": tp_act})
-check("an admin may approve an edit of the organisation's policy file", bool(r.get("grant")), True)
+check("an admin may approve an edit of the organization's policy file", bool(r.get("grant")), True)
 conn = iam.open_iam(readonly=False, path=iam_path); rt = iam.open_runtime(rt_path)
 check("...and the root side confirms the approver holds iam:manage",
       iam.web_approve_context_edit(conn, rt, tp_act, r["grant"]), "gadmin")
@@ -476,7 +476,7 @@ r = H({"op": "approve_action", "session_id": gadmin_sid, "password": "gadmin-pw"
 check("build-agent: a path-like name is refused", r["status"], 400)
 r = H({"op": "approve_action", "session_id": gadmin_sid, "password": "gadmin-pw",
        "action": {**ba, "resource": "tenant/acme"}})
-check("build-agent: a resource other than the organisation is refused", r["status"], 400)
+check("build-agent: a resource other than the organization is refused", r["status"], 400)
 check("build-agent and remove-agent need the password, not just a code",
       (authd.Service._grant_requires_password(ba), authd.Service._grant_requires_password(ra)), (True, True))
 ua = {"op": "update-agent", "name": "invoice-checker", "sha256": SHA, "resource": GR}
@@ -498,7 +498,7 @@ check("edit-catalog: an unknown change is refused", r["status"], 400)
 r = H({"op": "approve_action", "session_id": gadmin_sid, "password": "gadmin-pw", "action": {**ce, "sha256": "x"}})
 check("edit-catalog: add without a valid hash is refused", r["status"], 400)
 r = H({"op": "approve_action", "session_id": gadmin_sid, "password": "gadmin-pw", "action": {**ce, "resource": "tenant/acme"}})
-check("edit-catalog: a resource other than the organisation is refused", r["status"], 400)
+check("edit-catalog: a resource other than the organization is refused", r["status"], 400)
 conn.close(); rt.close()
 
 # ---- exploit-approve / exploit-reject: the exploit agent's per-action -----
@@ -558,7 +558,7 @@ r = H({"op": "approve_action", "session_id": alice_sid3, "password": "correct-ho
 check("exploit-approve: a malformed options_hash is refused", r["status"], 400)
 r = H({"op": "approve_action", "session_id": alice_sid3, "password": "correct-horse",
        "action": {**ea, "resource": "tenant/acme"}})
-check("exploit-approve: a resource other than the organisation is refused", r["status"], 400)
+check("exploit-approve: a resource other than the organization is refused", r["status"], 400)
 conn = iam.open_iam(readonly=False, path=iam_path); rt = iam.open_runtime(rt_path)
 try:
     iam.web_approve_exploit_action(conn, rt, {"op": "build-agent", **{k: v for k, v in ea.items() if k != "op"}},
@@ -600,7 +600,7 @@ r = H({"op": "login", "principal": "gadmin", "password": "gadmin-pw"})
 fresh_gadmin_sid = r["session_id"]
 r = H({"op": "approve_action", "session_id": fresh_gadmin_sid, "password": "gadmin-pw",
        "action": {"op": "reset-mfa", "principal": "rpp2-target", "resource": "tenant/acme"}})
-check("reset-mfa with a resource other than the organisation is refused before any credential "
+check("reset-mfa with a resource other than the organization is refused before any credential "
       "is spent", r["status"], 400)
 
 # Unlike 'bind', which no longer asks for the password at all (item 65), a
@@ -1102,7 +1102,7 @@ else:
     # stored secret has since been replaced several times over by the
     # earlier stakes-based re-auth section's own _fresh_bob_session()
     # calls, so the original variable no longer matches what's in the
-    # database (each re-enrolment clears bob's replay history too, so a
+    # database (each re-enrollment clears bob's replay history too, so a
     # brand-new secret is needed here regardless).
     _cb = iam.open_iam(readonly=False, path=iam_path)
     _rtb = iam.open_runtime(rt_path)

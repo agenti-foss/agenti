@@ -315,11 +315,11 @@ cmd_unlock() {
     [[ -f "$IMG" ]] || die "the container $IMG is missing (vault enabled in $AGENTI_VAULT_CONF)."
     if is_mounted; then ok "already unlocked and mounted at $DATA"; exit 0; fi
     if ! is_open; then
-        # Do not guess a cause: a wrong passphrase, a cancelled prompt and a
+        # Do not guess a cause: a wrong passphrase, a canceled prompt and a
         # damaged header all exit non-zero, and guessing wrong makes a harmless
         # cancel look like data loss.
         cryptsetup open "$IMG" "$MAPPER" \
-            || die "vault not unlocked — wrong passphrase, cancelled, or a damaged container"
+            || die "vault not unlocked — wrong passphrase, canceled, or a damaged container"
         ok "LUKS opened"
     else
         ok "LUKS already open"

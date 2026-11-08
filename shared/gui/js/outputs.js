@@ -82,8 +82,8 @@ window.AgentiOutputs = (function () {
         return;
       }
       usageKv.innerHTML =
-        quotaMeter("Organisation total", r.total_used, r.total_limit,
-                   "Everything everyone in the organisation has kept.") +
+        quotaMeter("Organization total", r.total_used, r.total_limit,
+                   "Everything everyone in the organization has kept.") +
         quotaMeter(mine ? "Your own share" : `${cfg.owner}'s share`, r.operator_used, r.operator_limit,
                    `What ${mine ? "you have" : `${cfg.owner} has`} kept. A new run is refused when either bar is full.`);
       const rows = r.outputs || [];

@@ -27,7 +27,7 @@ the vault would be unreadable in exactly the state it most needs to work.
 WHERE THIS IS ENFORCED, AND WHERE IT IS NOT
 -------------------------------------------
 The API enforces. The CLI deliberately does not. Every CLI verb already requires
-root, and root can rewrite iam.db directly — an IAM check there would be theatre,
+root, and root can rewrite iam.db directly — an IAM check there would be theater,
 not a boundary. The CLI is the AUDITED root break-glass path: it records who
 acted (`$SUDO_USER`) and that the action came via the CLI, and every IAM mutation
 is written to the audit log. Stated plainly here because "the CLI ignores RBAC"
@@ -69,14 +69,14 @@ import paths  # noqa: E402  (where Agenti's files live; beside this file)
 # configure.sh provisions and what the systemd units point at.
 # ---------------------------------------------------------------------------
 IAM_DB_PATH = paths.iam_db()
-# runtime.db (sessions, lockout counters, TOTP replay records, enrolment
+# runtime.db (sessions, lockout counters, TOTP replay records, enrollment
 # tokens, key last-used, the authz audit log) sits in its OWN directory, owned
 # by agenti-authd — the privileged authentication service (shared/authd.py,
 # §4 item 23). The API account has NO access to it: a session store the web
 # tier could write would be a session store a compromised web tier could
 # forge. SQLite in WAL mode creates -wal/-shm sidecars NEXT TO the database,
 # so the writing account needs the directory, not just the file. Root (the
-# CLI) also writes here — self-service credential changes, enrolment tokens,
+# CLI) also writes here — self-service credential changes, enrollment tokens,
 # session revocation — which is why authd holds one connection open for its
 # whole life: so the sidecars are created by its account, not root's.
 RUNTIME_DB_PATH = paths.runtime_db()
@@ -115,7 +115,7 @@ PERMISSIONS: tuple[str, ...] = (
                             # resolve_output_path(), not by holding this
                             # permission alone.
     "engagement:approve",
-    "engagement:manage",    # AUTHOR the organisation's engagement — client,
+    "engagement:manage",    # AUTHOR the organization's engagement — client,
                             # scope, validity window, policy. Deliberately NOT
                             # held by `operator`: it defines the boundary every
                             # other enforcement layer checks against, so it is
@@ -161,7 +161,7 @@ def validate_name(value: str, kind: str = "name") -> str:
 # ---------------------------------------------------------------------------
 ORG_RESOURCE = "org"
 
-# Where the organisation's data lives.
+# Where the organization's data lives.
 ORG_ROOT = paths.data_root()
 
 
@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS enrolment_tokens (
 -- reset_principal_password rather than typing a value directly (see
 -- mint_password_reset_link's own docstring for why minting this is safe
 -- here but _refuse_if_enrolled forbids the identical shape for an
--- enrolment token). Resets ONLY the password when consumed — 2FA/passkeys
+-- enrollment token). Resets ONLY the password when consumed — 2FA/passkeys
 -- are a deliberately separate action, reset_principal_mfa.
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
     token_hash TEXT PRIMARY KEY,
@@ -361,7 +361,7 @@ def _connect(path: Path, *, readonly: bool, wal: bool) -> sqlite3.Connection:
         except sqlite3.OperationalError as e:
             raise IAMError(
                 f"cannot open the identity store at {path} ({e}).\n"
-                f"If this is a fresh install, initialise it:\n"
+                f"If this is a fresh install, initialize it:\n"
                 f"  sudo agenti admin bootstrap --user <your-name>")
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -644,7 +644,7 @@ def totp_verify(secret: str, code: str, at: float | None = None) -> int | None:
 
 
 def generate_recovery_codes(n: int = RECOVERY_CODE_COUNT) -> list[str]:
-    """Shown once at enrolment. Grouped with a dash purely so a human can read
+    """Shown once at enrollment. Grouped with a dash purely so a human can read
     one off a printout without losing their place."""
     out = []
     for _ in range(n):
@@ -801,7 +801,7 @@ def web_approve_agent_build(conn, runtime, action: dict, grant_id: str) -> str:
     if action.get("op") not in ("build-agent", "remove-agent", "update-agent", "edit-catalog"):
         raise IAMError("not an agent build/update/remove or catalog-edit action")
     if action.get("resource") != ORG_RESOURCE:
-        raise IAMError("building or removing an agent is an organisation-wide action")
+        raise IAMError("building or removing an agent is an organization-wide action")
     approver = consume_action_grant(runtime, grant_id, action)
     if not check(conn, approver, "iam:manage", action["resource"]).allowed:
         raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
@@ -836,11 +836,11 @@ def web_approve_api_key(conn, runtime, sha256: str, grant_id: str) -> str:
 # ---------------------------------------------------------------------------
 # First-run setup from the browser (operator decision 2026-10-26: a one-time
 # setup code). Until an admin can sign in, whoever opens the GUI could claim
-# the organisation, so the setup page asks for a code only someone at the
+# the organization, so the setup page asks for a code only someone at the
 # host's terminal can read (sudo agenti setup-code). agenti-authd checks the
 # code against its hash in runtime.db and mints an ordinary single-use grant
 # for exactly one name; the root CLI spends it to create that admin, with an
-# enrolment link the page then uses for the password and 2FA. The plaintext
+# enrollment link the page then uses for the password and 2FA. The plaintext
 # stays in a root-only file so the terminal can show it again; it is deleted,
 # with the hash, the moment an admin can sign in.
 # ---------------------------------------------------------------------------
@@ -935,7 +935,7 @@ def check_setup_code(runtime, code: str) -> bool:
 def setup_first_admin(conn, runtime, name: str, grant_id: str) -> str:
     """Root CLI: spend a 'setup-first-admin' grant for exactly `name`, make
     that admin (or finish the same one an abandoned attempt left without a
-    credential) and return its one-time enrolment token."""
+    credential) and return its one-time enrollment token."""
     consume_action_grant(runtime, grant_id, setup_action(name))
     if not setup_needed(conn):
         raise IAMError("setup is already done: an admin can sign in. Nothing was created. "
@@ -960,7 +960,7 @@ def web_approve_exploit_action(conn, runtime, action: dict, grant_id: str) -> st
                                  "exploit-approve", "exploit-reject"):
         raise IAMError("not an action-approve/action-reject action")
     if action.get("resource") != ORG_RESOURCE:
-        raise IAMError("an exploit approval is bound to the organisation's engagement")
+        raise IAMError("an exploit approval is bound to the organization's engagement")
     approver = consume_action_grant(runtime, grant_id, action)
     if not check(conn, approver, "agent:chat", action["resource"]).allowed:
         raise IAMError(f"{approver!r} approved this but does not hold agent:chat — "
@@ -1546,7 +1546,7 @@ def mfa_setup_required(conn: sqlite3.Connection, principal: str) -> bool:
     A registered passkey satisfies this on its own, same as TOTP — a
     platform/synced authenticator already performs a biometric or PIN check
     before releasing a signature, so it proves both 'something you have' and
-    'something you are' without a separate TOTP enrolment on top of it."""
+    'something you are' without a separate TOTP enrollment on top of it."""
     row = conn.execute("SELECT totp_secret FROM principals WHERE name=?",
                        (principal,)).fetchone()
     if row is None or row["totp_secret"]:
@@ -1559,10 +1559,10 @@ def mfa_setup_required(conn: sqlite3.Connection, principal: str) -> bool:
 def _qr_modules(text: str) -> list[str] | None:
     """The otpauth URI as QR module rows ("0101…", no quiet zone) for the
     page to draw in its own style (api.js qrCode: round dots, accent eyes,
-    the theme's colours), or None if the encoder is not installed beside
-    this file (the enrolment still works from the secret alone, so this
+    the theme's colors), or None if the encoder is not installed beside
+    this file (the enrollment still works from the secret alone, so this
     must never be the reason a call fails). Error correction H, the highest:
-    the page draws Agenti's mark over the centre (operator note 2026-11-08)
+    the page draws Agenti's mark over the center (operator note 2026-11-08)
     and rounds the dots, and H leaves the scanner room for both."""
     try:
         import qr
@@ -1585,7 +1585,7 @@ PRINCIPAL_HISTORY_PATH = Path(os.environ.get(
 
 
 def _append_principal_history(row: dict) -> None:
-    """The permanent record of a principal rename or hard delete — modelled
+    """The permanent record of a principal rename or hard delete — modeled
     directly on _append_outputs_history: best-effort on the chmod, and a
     logging failure must never turn an already-committed rename/delete into
     a reported failure, since by the time this is called the real mutation
@@ -1925,19 +1925,19 @@ def delete_principal(conn, runtime, name: str, actor: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Enrolment tokens — onboarding a new person without ever handing the API a
+# Enrollment tokens — onboarding a new person without ever handing the API a
 # password to set on their behalf (CLAUDE.md §4 step 6 phase 2).
 #
 # A freshly `add_principal()`-created account has no password and holds no
 # permissions until an admin later runs `agenti admin bind` — see the plan's
 # "authority rule". The token is what lets that NEW person, who by
 # definition cannot prove any existing credential, set their own first
-# password (and, optionally, enrol their own first 2FA factor) themselves,
+# password (and, optionally, enroll their own first 2FA factor) themselves,
 # rather than an admin typing a temporary password and relaying it by some
 # out-of-band channel this project has no opinion on.
 #
 # Hashed with hash_key() (plain SHA-256), not hash_password() (scrypt): a
-# token is 256 random bits, never typed or memorised by a human trying to
+# token is 256 random bits, never typed or memorized by a human trying to
 # guess it — the same reasoning API keys already use. Single-use and
 # short-lived (ENROLMENT_TOKEN_TTL_S) because unlike a password it grants
 # access to an account outright, not merely a guess at one.
@@ -1947,7 +1947,7 @@ ENROLMENT_TOKEN_TTL_S = 48 * 3600  # two days: long enough to actually reach
 
 
 def _link_token() -> str:
-    """A one-time link token (enrolment, password reset). Never starts with
+    """A one-time link token (enrollment, password reset). Never starts with
     '-': it travels to the root CLI as a positional argument, and a token
     that looked like an option was refused, so about one link in 64 never
     worked (found during audit run 1)."""
@@ -1992,12 +1992,12 @@ def _refuse_web_link_for_admin(conn, principal: str, minted_by: str) -> None:
 
 
 def _refuse_if_enrolled(conn, principal: str) -> None:
-    """An enrolment link is ONLY for an account that has never set a
+    """An enrollment link is ONLY for an account that has never set a
     credential. Minting one for a principal that already has a password
     or a 2FA factor — and consuming it — would be a credential RESET, and
     `mint-enrolment-link` + `enrol-consume` are both reachable by the API
     service account (they have to be: the admin Users view mints links and
-    the enrolment page consumes them). Without this check a compromised
+    the enrollment page consumes them). Without this check a compromised
     API could reset ANY principal's password and 2FA in two sudo calls,
     including the admin's — precisely the "grant or restore authority"
     the authority rule (CLAUDE.md §4 item 21) forbids the web tier. Found
@@ -2014,7 +2014,7 @@ def _refuse_if_enrolled(conn, principal: str) -> None:
         # for one would hand whoever holds it the account (and any role it
         # has) as a password login (audit run 1, F08).
         raise IAMError(f"{principal!r} is a service account: it uses an API key and never "
-                       f"signs in with a password, so no enrolment link can be issued for it. "
+                       f"signs in with a password, so no enrollment link can be issued for it. "
                        f"Issue it a key on the host: sudo agenti admin issue-key --user {principal}")
     has_passkey = conn.execute("SELECT 1 FROM passkeys WHERE principal=? LIMIT 1",
                                (principal,)).fetchone()
@@ -2024,20 +2024,20 @@ def _refuse_if_enrolled(conn, principal: str) -> None:
                            " AND (expires_at IS NULL OR expires_at > ?) LIMIT 1",
                            (principal, time.time())).fetchone()
     if has_key and not (row["password_hash"] or row["totp_secret"] or has_passkey):
-        raise IAMError(f"{principal!r} already signs in with an API key, so no enrolment link can be "
+        raise IAMError(f"{principal!r} already signs in with an API key, so no enrollment link can be "
                        f"issued for it. Revoke the key first if a person should sign in instead: "
                        f"sudo agenti admin revoke-key <prefix>")
     if row["password_hash"] or row["totp_secret"] or has_passkey:
         raise IAMError(
             f"{principal!r} is already enrolled (it has a password and/or 2FA). An "
-            f"enrolment link only sets up an account that has never had a credential. "
+            f"enrollment link only sets up an account that has never had a credential. "
             f"To reset an existing account's credentials, an admin runs at a terminal: "
             f"sudo agenti admin user set-password {principal}  (and, for 2FA, "
             f"sudo agenti admin user reset-2fa {principal})")
 
 
 def enrolment_token_principal(runtime, token: str) -> str | None:
-    """Read-only: is this token valid right now, and for whom? The enrolment
+    """Read-only: is this token valid right now, and for whom? The enrollment
     PAGE calls this before showing a password form, so a stale link says
     "this link has expired" instead of failing opaquely on submit."""
     row = runtime.execute(
@@ -2052,7 +2052,7 @@ def consume_enrolment_token(conn, runtime, token: str, new_password: str,
                             totp_secret: str | None = None,
                             totp_code: str | None = None) -> tuple[str, list[str]]:
     """Set the initial password (and, optionally, the first 2FA factor) named
-    by an enrolment token, then burn it. Returns (principal, recovery codes)
+    by an enrollment token, then burn it. Returns (principal, recovery codes)
     — the codes are empty when no second factor was enrolled, and are the
     ONE-TIME display of them: until 2026-09-22 this function generated them
     and threw them away, so nobody who enrolled 2FA at sign-up ever saw
@@ -2060,13 +2060,13 @@ def consume_enrolment_token(conn, runtime, token: str, new_password: str,
 
     The token is burned BEFORE the password write, not after: if the write
     somehow fails partway, a still-valid token silently retrying is worse
-    than an enrolment that has to be reissued by an admin — the same
+    than an enrollment that has to be reissued by an admin — the same
     fail-closed instinct as everything else that touches iam.db here."""
     row = runtime.execute(
         "SELECT principal, expires_at, used_at, created_by FROM enrolment_tokens WHERE token_hash=?",
         (hash_key(token),)).fetchone()
     if row is None or row["used_at"] is not None or row["expires_at"] < time.time():
-        raise IAMError("this enrolment link is invalid or has expired. "
+        raise IAMError("this enrollment link is invalid or has expired. "
                        "Ask an admin to send a new one.")
     principal = row["principal"]
     _refuse_web_link_for_admin(conn, principal, row["created_by"])
@@ -2092,7 +2092,7 @@ def consume_enrolment_token(conn, runtime, token: str, new_password: str,
                           (time.time(), hash_key(token)))
     runtime.commit()
     if cur.rowcount != 1:            # another request used it a moment ago (audit run 2)
-        raise IAMError("this enrolment link is invalid or has expired. "
+        raise IAMError("this enrollment link is invalid or has expired. "
                        "Ask an admin to send a new one.")
     set_principal_password(conn, principal, new_password, runtime=runtime)
     codes: list[str] = []
@@ -2220,7 +2220,7 @@ def _clear_second_factor_runtime_state(runtime, name: str) -> None:
     Called whenever the second factor is REPLACED or CLEARED. Those records are
     keyed by time-step counter and recovery-code rowid, both of which belong to
     the secret and the code set that just ceased to exist — keeping them causes
-    a real false rejection: re-enrol, and your very first code is refused as
+    a real false rejection: re-enroll, and your very first code is refused as
     "already used" if you happened to authenticate inside the same 30-second
     window with the old device. Found by the test suite, not in production."""
     if runtime is None:
@@ -2239,7 +2239,7 @@ def _clear_second_factor_runtime_state(runtime, name: str) -> None:
 
 def reset_totp(conn, name: str, runtime=None) -> None:
     """Root break-glass: the operator lost their device and every recovery code.
-    Clears 2FA entirely, so the next login is password-only until re-enrolment."""
+    Clears 2FA entirely, so the next login is password-only until re-enrollment."""
     if conn.execute("UPDATE principals SET totp_secret=NULL, totp_enrolled_at=NULL"
                     " WHERE name=?", (name,)).rowcount == 0:
         raise IAMError(f"no user named {name!r}")
@@ -2368,7 +2368,7 @@ def consume_password_reset_token(conn, runtime, token: str, new_password: str) -
                        "(a newer link, a password change or a rename ends it). "
                        "Ask an admin to send a new one.")
     principal = row["principal"]
-    check_password_length(new_password)   # before the burn, as at enrolment
+    check_password_length(new_password)   # before the burn, as at enrollment
     cur = runtime.execute("UPDATE password_reset_tokens SET used_at=? WHERE token_hash=? AND used_at IS NULL",
                           (time.time(), hash_key(token)))
     runtime.commit()
@@ -2439,7 +2439,7 @@ def web_reset_principal_mfa(conn, runtime, name: str, resource: str, grant_id: s
     return {**reset_principal_mfa(conn, runtime, name, approver), "approved_by": approver}
 
 
-# Kept outputs have a two-level quota: one for the whole organisation's store
+# Kept outputs have a two-level quota: one for the whole organization's store
 # and one per operator. It reuses the set-limit/LIMIT_KEYS mechanism — a
 # limit, never a permission — which is the one identity-store write the API
 # may make.
@@ -2535,7 +2535,7 @@ def outputs_check(conn, principal: str, *, incoming_bytes: int = 0) -> dict:
     allowed, reason = True, "ok"
     if total_used + incoming_bytes > total_limit:
         allowed, reason = False, (
-            f"the organisation's kept-outputs store is full "
+            f"the organization's kept-outputs store is full "
             f"({total_used:,}/{total_limit:,} bytes). An admin can raise it: "
             f"sudo agenti admin set-limit outputs-bytes-total N")
     elif operator_used + incoming_bytes > operator_limit:
@@ -2676,7 +2676,7 @@ def set_limit(conn, key: str, value: int | None) -> str:
     if who:
         scope = _LIMIT_SCOPE[base]
         if scope is None:
-            raise IAMError(f"{base!r} is organisation-wide and takes no :<name> suffix")
+            raise IAMError(f"{base!r} is organization-wide and takes no :<name> suffix")
         validate_name(who, scope)
         if conn.execute("SELECT 1 FROM principals WHERE name=?", (who,)).fetchone() is None:
             raise IAMError(f"no user named {who!r}")
@@ -2882,7 +2882,7 @@ def web_bind(conn, runtime, principal: str, role: str, resource: str, grant_id: 
 
     Every check runs as root in the CLI against stores the API cannot write,
     so the API's own claims are irrelevant to the outcome: the role must be
-    one of WEB_GRANTABLE_ROLES, the resource the organisation, the grant
+    one of WEB_GRANTABLE_ROLES, the resource the organization, the grant
     genuine and unspent and for THIS exact action, and the approver it names
     must actually hold iam:manage — checked fresh, not trusted from the grant.
     """
@@ -3389,7 +3389,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
         description="Identity and access management for Agenti (CLAUDE.md §3g).\n\n"
                     "Users are WHO acts. Roles are WHAT may be done. Bindings\n"
                     "attach a role (operator or admin) to a user or group on the\n"
-                    "organisation (resource 'org'). Explicit deny always beats allow.",
+                    "organization (resource 'org'). Explicit deny always beats allow.",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--actor", default=os.environ.get("SUDO_USER", "root"),
@@ -3525,7 +3525,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                    "needs proof of the OLD factor, not just the password")
     q.add_argument("--addr", default="")
 
-    q = ss.add_parser("mfa-confirm", allow_abbrev=False, help="finish 2FA enrolment: consumes the "
+    q = ss.add_parser("mfa-confirm", allow_abbrev=False, help="finish 2FA enrollment: consumes the "
                       "single-use grant mfa-start minted (proof the "
                       "re-authentication already happened there) and proves "
                       "the secret from mfa-start was actually captured "
@@ -3571,7 +3571,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                    help="initial role (default: operator)")
     q.add_argument("--kind", choices=("user", "service"), default="user")
     q.add_argument("--no-link", action="store_true",
-                   help="skip minting an enrolment link (e.g. for a service "
+                   help="skip minting an enrollment link (e.g. for a service "
                         "user, which authenticates with a key, not a "
                         "password)")
     q.add_argument("--grant", help="from the web: the re-authenticated approval "
@@ -3584,7 +3584,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("--grant", help="from the web (required there): the re-authenticated "
                                    "approval (op disable-principal) for exactly this account")
 
-    q = add("mint-enrolment-link", "issue a fresh one-time enrolment link "
+    q = add("mint-enrolment-link", "issue a fresh one-time enrollment link "
             "for an existing user with no password yet (e.g. a link "
             "that expired before they used it)")
     q.add_argument("name")
@@ -3706,7 +3706,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                    help="delete it (done by itself once an admin can sign in)")
 
     q = add("setup-first-admin", "from the GUI's setup page: spend a setup-code grant to "
-            "create the first admin and return its one-time enrolment link")
+            "create the first admin and return its one-time enrollment link")
     q.add_argument("name")
     q.add_argument("--grant", required=True)
 
@@ -3720,19 +3720,19 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("--owner", required=True, help="the user whose run holds the request")
     q.add_argument("--grant", required=True)
 
-    # ---- enrolment link consumption — NO existing credential to prove ---
+    # ---- enrollment link consumption — NO existing credential to prove ---
     #
     # Reachable by someone who has proven nothing yet but the link itself,
     # which is exactly why it is single-use, short-lived, high-entropy, and
     # why failures here are deliberately as generic as /auth/login's.
-    q = add("enrol-check", "is this enrolment token still valid, and for whom?")
+    q = add("enrol-check", "is this enrollment token still valid, and for whom?")
     q.add_argument("token")
 
     q = add("enrol-consume", "set the initial password (and, optionally, "
-            "first 2FA factor) an enrolment token names, then burn it")
+            "first 2FA factor) an enrollment token names, then burn it")
     q.add_argument("token")
     q.add_argument("--new", required=True, help="the new account's first password")
-    q.add_argument("--totp-secret", help="enrol 2FA in the same step — the "
+    q.add_argument("--totp-secret", help="enroll 2FA in the same step — the "
                    "secret shown to the user (see 'self mfa-start')")
     q.add_argument("--totp-code", help="a current code generated from --totp-secret")
 
@@ -3754,7 +3754,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             "(sudo agenti gui configure --hostname <domain>); this toggle does nothing without one.")
     q.add_argument("value", choices=("on", "off"))
     q = add("outputs-usage", "the permanent Outputs store's two-level quota: "
-            "the organisation's total usage, and optionally one "
+            "the organization's total usage, and optionally one "
             "operator's own share of it")
     q.add_argument("--user", dest="principal", metavar="USER", help="also show this operator's own usage/limit")
     q = add("outputs-list", "promoted outputs in the permanent store")
@@ -3846,7 +3846,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                 else:
                     print()
                     print("  ============================================================")
-                    print(f"   2FA ENROLMENT for '{a.name}' — shown once, save it now")
+                    print(f"   2FA ENROLLMENT for '{a.name}' — shown once, save it now")
                     print()
                     print("   Scan this in an authenticator app, or type the secret:")
                     try:
@@ -3878,7 +3878,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                     _rt.close()
                 return emit({"principal": a.name, "totp": False},
                             [f"  ✓ 2FA cleared for '{a.name}' — next sign-in is password-only",
-                             f"    re-enrol: sudo agenti admin user enroll-2fa {a.name}"])
+                             f"    re-enroll: sudo agenti admin user enroll-2fa {a.name}"])
             if a.sub == "reset-passkeys":
                 try:
                     _rt = open_runtime()
@@ -3981,7 +3981,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                     # item 24) and WebAuthn registration already use — so
                     # mfa-confirm can prove this re-authentication happened
                     # without asking for the password/code a second time.
-                    # That second ask is what used to break re-enrolment:
+                    # That second ask is what used to break re-enrollment:
                     # both calls hit the SAME OLD totp_secret's replay table,
                     # so resending the same code (the obvious thing to do,
                     # since nothing prompted for a fresh one) failed with
@@ -4129,7 +4129,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                     rt.close()
             lines = [f"  ✓ created {a.kind} user '{a.name}' (role: {role})"]
             if link:
-                lines += ["", f"  ONE-TIME ENROLMENT LINK (shown once, valid "
+                lines += ["", f"  ONE-TIME ENROLLMENT LINK (shown once, valid "
                           f"{ENROLMENT_TOKEN_TTL_S // 3600}h): {link}"]
             return emit({"principal": a.name, "kind": a.kind, "role": role,
                          "created": True, "enrolment_token": link}, lines)
@@ -4353,7 +4353,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             finally:
                 rt.close()
             return emit({"principal": a.name, "role": "admin", "enrolment_token": link},
-                        [f"  ✓ '{a.name}' is the first admin; finish with the enrolment link"])
+                        [f"  ✓ '{a.name}' is the first admin; finish with the enrollment link"])
 
         if a.cmd == "approve-exploit-action":
             action = {"op": f"action-{a.decision}", "agent": a.agent, "request_id": a.request_id,
@@ -4398,7 +4398,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             link = mint_enrolment_token(rt, conn, a.name, a.actor)
             rt.close()
             return emit({"principal": a.name, "enrolment_token": link},
-                        [f"  ONE-TIME ENROLMENT LINK (shown once, valid "
+                        [f"  ONE-TIME ENROLLMENT LINK (shown once, valid "
                          f"{ENROLMENT_TOKEN_TTL_S // 3600}h): {link}"])
 
         if a.cmd == "enrol-check":
@@ -4409,7 +4409,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
             principal = enrolment_token_principal(rt, a.token)
             rt.close()
             if principal is None:
-                raise IAMError("this enrolment link is invalid or has expired")
+                raise IAMError("this enrollment link is invalid or has expired")
             # A candidate secret for the page to show — NOTHING is written;
             # enrol-consume proves a code from it before it becomes real,
             # the same two-step shape as `self mfa-start` / `mfa-confirm`.
@@ -4455,7 +4455,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
         if a.cmd == "outputs-usage":
             data = {"total_used": outputs_usage_total(),
                     "total_limit": outputs_limit_total(conn)}
-            lines = [f"  organisation: {data['total_used']:,} / "
+            lines = [f"  organization: {data['total_used']:,} / "
                     f"{data['total_limit']:,} bytes"]
             if a.principal:
                 data["principal"] = a.principal
@@ -4577,7 +4577,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
         if a.cmd == "can":
             # check() itself doesn't validate the resource SHAPE — it just
             # compares whatever string it is given; the only resource is the
-            # organisation, so there is nothing for the caller to type.
+            # organization, so there is nothing for the caller to type.
             d = check(conn, a.principal, a.permission, ORG_RESOURCE)
             lines = [f"  {'ALLOW' if d.allowed else 'DENY '}  {a.principal} "
                      f"{a.permission} on {ORG_RESOURCE}", f"  reason: {d.reason}"]
@@ -4610,7 +4610,7 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
         if a.cmd == "set-policy":
             known = ("require-separate-approver", "update-check", SECOND_APPROVER_POLICY_KEY)
             # require-2fa, in its two shapes (see two_factor_required()):
-            # organisation-wide, or per account. Per account names a
+            # organization-wide, or per account. Per account names a
             # principal that must exist, so a typo cannot create a dangling
             # exemption that springs to life when that name is created later.
             _m2 = None

@@ -183,7 +183,7 @@ def _run_bytes(*args: str, timeout: float) -> subprocess.CompletedProcess:
 def _unexpected(what: str, raw: str, status: int) -> "AgentiError":
     """Root's raw output never goes back to the browser: it can carry bytes a
     run planted (a link to a root-only file once came back in a 502, audit
-    run 2). Nor does it go to the journal, where an enrolment link or a run's
+    run 2). Nor does it go to the journal, where an enrollment link or a run's
     data would outlive the request (CodeQL, 2026-10-24): only its size and
     SHA-256 are logged, under a reference; the admin re-runs the verb at the
     console to see the output itself."""
@@ -227,7 +227,7 @@ def _fail_bytes(proc: subprocess.CompletedProcess) -> None:
 
 
 # A very short cache for the few read verbs whose answer does NOT depend on who
-# is asking (the catalogue — each caller's view is
+# is asking (the catalog — each caller's view is
 # filtered afterwards in main.py). Every call costs a sudo + bash + python
 # round trip (300-900 ms on the Pi), and a Settings load makes several of
 # these. 3 seconds is long enough to share one page load and short enough that

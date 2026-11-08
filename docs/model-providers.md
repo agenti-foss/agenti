@@ -169,7 +169,7 @@ in the slot) and a resume reloads it; its "session id" is that file's run id.
       caps and relay denial. These tiny CPU models are not a quality benchmark.
 
 Known gaps found while building A (resolved in B, 2026-11-04):
-- [x] Resolve secrets per key across user, agent, organisation and shared tiers.
+- [x] Resolve secrets per key across user, agent, organization and shared tiers.
   VM proof: two regression tests as `agenti-run`, plus real root CLI writes
   with synthetic keys in a temporary data root. A private per-user Claude
   key no longer hides a broader OpenAI key. Permission checks remain; links

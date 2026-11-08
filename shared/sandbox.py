@@ -98,7 +98,7 @@ OUT_DIR = "/out"
 
 # Mounted read-only so the program itself (and its shared libraries) exist.
 # Deliberately NOT /etc: binding the host's /etc would put /etc/shadow inside
-# a sandbox built to run hostile input. A minimal passwd/group is synthesised
+# a sandbox built to run hostile input. A minimal passwd/group is synthesized
 # instead, because some libraries call getpwuid() and handle its failure
 # badly.
 _SYSTEM_ROS = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32")

@@ -69,7 +69,7 @@ const Agenti = (() => {
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
     // The require-2fa policy (rbac.py): a valid session that has not enrolled
-    // its second factor yet is refused everything but the enrolment routes,
+    // its second factor yet is refused everything but the enrollment routes,
     // with a structured code rather than prose. Route the person to Settings
     // once, instead of letting every page show the same 403 in its own way.
     if (res.status === 403 && data && data.detail && data.detail.code === "mfa_setup_required" && !opts.noRedirect) {
@@ -135,7 +135,7 @@ const Agenti = (() => {
 
   // ---- copy to clipboard ------------------------------------------------
   // One icon button, used wherever a value is meant to be carried somewhere
-  // else: an enrolment link, a 2FA secret, recovery codes, a command to run
+  // else: an enrollment link, a 2FA secret, recovery codes, a command to run
   // on the host. `text` may be a string or a function returning the current
   // string (for values that change after the button is built).
   const COPY_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
@@ -204,7 +204,7 @@ const Agenti = (() => {
   // prove it's really them before a sensitive action (granting access,
   // renaming or deleting, resets, instruction edits, building agents, and
   // their own password, 2FA and passkeys). It always has the same shape:
-  //   * the account (read-only) — so password-manager extensions recognise a
+  //   * the account (read-only) — so password-manager extensions recognize a
   //     login form and offer this site's saved password;
   //   * password (autocomplete="current-password");
   //   * 2FA code (autocomplete="one-time-code") — hidden only for an account
@@ -438,7 +438,7 @@ const Agenti = (() => {
         } catch (err) {
           const name = err && err.name;
           showErr(name === "NotAllowedError" || name === "AbortError"
-            ? "The passkey prompt was cancelled. Try again, or use your password and code."
+            ? "The passkey prompt was canceled. Try again, or use your password and code."
             : err);
         } finally { passkeyBtn.disabled = false; }
       }
@@ -510,7 +510,7 @@ const Agenti = (() => {
       user: Object.assign({}, options.user, { id: _b64urlToBuf(options.user.id) }),
     });
     const cred = await navigator.credentials.create({ publicKey });
-    if (!cred) throw new ApiError(0, "passkey creation was cancelled");
+    if (!cred) throw new ApiError(0, "passkey creation was canceled");
     return {
       id: cred.id,   // already base64url per the WebAuthn spec — no conversion
       response: {
@@ -532,7 +532,7 @@ const Agenti = (() => {
         Object.assign({}, c, { id: _b64urlToBuf(c.id) })),
     });
     const cred = await navigator.credentials.get({ publicKey });
-    if (!cred) throw new ApiError(0, "passkey sign-in was cancelled");
+    if (!cred) throw new ApiError(0, "passkey sign-in was canceled");
     return {
       id: cred.id,
       response: {
@@ -571,7 +571,7 @@ const Agenti = (() => {
 
   // ---- identity ---------------------------------------------------------
   // /auth/me is what the header needs on EVERY page, and what most pages also
-  // fetch for themselves. Memoised per page load, so the nav's fetch and the
+  // fetch for themselves. Memoized per page load, so the nav's fetch and the
   // page's fetch are one request, not two.
   const _memo = {};
   function memoGet(path) {
@@ -587,7 +587,7 @@ const Agenti = (() => {
   // renamed or permanently deleted (Settings > Users). Rather
   // than let a historical record go silently stale or misleading, every
   // page that renders a recorded name runs it through userLabel()
-  // first, fed by one (memoised, per-page) fetch of the tombstone/rename
+  // first, fed by one (memoized, per-page) fetch of the tombstone/rename
   // log every rename/delete writes to (iam.py's principal-history.jsonl).
   //
   // The fetch is allowed to FAIL SILENTLY: an operator does not hold iam:read,
@@ -629,9 +629,9 @@ const Agenti = (() => {
   }
 
   // The 2FA QR code, styled: round dots, rounded corner "eyes" in the accent
-  // colour, on a soft card. Built with DOM calls from the server's module
+  // color, on a soft card. Built with DOM calls from the server's module
   // rows ("0101…", shared/qr.py, error correction Q so the dots scan
-  // easily), never from markup — nothing here can run script. Colours are
+  // easily), never from markup — nothing here can run script. Colors are
   // CSS variables (--qr-card/--qr-ink/--qr-eye in theme.css), so one code
   // follows light, dark and Arcade live; dark mode keeps dark ink on a light
   // card, which every authenticator app reads (an inverted code is not).
@@ -651,7 +651,7 @@ const Agenti = (() => {
     };
     add("rect", { x: 0, y: 0, width: size, height: size, rx: 2.4, class: "qr-bg" });
     const inEye = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
-    // Agenti's mark sits in a clear square at the centre, about a fifth of
+    // Agenti's mark sits in a clear square at the center, about a fifth of
     // the width; the server encodes at error correction H, which recovers
     // far more than the few modules it covers.
     let hole = Math.round(n * 0.22); if (hole % 2 !== n % 2) hole += 1;
@@ -666,7 +666,7 @@ const Agenti = (() => {
     const eyes = add("g", { class: "qr-eye" });
     for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]]) {
       const x = quiet + c, y = quiet + r;
-      // the 7×7 ring (one module wide) and the 3×3 centre, both rounded
+      // the 7×7 ring (one module wide) and the 3×3 center, both rounded
       add("path", { "fill-rule": "evenodd", d:
         `M${x + 2},${y}h3a2,2 0 0 1 2,2v3a2,2 0 0 1-2,2h-3a2,2 0 0 1-2-2v-3a2,2 0 0 1 2-2z` +
         `M${x + 2},${y + 1}a1,1 0 0 0-1,1v3a1,1 0 0 0 1,1h3a1,1 0 0 0 1-1v-3a1,1 0 0 0-1-1z` }, eyes);
@@ -779,6 +779,50 @@ const Agenti = (() => {
   // the person asked for reduced motion, and inside the live console and the
   // team chat, where a step list should simply appear.
   const FOLD_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+  // The scroll position moves WITH the fold, every frame (operator note
+  // 2026-11-08). Opening: the view glides down so the section's end comes
+  // into sight as it grows, but never far enough to push its own title off
+  // the top. Closing: as the content above the view's bottom shrinks, the
+  // scroll position is clamped each frame here, instead of iOS Safari doing
+  // it in one jump when the motion ends (the "snap" on close).
+  function scrollParent(el) {
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === "auto" || oy === "scroll") && n.scrollHeight > n.clientHeight) return n;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+  function followFold(det, anim, opening) {
+    const sc = scrollParent(det);
+    const isPage = sc === document.scrollingElement || sc === document.documentElement;
+    const summary = det.querySelector(":scope > summary") || det;
+    const MARGIN = 16;
+    // Plain assignment, with any smooth-scroll style held off: a smoothed
+    // scroll per frame would lag the fold instead of moving with it.
+    const prevBehavior = sc.style.scrollBehavior;
+    sc.style.scrollBehavior = "auto";
+    const setTop = (y) => { sc.scrollTop = y; };
+    let last = false;
+    const step = () => {
+      if ((det._anim && det._anim !== anim) || (det._anim !== anim && last)) { sc.style.scrollBehavior = prevBehavior; return; }
+      if (det._anim !== anim) last = true;             // one last frame at the end size
+      const view = isPage
+        ? { top: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 0, bottom: window.innerHeight }
+        : sc.getBoundingClientRect();
+      if (opening) {
+        const r = det.getBoundingClientRect();
+        const over = r.bottom - (view.bottom - MARGIN);
+        const room = summary.getBoundingClientRect().top - (view.top + MARGIN);
+        const by = Math.min(over, room);
+        if (by > 0.5) setTop(sc.scrollTop + by);
+      } else {
+        const max = sc.scrollHeight - sc.clientHeight;
+        if (sc.scrollTop > max) setTop(max);
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
   function animateDetails(det) {
     const going = det._anim ? det._closing : !det.open;     // a second click reverses it
     const startH = det.getBoundingClientRect().height;
@@ -807,6 +851,7 @@ const Agenti = (() => {
         : [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-6px)" }],
         { duration: going ? duration : Math.round(duration * 0.7), easing: FOLD_EASE, fill: "forwards" });
     }
+    followFold(det, anim, going);
     // The fades hold their last frame until the fold itself is done, so a
     // closing section never shows its content again for a frame at the end.
     anim.onfinish = () => {
@@ -841,7 +886,7 @@ const Agenti = (() => {
   }
 
   // ---- (i) flyouts ---------------------------------------------------------
-  // The side note behind a small (i), instead of a line of grey text under
+  // The side note behind a small (i), instead of a line of gray text under
   // every field — operator note 2026-11-07: keep what is on screen short.
   //   <button type="button" class="info-tip" data-tip="Why…" aria-label="More information"></button>
   // or Agenti.tip("Why…") in markup a script builds. Text only (textContent).
@@ -984,7 +1029,7 @@ const Agenti = (() => {
 
   // ---- icons ------------------------------------------------------------
   // One inline-SVG set for every page: 20×20 viewBox, 1.7px round stroke,
-  // currentColor — so an icon inherits the colour and size of whatever it
+  // currentColor — so an icon inherits the color and size of whatever it
   // sits in. Inline on purpose: an icon font or a sprite sheet would be the
   // first third-party asset anywhere in this GUI (§4 item 21 declined one
   // once already). icon(name, size) returns markup; iconEl(name) an element.
@@ -999,8 +1044,8 @@ const Agenti = (() => {
     shield: '<path d="M10 2.5 16.5 5v4.6c0 3.8-2.6 6.6-6.5 8-3.9-1.4-6.5-4.2-6.5-8V5z"/><path d="M7.3 10.2 9.2 12l3.6-3.8"/>',
     palette: '<path d="M10 2.8a7.2 7.2 0 1 0 0 14.4c1.2 0 1.7-.8 1.4-1.7-.4-1 .1-2 1.2-2h1.6a3 3 0 0 0 3-3A7.7 7.7 0 0 0 10 2.8z"/><circle cx="6.6" cy="9.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.2" cy="6.2" r="1.1" fill="currentColor" stroke="none"/><circle cx="13.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/>',
     building: '<path d="M4 17V4.5A1.5 1.5 0 0 1 5.5 3h6A1.5 1.5 0 0 1 13 4.5V17M13 8h2a1.5 1.5 0 0 1 1.5 1.5V17M2.5 17h15M7 6.5h2.5M7 9.5h2.5M7 12.5h2.5M8.5 17v-2.5"/>',
-    sliders: '<path d="M4 5.5h5M13 5.5h3M4 10h9M17 10h-1M4 14.5h2M10 14.5h6"/><circle cx="11" cy="5.5" r="1.8"/><circle cx="15" cy="10" r="1.8"/><circle cx="8" cy="14.5" r="1.8"/>',
-    wrench: '<path d="M12.6 3.2a3.8 3.8 0 0 0-4.3 5L3.4 13a1.6 1.6 0 0 0 2.3 2.3l4.8-4.9a3.8 3.8 0 0 0 5-4.3l-2.4 2.4-2-2z"/>',
+    sliders: '<path d="M3.5 5H10.5M14.5 5H16.5M12.5 3V7M3.5 10H5.5M9.5 10H16.5M7.5 8V12M3.5 15H8.5M12.5 15H16.5M10.5 13V17"/>',
+    wrench: '<path transform="rotate(45 10 10)" d="M8.5 1.8V5h3V1.8a4.1 4.1 0 0 1-.1 7.6V17a1.4 1.4 0 0 1-2.8 0V9.4a4.1 4.1 0 0 1-.1-7.6z"/>',
     send: '<path d="M17 3.5 3 8.6l6 2 2.2 5.9z"/><path d="M17 3.5 9 10.6"/>',
     note: '<path d="M12.8 3.6l3.6 3.6-8.6 8.6H4.2v-3.6z"/><path d="M11 5.4l3.6 3.6"/>',
     bolt: '<path d="M11.5 2.5 4.5 11h4.5l-.8 6.5 7.3-8.8H11z"/>',
@@ -1016,11 +1061,11 @@ const Agenti = (() => {
     plus: '<path d="M10 4v12M4 10h12"/>',
     history: '<path d="M3.5 10A6.5 6.5 0 1 0 5.4 5.4M3.5 4.5v3.5H7M10 6.8V10l2.4 1.6"/>',
     grid: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 8.5h14M8.5 8.5V17"/>',
-    rocket: '<path d="M11.4 3.2c2.3-.9 4.7-.8 5.4-.1.7.7.8 3.1-.1 5.4-1.2 3-3.3 5.3-6.2 7.1L6 11.1c1.8-2.9 4.1-5 7.1-6.2-1.7-.6-1.7-1.7-1.7-1.7zM6 11.1 3.4 10.2l2.2-2.2M8.9 15.6l.9 2.6 2.2-2.2"/><circle cx="12.7" cy="7.3" r="1.3"/><path d="M6 14c-1.4.3-2.2 1.2-2.5 2.5C4.8 16.2 5.7 15.4 6 14z"/>',
+    rocket: '<g transform="rotate(45 10 10)"><path d="M10 2c2.7 2 3.5 5 3.5 8.6L12.3 14H7.7L6.5 10.6C6.5 7 7.3 4 10 2z"/><circle cx="10" cy="8" r="1.5"/><path d="M6.7 11.2C5.1 11.8 4.5 13.2 4.5 15.6l3-1.4M13.3 11.2c1.6.6 2.2 2 2.2 4.4l-3-1.4M10 16.3v1.9"/></g>',
     search: '<circle cx="8.8" cy="8.8" r="5.3"/><path d="M12.8 12.8 17 17"/>',
     key: '<circle cx="7" cy="12.5" r="3.5"/><path d="M9.5 10 16.5 3M13.5 6l2 2M15.5 4l2 2"/>',
     lock: '<rect x="4.5" y="9" width="11" height="8" rx="1.6"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>',
-    fingerprint: '<path d="M6 16.2c1.6-2.2 2.2-4.1 2.2-6.2a1.8 1.8 0 0 1 3.6 0c0 2.4-.6 4.5-1.6 6.4M4.3 13.8c1-1.7 1.4-2.6 1.4-3.8a4.3 4.3 0 0 1 8.6 0c0 1.5-.2 2.9-.6 4.2M3.9 8.5A6.8 6.8 0 0 1 16.4 7M14.6 16c.6-1.8.9-3.4.9-5"/>',
+    fingerprint: '<path d="M3.5 12.5v-1.3a6.5 6.5 0 0 1 13 0v.8M6.2 17.4c.4-1.4.6-3.1.6-6.2a3.2 3.2 0 0 1 6.4 0c0 2.3-.2 4-.6 5.6M10 11.2c0 2.5-.3 4.6-.9 6.6"/>',
     sun: '<circle cx="10" cy="10" r="3.6"/><path d="M10 1.8v1.8M10 16.4v1.8M1.8 10h1.8M16.4 10h1.8M4.2 4.2l1.3 1.3M14.5 14.5l1.3 1.3M15.8 4.2l-1.3 1.3M5.5 14.5l-1.3 1.3"/>',
     moon: '<path d="M16.5 12.4A7 7 0 0 1 7.6 3.5a7 7 0 1 0 8.9 8.9z"/>',
     monitor: '<rect x="2.5" y="4" width="15" height="9.5" rx="1.5"/><path d="M7 17h6M10 13.5V17"/>',
@@ -1028,7 +1073,7 @@ const Agenti = (() => {
     "eye-off": '<path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.4"/><path d="M3 3l14 14"/>',
     refresh: '<path d="M16.5 8.5A6.5 6.5 0 0 0 5 6.2M3.5 11.5A6.5 6.5 0 0 0 15 13.8M3.5 4.5v3.5H7M16.5 15.5V12H13"/>',
     info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.6v.2"/>',
-    warning: '<path d="M10 3.5 17 16H3z"/><path d="M10 8.5v3.5M10 14.3v.2"/>',
+    warning: '<path d="M8.7 4.2a1.5 1.5 0 0 1 2.6 0l6.2 11a1.5 1.5 0 0 1-1.3 2.3H3.8a1.5 1.5 0 0 1-1.3-2.3z"/><path d="M10 8.2v3.6M10 14.4v.1"/>',
     file: '<path d="M11.5 2.5H5.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V7z"/><path d="M11.5 2.5V7H16M7 11h6M7 14h4"/>',
     book: '<path d="M10 5.6C8.4 4.3 6.2 3.8 3.5 4v11.6c2.7-.2 4.9.3 6.5 1.6 1.6-1.3 3.8-1.8 6.5-1.6V4c-2.7-.2-4.9.3-6.5 1.6z"/><path d="M10 5.6v11.6"/>',
     chat: '<path d="M3.5 5.5A1.5 1.5 0 0 1 5 4h10a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 15 13H8.5L5 16v-3A1.5 1.5 0 0 1 3.5 11.5z"/>',
@@ -1040,7 +1085,9 @@ const Agenti = (() => {
     print: '<path d="M6 7.5V3.5h8v4M6 14.5H4.5A1.5 1.5 0 0 1 3 13V9a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 9v4a1.5 1.5 0 0 1-1.5 1.5H14"/><rect x="6" y="11.5" width="8" height="5"/>',
     close: '<path d="M5 5l10 10M15 5 5 15"/>',
     link: '<path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-1 1M11.5 8.5a3 3 0 0 0-4.2 0L5 10.8a3 3 0 0 0 4.2 4.2l1-1"/>',
-    tools: '<path d="M3.5 16.5 10 10M14.5 3.5l2 2-3 3-2-2z"/><path d="M8.5 6.5 5.5 3.5 3.5 5.5l3 3M12.5 12.5l3 3 1-1-3-3"/>',
+    // A wrench (the wrench icon's own shape) crossed with a hammer whose handle
+    // breaks where the wrench passes over it, so no lines touch (note 2026-11-08).
+    tools: '<path transform="rotate(45 10 10)" d="M8.5 1.33V4.2H11.5V1.33A3.6 3.6 0 0 1 11.4 7.92V15.6a1.4 1.4 0 0 1 -2.8 0V7.92A3.6 3.6 0 0 1 8.5 1.33z"/><g transform="rotate(-45 10 10)"><rect x="7.4" y="1.4" width="5.2" height="3.2" rx="1.1"/><path d="M8.8 4.6V7M11.2 4.6V7M8.8 13V15.8a1.2 1.2 0 0 0 2.4 0V13"/></g>',
     pixel: '<path d="M4 4h3v3H4zM8.5 4h3v3h-3zM13 4h3v3h-3zM4 8.5h3v3H4zM13 8.5h3v3h-3zM4 13h3v3H4zM8.5 13h3v3h-3zM13 13h3v3h-3z"/>',
     star: '<path d="m10 2.8 2.2 4.6 5 .7-3.6 3.5.9 5L10 14.2l-4.5 2.4.9-5L2.8 8.1l5-.7z"/>',
     coin: '<circle cx="10" cy="10" r="7"/><path d="M10 6v8M7.8 8.2c.5-.9 1.4-1.2 2.2-1.2 1.4 0 2.2.7 2.2 1.6 0 2.2-4.4 1-4.4 3.2 0 .9.8 1.6 2.2 1.6.9 0 1.7-.3 2.2-1.2"/>',
@@ -1056,7 +1103,7 @@ const Agenti = (() => {
     terminal: '<rect x="2.5" y="3.5" width="15" height="13" rx="1.8"/><path d="M6 8l2.5 2L6 12M10.5 12.5H14"/>',
     target: '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.5"/><circle cx="10" cy="10" r=".6"/>',
     cpu: '<rect x="5" y="5" width="10" height="10" rx="1.6"/><path d="M8 2.5V5M12 2.5V5M8 15v2.5M12 15v2.5M2.5 8H5M2.5 12H5M15 8h2.5M15 12h2.5"/>',
-    // The AI providers' own marks, in one colour like every icon here, only
+    // The AI providers' own marks, in one color like every icon here, only
     // to name the provider (TRADEMARKS.md). Paths: Simple Icons (CC0), on
     // their own 24×24 grid (ICON_VIEWBOX), filled rather than stroked.
     claude: '<path fill="currentColor" stroke="none" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/>',
@@ -1088,10 +1135,10 @@ const Agenti = (() => {
   // ---- avatars ----------------------------------------------------------
   // Every avatar renders both an initials span (the Original skin) and a
   // pixel sprite (the Arcade skin); CSS shows one. The sprite is picked and
-  // coloured deterministically from the name, so an agent has the same face
+  // colored deterministically from the name, so an agent has the same face
   // on every page and every device, and a hue may be forced (the team chat
-  // gives each member its own colour already). Hand-drawn 12×12 creatures,
-  // not random noise: '#' body, '+' a second colour, 'o' eye-white, 'x' eye
+  // gives each member its own color already). Hand-drawn 12×12 creatures,
+  // not random noise: '#' body, '+' a second color, 'o' eye-white, 'x' eye
   // or dark detail, '.' empty. Widths are checked at load.
   const SPRITES = [
     [ // invader

@@ -10,13 +10,13 @@
  *   - pixel type for the brand and the h1/h2 titles only (Press Start 2P),
  *     a readable monospace for everything else (JetBrains Mono — the
  *     pairing the reference material itself used); both are OFL fonts
- *     shipped in ../fonts/ with their licences, never fetched from a CDN
+ *     shipped in ../fonts/ with their licenses, never fetched from a CDN
  *     (the GUI is served on a LAN box that may have no internet at all);
  *   - hard-edged surfaces: 2px borders, an offset "ink" shadow instead of
  *     a blur, small radii — but not zero, which reads as unstyled;
  *   - a palette per mode: navy + hot pink + cyan for dark (the cabinet),
  *     cream + orange-red + yellow over faint grid paper for light (the
- *     retro shop); status colours stay green/amber/red, only brighter;
+ *     retro shop); status colors stay green/amber/red, only brighter;
  *   - segmented meters, square status dots, a two-tone rule under the
  *     header, a very faint scanline over dark mode;
  *   - sprite avatars (Agenti.avatarInner) instead of initials.
@@ -139,7 +139,7 @@
   background-size: 22px 22px;
 }
 [data-skin="arcade"][data-mode="dark"] body {
-  /* A sparse scatter of coloured "stars", fixed so it does not scroll with
+  /* A sparse scatter of colored "stars", fixed so it does not scroll with
    * the content — the attract screen behind the cabinet. */
   background-image:
     radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.6px),

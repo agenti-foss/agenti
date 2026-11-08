@@ -36,7 +36,7 @@ from collections import Counter
 from pathlib import Path
 
 __all__ = ["CONFIG_PATH", "available", "rules_source", "binds", "harvest",
-           "summarise", "warnings_only", "LOG_FILES", "RULES_DEST", "CFG_DEST", "OUT_DEST"]
+           "summarize", "warnings_only", "LOG_FILES", "RULES_DEST", "CFG_DEST", "OUT_DEST"]
 
 CONFIG_PATH = Path(__file__).resolve().with_name("suricata-offline.yaml")
 
@@ -60,7 +60,7 @@ LOG_FILES = {
     "suricata.log": "Suricata's own log",
 }
 
-_MAX_EVE_BYTES = 256 * 1024 * 1024     # summarise at most this much of eve.json
+_MAX_EVE_BYTES = 256 * 1024 * 1024     # summarize at most this much of eve.json
 _TOP = 12
 
 
@@ -128,7 +128,7 @@ def _packets_read(console: str) -> str | None:
     return f"{int(m.group(2)):,} packets ({int(m.group(3)):,} bytes)" if m else None
 
 
-def summarise(eve: Path | None, *, console: str = "", rules_note: str = "") -> str:
+def summarize(eve: Path | None, *, console: str = "", rules_note: str = "") -> str:
     """A short, honest digest of one run for the model: how much it read, what
     rules it had, the alerts grouped by signature, and the shape of the rest.
     Never raises — a damaged eve.json yields a shorter summary, not an error."""
@@ -192,7 +192,7 @@ def summarise(eve: Path | None, *, console: str = "", rules_note: str = "") -> s
     if types:
         lines.append("Events by type: " + ", ".join(f"{k} {v:,}" for k, v in types.most_common()))
     if truncated:
-        lines.append(f"(only the first {_MAX_EVE_BYTES // (1024 * 1024)} MB of eve.json was summarised)")
+        lines.append(f"(only the first {_MAX_EVE_BYTES // (1024 * 1024)} MB of eve.json was summarized)")
     if bad_lines:
         lines.append(f"({bad_lines} unreadable line(s) in eve.json were skipped)")
     return "\n".join(lines)

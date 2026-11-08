@@ -11,11 +11,11 @@ every precondition for safely running an unattended drop box is met:
   3. Secrets file exists, owned by us, 0600
   4. scans/ directory is writable
   5. Outbound TLS to the Claude API works   (no egress -> brain-dead agent)
-  6. The organisation's engagement — the ONE master scope, read by every run
+  6. The organization's engagement — the ONE master scope, read by every run
      (CLAUDE.md "Current plan") — loads for this agent's scope kind, is
      in its authorized window and has a non-empty scope for that kind
-     (one engagement for the whole organisation, not per agent)
-  7. Admin approval, UNLESS the organisation's policy has it turned off: an
+     (one engagement for the whole organization, not per agent)
+  7. Admin approval, UNLESS the organization's policy has it turned off: an
      admin has approved the engagement AS IT STANDS — the approval
      is bound to the record's content digest, so an edit after approval
      fails this check until it is re-approved (§3g). require_approval
@@ -61,7 +61,7 @@ DATA_ROOT = Path(_INSTANCE_HINT) if _INSTANCE_HINT else ORG_DIR / AGENT_NAME
 MASTER_DIR = paths.master_dir(AGENT_NAME, AGENTI_ROOT)
 SCANS_DIR = DATA_ROOT / "scans"
 SHARED_DIR = AGENTI_ROOT / "shared"
-# The organisation's engagement record and its approval live in org/:
+# The organization's engagement record and its approval live in org/:
 # one record every agent reads through its own scope kind. Both are
 # root-owned 0640, readable by this service account, writable by nobody but
 # root — the same shape as run-target.
@@ -119,7 +119,7 @@ def check_encrypted() -> None:
 def check_secrets() -> None:
     """Two legitimately different secure shapes now (CLAUDE.md §3g), not one:
 
-    - agent-specific / organisation-shared tiers: owned outright by this process's
+    - agent-specific / organization-shared tiers: owned outright by this process's
       own account, strictly owner-only (0600) — unchanged from before
       multi-tenancy existed.
     - platform-shared tier: root-owned, group-readable by 'agenti-shared'

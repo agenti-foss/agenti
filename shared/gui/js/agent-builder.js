@@ -53,7 +53,7 @@
         "## What to produce",
         "End with a short report: what the file contains, what you found (with frame numbers and the evidence for each point), and what you could not determine.", "",
         "## Rules",
-        "- Analyse only: never try to log in to, exploit or contact anything the file mentions.",
+        "- Analyze only: never try to log in to, exploit or contact anything the file mentions.",
         "- Cite exact evidence: frame numbers, addresses, protocols, field values.",
         "- If a credential is what you were asked to find, report where it was and its value; otherwise refer to it by location only.",
         "- If you need a decision, ask the operator with ask_operator."].join("\n") + "\n";
@@ -114,7 +114,7 @@
               <textarea id="wiz-prompt" rows="16" spellcheck="true"></textarea>
               <p class="hint">The agent's system prompt: what it is for, the steps, what to produce, and what it must
                 not do. Text only — it can never widen the agent's tools or what it can reach. You can edit it later
-                in the control centre, and every edit is kept.</p>
+                in the control center, and every edit is kept.</p>
               <button type="button" class="btn btn-sm" id="wiz-prompt-reset" data-icon="refresh">Start again from the template</button>
             </div>
           </section>
@@ -365,7 +365,7 @@
         submit: (creds) => A.post(state.edit ? "admin/agent-builder/update" : "admin/agent-builder/create",
           { spec, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
       });
-      if (!result) return;   // cancelled — stay on Review
+      if (!result) return;   // canceled — stay on Review
       $("#wiz-done-title").textContent = state.edit ? `${checked.spec.title} was updated` : `${checked.spec.title} is ready`;
       if (state.edit) {
         $("#wiz-done-text").textContent = "The changes apply from the next run.";
@@ -373,7 +373,7 @@
         $("#wiz-done-text").innerHTML = `It was built, but could not be prepared yet — <span class="warn">it will be prepared the first time someone launches it.</span>`;
       } else {
         $("#wiz-done-text").textContent = state.kind === "analysis"
-          ? "Operators can launch it from the Launch page and attach the files to analyse there."
+          ? "Operators can launch it from the Launch page and attach the files to analyze there."
           : "Operators can launch it from the Launch page.";
       }
       go(4);

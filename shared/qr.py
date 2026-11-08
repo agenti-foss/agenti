@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-qr.py — a QR Code encoder in the standard library, for 2FA enrolment.
+qr.py — a QR Code encoder in the standard library, for 2FA enrollment.
 
 WHY THIS EXISTS RATHER THAN A DEPENDENCY: the one thing this project renders
 as a QR code is an otpauth:// URI carrying a TOTP secret — a credential. It

@@ -16,7 +16,7 @@
 #
 # ISOLATION BETWEEN USERS: every slot runs as the same service account, so
 # file permissions alone would let one user's run read another's. The
-# organisation directory is therefore replaced by an empty read-only
+# organization directory is therefore replaced by an empty read-only
 # filesystem for this process (TemporaryFileSystem=), and only what this run
 # needs is bound back: its own slot (read-write) and the engagement, approval
 # and secrets files (read-only). No other user's runs — of this agent or any
@@ -63,7 +63,7 @@ Environment=PYTHONUNBUFFERED=1
 # runs outside our context files. Off: only files an admin controls feed an agent.
 Environment=CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 
-# GATE 2 — credentials: platform, organisation, agent, then slot; last wins.
+# GATE 2 — credentials: platform, organization, agent, then slot; last wins.
 # Read by systemd before the filesystem rules below apply.
 EnvironmentFile=-__ROOT__/shared/secrets.env
 EnvironmentFile=-__ROOT__/org/secrets.env
@@ -81,7 +81,7 @@ AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
 NoNewPrivileges=yes
 
-# --- Filesystem: whole system read-only; of the organisation directory, only
+# --- Filesystem: whole system read-only; of the organization directory, only
 # what this run needs exists at all (see "ISOLATION BETWEEN USERS" above).
 ProtectSystem=strict
 TemporaryFileSystem=__ROOT__/org:ro

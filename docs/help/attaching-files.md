@@ -20,7 +20,7 @@ there are.
 
 The agent can list the files on its run and read text files a piece at a time,
 by line range or by searching. Binary files, such as a packet capture, are listed
-but cannot be opened yet. A tool to analyse captures is the next step.
+but cannot be opened yet. A tool to analyze captures is the next step.
 
 A file is information, never an instruction. Nothing in a file can widen the
 agent's scope or the programs it may run: those are enforced outside the
@@ -35,7 +35,7 @@ conversation.
 | Kept for | 30 days, then deleted with the run's other working data |
 
 Every report lists the files the run had, with each file's SHA-256, so you can
-show later exactly which file was analysed.
+show later exactly which file was analyzed.
 
 ## If something looks wrong
 

@@ -22,7 +22,7 @@ engine's own: what the model can do is exactly the tool list.
 
 Caps, per query() as the Claude SDK applies them (session_runner and
 pump_channels add them up across the run): turns = model calls; budget = tokens
-x the organisation's stated price (a cloud model with no price is refused,
+x the organization's stated price (a cloud model with no price is refused,
 model_registry.price_for); the wall clock is session_runner's.
 
 The model is reached through agenti-relay (AGENTI_RELAY, an HTTP CONNECT

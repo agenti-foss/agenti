@@ -9,7 +9,7 @@ With AGENTI_GUI_TOTP_FILE set, the harness completes the real two-step
 login — it computes the current code from the secret exactly as an
 authenticator app would — so the page under test is the one a 2FA user
 sees. Since the require-2fa policy (default on) confines a password-only
-session to the enrolment routes, an enrolled user is the normal way
+session to the enrollment routes, an enrolled user is the normal way
 to run this now.
 
 NOT one of the project's test suites, and deliberately kept out of them:
@@ -133,8 +133,8 @@ PAGES = [
     # for a fresh test user, not a loading failure, so the marker
     # accepts either that hint becoming visible or an actual registered row.
     ("settings-security", "settings.html#security", "#passkey-empty:not([hidden]), #passkey-list .list-row"),
-    # The theme cards are built from theme.js's catalogue; one card per skin
-    # proves the appearance section rendered and the catalogue loaded.
+    # The theme cards are built from theme.js's catalog; one card per skin
+    # proves the appearance section rendered and the catalog loaded.
     ("settings-appearance", "settings.html#appearance", "#theme-cards .theme-card"),
     # No token in the URL, so this always shows the "invalid link" state —
     # it still proves the page itself renders and the JS runs without
@@ -158,7 +158,7 @@ if os.environ.get("AGENTI_GUI_ADMIN") == "1":
         ("settings-policies", "settings.html#platform", "#policy-list .list-row"),
         ("settings-engagement", "settings.html#engagement", "#eng-summary dl, #eng-summary p"),
         # Settings -> Agents (§4 items 45, 74): the agent-type list (hand-built
-        # and built agents) and the control centre. The tab is shown to a
+        # and built agents) and the control center. The tab is shown to a
         # platform admin or reader only (settings.js: canManage || canReadIam);
         # there is no saved-types marker any more.
         ("settings-agents", "settings.html#agents", "#deployed-agents-list .agent-type"),
