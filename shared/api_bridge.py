@@ -142,6 +142,16 @@ def check(argv: list[str]) -> None:
               and all(a.startswith(("--size=", "--grant=")) or a == "--json" for a in rest)
               and any(a.startswith("--grant=") for a in rest), f"vault {argv[1:2]}")
         return
+    if first == "keys":
+        # Unlocking the API keys or sealing them with a first passphrase, each
+        # with its grant; the passphrase is the request body on stdin. Status
+        # comes with the dashboard; lock, passphrase changes and reset are
+        # terminal-only, and no verb ever returns a key.
+        rest = argv[2:]
+        _need(len(argv) > 1 and argv[1] in ("unlock", "seal")
+              and all(a.startswith("--grant=") or a == "--json" for a in rest)
+              and sum(a.startswith("--grant=") for a in rest) == 1, f"keys {argv[1:2]}")
+        return
     if first == "docs":
         _need(len(words) > 1 and words[1] in DOCS_VERBS, f"docs {words[1:2]}")
         return

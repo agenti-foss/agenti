@@ -65,5 +65,10 @@ def catalog_file() -> Path:
     return libdir() / "tool-catalog.json"
 
 
+def keys_run() -> Path:
+    """The in-memory folder the unlocked API keys live in (keystore.py)."""
+    return Path(os.environ.get("AGENTI_KEYS_RUN", "/run/agenti-keys"))
+
+
 def vault_enabled() -> bool:
     return (etc() / "vault.conf").is_file()

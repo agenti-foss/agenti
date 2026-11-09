@@ -141,6 +141,7 @@ fixed in 0.1.4. Each fix has a test.
 | Low | A password the server refused (too short) still used up the sign-up or reset link. | The password is checked before the link is used. |
 | Low | A refused field (for example a password starting with "-") was repeated back in the error message. | Error messages name the field, never its value. |
 | Low | A free-text exclusion was accepted, then refused every run of its kind. | Exclusions are checked when the engagement is saved. |
+| Medium | With the vault off, the AI provider keys were plain files: anyone with a copy of the disk could read them. | Keys are always encrypted, sealed by the machine's TPM, the vault or a key passphrase; unlocked, they live only in memory (see API key encryption). |
 
 ## Reporting a problem
 

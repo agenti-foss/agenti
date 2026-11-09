@@ -5,6 +5,7 @@
 #   agenti <agent> <verb> [flags]             operate one agent
 #   agenti agents [--json]                    deployed agents (no root needed)
 #   agenti vault <verb>                       the encrypted volume
+#   agenti keys <verb>                        the API keys' encryption
 #   agenti gui <verb>                         the web GUI's services
 #
 # DESIGN: this is a THIN WRAPPER. Every command shells out to systemctl,
@@ -53,6 +54,10 @@ _here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 [[ -f "$VAULT_SH" ]] || VAULT_SH="$_here/vault.sh"
 [[ -f "$SET_SECRET_SH" ]] || SET_SECRET_SH="$_here/set-secret.sh"
 IAM_PY="$LIBDIR/iam.py"
+KEYSTORE_PY="$LIBDIR/keystore.py"
+[[ -f "$KEYSTORE_PY" ]] || KEYSTORE_PY="$_here/keystore.py"
+# keystore.py's crypto needs the cryptography package: the bundled runtime's Python.
+KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
 
 DRY_RUN=0
 JSON=0
@@ -703,6 +708,9 @@ agenti — control surface for scoped AI agents
   agenti new <name>                           scaffold a new agent pack
   agenti vault <status|enable|disable|unlock|lock|passphrase>
                                               the optional encrypted data folder
+  agenti keys <status|unlock|lock|seal|passphrase|reset>
+                                              the API keys, encrypted at all times
+                                              (details: agenti keys help)
   agenti gui <status|enable|disable|start|stop|restart|logs>
                                               the web GUI's two services, as one
                                               (details: agenti gui help)
@@ -2583,7 +2591,7 @@ cmd_set_user_key() {
     local u="${1:-}"
     [[ -n "$u" && "$u" != -* ]] || die "usage: sudo agenti admin set-user-key <user> [--provider anthropic|openai|local]
   Installs <user>'s own API key (Anthropic unless --provider says otherwise); their runs use it ahead of the agent,
-  organization and shared keys. Remove it with: sudo rm $AGENTI_ROOT/org/users/<user>/secrets.env"
+  organization and shared keys. Remove it with: sudo $SET_SECRET_SH --user <user> --remove"
     python3 "$IAM_PY" --json user-exists "$u" 2>/dev/null \
         | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("exists") else 1)' 2>/dev/null \
         || die "no user named '$u' — list them: sudo agenti admin user list"
@@ -3857,6 +3865,176 @@ if running from source:    make sure shared/new_agent.py exists next to shared/a
     python3 "$script" "$@"
 }
 
+# `agenti keys`: the API keys are encrypted on disk at all times (operator
+# decision 2026-11-08; keystore.py has the design). Sealed by the machine's TPM
+# (unlocks itself at boot), the vault (unlocks with it) or a key passphrase.
+keys_usage() {
+    cat <<'EOF'
+usage: sudo agenti keys <verb>
+
+The AI provider keys are always stored encrypted. How they unlock:
+  a TPM chip      by themselves, at every start-up (nothing to do)
+  the vault       together with the vault: sudo agenti vault unlock
+  a passphrase    by an admin after every start-up: here, or in
+                  Settings → Platform → API key encryption
+
+  status          how the keys are sealed and whether they are unlocked
+  unlock          unlock them (asks for the key passphrase if they use one)
+  lock            lock them now; runs cannot start until they are unlocked
+  seal            encrypt the keys on a machine upgraded from before 0.1.4
+                  that has no TPM and no vault (asks for a new key passphrase)
+  passphrase      change the key passphrase (the keys must be unlocked)
+  reset           forgot the passphrase, or a new motherboard: delete every
+                  saved key and start over (enter the keys again afterwards)
+
+While the keys are unlocked, root on this machine can read them: nothing that
+uses a key unattended can prevent that. Locked or powered off, they are safe.
+EOF
+}
+
+# A keystore verb that may mount the in-memory key folder, as its own systemd
+# job: reached from the web, this process lives in agenti-api's private mount
+# namespace, where a mount would be invisible to the rest of the system (the
+# lesson from vault enable). --pipe hands the job this stdin.
+_keystore_job() {
+    systemd-run --quiet --wait --pipe --collect --unit="agenti-keys-$1-$$" \
+        --property=Type=exec -- "$KS_PY" "$KEYSTORE_PY" "$@"
+}
+
+_keys_read_new_passphrase() {   # prints it; prompts twice, silently
+    local a b
+    read -rs -p "New key passphrase (12+ characters): " a; echo >&2
+    read -rs -p "Type it again: " b; echo >&2
+    [[ "$a" == "$b" ]] || die "the two passphrases are not the same — nothing was changed"
+    [[ ${#a} -ge 12 ]] || die "the key passphrase must be at least 12 characters"
+    printf '%s' "$a"
+}
+
+_keys_status_text() {
+    python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+how = {"tpm2": "this machine’s TPM chip (unlocks by itself at start-up)",
+       "vault": "the vault (unlocks with it)",
+       "passphrase": "a key passphrase (an admin unlocks after every start-up)"}
+s = d["state"]
+if s == "unlocked":
+    print("  [ OK ] API keys: encrypted, unlocked. Sealed by " + how[d["seal"]] + ".")
+elif s == "locked":
+    print("  [WARN] API keys: encrypted, LOCKED, so runs cannot start. Sealed by " + how[d["seal"]] + ".")
+    print("         unlock:  sudo agenti " + ("vault unlock" if d["seal"] == "vault" else "keys unlock"))
+elif s == "plain":
+    print("  [WARN] API keys: NOT encrypted (saved before 0.1.4; no TPM, no vault).")
+    print("         encrypt them:  sudo agenti keys seal")
+elif d["needs_passphrase"]:
+    print("  [ OK ] API keys: none saved yet. The first one asks for a key passphrase (no TPM, no vault).")
+else:
+    print("  [ OK ] API keys: none saved yet. They will be sealed by " + ("the TPM." if d["tpm"] else "the vault."))
+'
+}
+
+# From the web (Settings → Platform): unlock, or set the first passphrase, each
+# behind a fresh admin re-authentication. The passphrase arrives on stdin and
+# goes straight to keystore.py's stdin: never an argument, never stored.
+cmd_keys_web() {
+    local verb="${1:-}" grant=""; [[ $# -gt 0 ]] && shift
+    case "$verb" in unlock|seal) ;; *) die "REFUSING: from the web, keys takes only unlock or seal." ;; esac
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --grant=*) grant="${1#*=}"; shift ;;
+            *) die "REFUSING: 'keys $verb' from the web takes only --grant=<id>, with the passphrase on stdin." ;;
+        esac
+    done
+    [[ -n "$grant" ]] || die "REFUSING: this needs a fresh re-authentication (an approval grant)."
+    local aout arc=0
+    aout=$(python3 "$IAM_PY" --json approve-keys "--op=keys-$verb" "--grant=$grant" 2>&1) || arc=$?
+    if [[ $arc -ne 0 ]]; then
+        local e; e=$(printf '%s' "$aout" | _json_field error)
+        die "${e:-$aout}"
+    fi
+    local by; by=$(printf '%s' "$aout" | _json_field approved_by)
+    local out rc=0
+    out=$(_keystore_job "$verb" --passphrase-stdin 2>/dev/null) || rc=$?
+    logger -t agenti "KEYS_${verb^^} | by=$by | via=api | rc=$rc" 2>/dev/null || true
+    if [[ $rc -ne 0 ]]; then
+        local e; e=$(printf '%s' "$out" | _json_field error)
+        die "${e:-the keys were not ${verb}ed}"
+    fi
+    if [[ $JSON -eq 1 ]]; then
+        printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); d["approved_by"]=sys.argv[1]; print(json.dumps(d))' "$by"
+    else
+        ok "API keys: $verb done (approved by $by)"
+    fi
+}
+
+_keys_die_from() {   # _keys_die_from <json>: the keystore's own refusal
+    local e; e=$(printf '%s' "$1" | _json_field error)
+    die "${e:-the keys could not be changed (details: sudo journalctl -t agenti -n 20)}"
+}
+
+cmd_keys() {
+    local verb="${1:-status}"; [[ $# -gt 0 ]] && shift
+    local out="" rc=0 st p=""
+    case "$verb" in
+        help|-h|--help) keys_usage; return ;;
+        status)
+            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
+            if [[ $JSON -eq 1 ]]; then printf '%s\n' "$st"; else printf '%s' "$st" | _keys_status_text; fi
+            return ;;
+        unlock)
+            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
+            [[ "$(printf '%s' "$st" | _json_field state)" != unlocked ]] || { ok "the API keys are already unlocked"; return; }
+            case "$(printf '%s' "$st" | _json_field seal)" in
+                passphrase)
+                    read -rs -p "Key passphrase: " p; echo >&2
+                    out=$(printf '%s\n' "$p" | _keystore_job unlock --passphrase-stdin 2>/dev/null) || rc=$?
+                    p="" ;;
+                vault) die "these keys open with the vault:  sudo agenti vault unlock" ;;
+                "")    die "there are no encrypted keys to unlock (sudo agenti keys status)" ;;
+                *)     out=$(_keystore_job unlock 2>/dev/null) || rc=$? ;;
+            esac
+            [[ $rc -eq 0 ]] || _keys_die_from "$out"
+            logger -t agenti "KEYS_UNLOCK | by=$(invoking_user) | via=console" 2>/dev/null || true
+            ok "API keys unlocked: runs can start" ;;
+        lock)
+            "$KS_PY" "$KEYSTORE_PY" lock >/dev/null || die "could not lock the keys"
+            logger -t agenti "KEYS_LOCK | by=$(invoking_user)" 2>/dev/null || true
+            ok "API keys locked: runs cannot start until  sudo agenti keys unlock" ;;
+        seal)
+            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
+            [[ -z "$(printf '%s' "$st" | _json_field seal)" ]] || { ok "the API keys are already encrypted"; return; }
+            local -a seal_args=(seal)
+            if [[ "$(printf '%s' "$st" | _json_field needs_passphrase)" == True ]]; then
+                echo "This machine has no TPM chip and the vault is off: choose a key passphrase."
+                echo "After every restart an admin types it (Settings → Platform, or sudo agenti keys unlock)."
+                p=$(_keys_read_new_passphrase)
+                seal_args+=(--passphrase-stdin)
+            fi
+            out=$(printf '%s\n' "$p" | _keystore_job "${seal_args[@]}" 2>/dev/null) || rc=$?
+            p=""
+            [[ $rc -eq 0 ]] || _keys_die_from "$out"
+            logger -t agenti "KEYS_SEAL | by=$(invoking_user) | via=console" 2>/dev/null || true
+            ok "API keys encrypted ($(printf '%s' "$out" | _json_field encrypted) file(s))."
+            echo "  Plain copies written before may linger in the disk's free space: rotate those keys at the provider." ;;
+        passphrase)
+            p=$(_keys_read_new_passphrase)
+            out=$(printf '%s\n' "$p" | "$KS_PY" "$KEYSTORE_PY" passphrase --passphrase-stdin 2>/dev/null) || rc=$?
+            p=""
+            [[ $rc -eq 0 ]] || _keys_die_from "$out"
+            logger -t agenti "KEYS_PASSPHRASE | by=$(invoking_user)" 2>/dev/null || true
+            ok "key passphrase changed" ;;
+        reset)
+            echo "This DELETES every saved API key (all tiers) and the key encryption's seal."
+            echo "Afterwards, enter the keys again (Settings → AI providers, or sudo agenti setup)."
+            local reply; read -r -p "Type RESET to continue: " reply
+            [[ "$reply" == RESET ]] || { echo "aborted: nothing was changed."; return; }
+            "$KS_PY" "$KEYSTORE_PY" reset --yes >/dev/null || die "the reset did not finish"
+            logger -t agenti "KEYS_RESET | by=$(invoking_user)" 2>/dev/null || true
+            ok "every saved API key is deleted; enter them again" ;;
+        *) die "keys verbs: status | unlock | lock | seal | passphrase | reset   (agenti keys help)" ;;
+    esac
+}
+
 # The one vault action the web tier may start (decision 6, audit run 1): turn
 # it on, after an admin re-authenticated for exactly this size. The passphrase
 # arrives on stdin (the bridge passes the request body through) and goes
@@ -4217,18 +4395,22 @@ $(setup_code_usage)" ;;
 # behind an admin's fresh re-authentication bound to the key's SHA-256. At a
 # terminal, use sudo agenti setup (or set-secret.sh), which prompts silently.
 cmd_set_api_key_web() {
-    local grant="" provider="anthropic" base_url=""
+    local grant="" provider="anthropic" base_url="" with_pass=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --grant=*) grant="${1#*=}"; shift ;;
             --provider=*) provider="${1#*=}"; shift ;;
             --base-url=*) base_url="${1#*=}"; shift ;;
+            --with-passphrase) with_pass=1; shift ;;
             *) die "REFUSING: 'admin set-api-key' takes only --grant=<id>, with the key on stdin." ;;
         esac
     done
     [[ -n "$grant" ]] || die "REFUSING: saving the API key from the web needs a fresh re-authentication (an approval grant).
 At the terminal instead:  sudo agenti setup"
-    local key; IFS= read -r key || true
+    # stdin: the key, then (--with-passphrase: the first key on a box with no
+    # TPM and no vault) the new key passphrase that seals it.
+    local key pass=""; IFS= read -r key || true
+    [[ $with_pass -eq 0 ]] || IFS= read -r pass || true
     [[ "$provider" =~ ^(anthropic|openai|local)$ ]] || die "unknown provider; choose anthropic, openai or local"
     [[ -n "$key" || "$provider" == local ]] || die "no key was given"
     local sha; sha=$(printf '%s' "$key" | python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from model_registry import secret_digest; print(secret_digest(sys.argv[2], sys.stdin.read(), sys.argv[3]))' "$LIBDIR" "$provider" "$base_url")
@@ -4243,10 +4425,15 @@ At the terminal instead:  sudo agenti setup"
     local out rc=0
     local -a key_args=(--provider "$provider" --stdin)
     [[ -z "$base_url" ]] || key_args+=(--base-url "$base_url")
-    out=$(printf '%s\n' "$key" | "$SET_SECRET_SH" "${key_args[@]}" 2>&1) || rc=$?
-    unset key
+    [[ -z "$pass" ]] || key_args+=(--passphrase-first)
+    # Its own systemd job: the first key may mount the in-memory key folder,
+    # which from agenti-api's private mount namespace nobody else would see.
+    out=$({ [[ -z "$pass" ]] || printf '%s\n' "$pass"; printf '%s\n' "$key"; } \
+            | systemd-run --quiet --wait --pipe --collect --unit="agenti-set-key-$$" \
+                --property=Type=exec -- "$SET_SECRET_SH" "${key_args[@]}" 2>&1) || rc=$?
+    unset key pass
     logger -t agenti "API_KEY_SET | by=$by | via=api | sha256=${sha:0:12} | rc=$rc" 2>/dev/null || true
-    [[ $rc -eq 0 ]] || die "the key was not saved: $(printf '%s' "$out" | grep -i 'error' | tail -n 2 | tr '\n' ' ')"
+    [[ $rc -eq 0 ]] || die "the key was not saved: $(printf '%s' "$out" | grep -i 'error' | sed 's/^ERROR: //' | tail -n 2 | tr '\n' ' ')"
     if [[ $JSON -eq 1 ]]; then
         python3 -c 'import json,sys; print(json.dumps({"ok": True, "api_key": "set", "approved_by": sys.argv[1]}))' "$by"
     else
@@ -4351,7 +4538,7 @@ EOF
     printf '\n%s3. The Anthropic API key%s\n' "$c_b" "$c_0"
     if agenti_vault_enabled && ! agenti_data_ready; then
         warn "the vault is locked — unlock it first (sudo agenti vault unlock), then re-run setup"
-    elif grep -qs '^ANTHROPIC_API_KEY=.' "$AGENTI_ROOT/shared/secrets.env"; then
+    elif "$KS_PY" "$KEYSTORE_PY" get --tier shared 2>/dev/null | grep -q '^ANTHROPIC_API_KEY=.'; then
         ok "a key is already set — skipped (replace it:  sudo $SET_SECRET_SH)"
     else
         echo "  Claude runs use it. Get one at https://console.anthropic.com/ (it starts sk-ant-)."
@@ -6321,23 +6508,30 @@ import disk_encryption
 storage = disk_encryption.status(root)
 if storage["encrypted"] is False:
     storage["warning"] = disk_encryption.WARNING
+# The API keys: encrypted on disk (keystore.py); whether they are unlocked,
+# and how they are sealed. Never a key, never a path.
+import keystore
+ks = keystore.status(root)
+keys = {k: ks[k] for k in ("state", "seal", "tpm", "needs_passphrase")}
 # Provider readiness is resolved through the same per-key tiers as a run.
 import provider_settings
 providers = {}
-if vault != "locked":
+if vault != "locked" and ks["state"] != "locked":
     try:
         providers = provider_settings.status(Path(root), owner)
-        for candidate in (Path(root) / "org").glob("*/secrets.env"):
-            if candidate.parent.name == "users":
+        for rel in keystore.all_tiers(root):
+            parts = rel.split("/")
+            if len(parts) != 2 or parts[0] != "org":
                 continue
-            for name, info in provider_settings.status(Path(root), owner, candidate.parent.name).items():
+            for name, info in provider_settings.status(Path(root), owner, parts[1]).items():
                 if info["ready"]:
                     providers[name] = info
     except (OSError, ValueError, SystemExit):
         providers = {}
-api_key = ("unknown" if vault == "locked" or not providers else
+api_key = ("unknown" if vault == "locked" else "locked" if ks["state"] == "locked" else
+           "unknown" if not providers else
            "set" if any(p["ready"] for p in providers.values()) else "missing")
-result = {"owner": owner, "vault": vault, "storage": storage, "api_key": api_key,
+result = {"owner": owner, "vault": vault, "storage": storage, "api_key": api_key, "keys": keys,
           "providers": providers, "slots": out_slots, "teams": teams}
 if as_json == "1":
     print(json.dumps(result))
@@ -6786,6 +6980,11 @@ case "${1:-}" in
                shift 2; cmd_vault_enable_web "$@"; exit 0
            fi
            console_only "vault ${2:-status}"; shift; cmd_vault "$@"; exit 0 ;;
+    keys) need_root
+          if [[ "$(invoking_user)" == "${AGENTI_API_USER:-agenti-api}" ]]; then
+              shift; cmd_keys_web "$@"; exit 0
+          fi
+          shift; cmd_keys "$@"; exit 0 ;;
     setup) need_root; console_only setup; cmd_setup; exit 0 ;;
     setup-code) need_root; console_only setup-code; shift; cmd_setup_code "$@"; exit 0 ;;
     verify)

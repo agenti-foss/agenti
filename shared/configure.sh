@@ -53,6 +53,8 @@ RETENTION_SERVICE="$SYSTEMD_DIR/agenti-retention.service"
 RETENTION_TIMER="$SYSTEMD_DIR/agenti-retention.timer"
 RELAY_UNIT="$SYSTEMD_DIR/agenti-relay.service"
 RELAY_SOCKET="$SYSTEMD_DIR/agenti-relay.socket"
+KEYS_UNIT="$SYSTEMD_DIR/agenti-keys.service"
+KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
 
 ok()   { printf '  [ OK ] %s\n' "$*"; }
 warn() { printf '  [WARN] %s\n' "$*"; }
@@ -285,6 +287,7 @@ configure_data() {
     fi
     install -d -o root -g "$SVC_USER" -m 0750 "$AGENTI_ROOT/org"
     install -d -o root -g "$SVC_USER" -m 0750 "$AGENTI_ROOT/org/teams"
+    configure_keys
     local a n=0
     while read -r a; do
         [[ -n "$a" ]] || continue
@@ -298,6 +301,26 @@ configure_data() {
 # ---------------------------------------------------------------------------
 # units
 # ---------------------------------------------------------------------------
+# The API keys are encrypted at all times (keystore.py, operator decision
+# 2026-11-08). A box upgraded from before 0.1.4 has plain key files: they are
+# encrypted here when this machine has a TPM or an open vault; otherwise they
+# keep working, and the dashboard warns until an admin sets a key passphrase.
+configure_keys() {
+    local st state
+    st=$("$KS_PY" "$AGENTI_LIBDIR/keystore.py" status 2>/dev/null) || { warn "could not read the API keys' state (sudo agenti keys status)"; return 0; }
+    state=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
+    if [[ "$state" == plain ]]; then
+        if [[ "$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["needs_passphrase"])')" == True ]]; then
+            warn "the API keys are NOT encrypted yet (saved before 0.1.4; this machine has no TPM and no vault)."
+            warn "  set a key passphrase:  sudo agenti keys seal   (or Settings → Platform → API key encryption)"
+        elif "$KS_PY" "$AGENTI_LIBDIR/keystore.py" seal >/dev/null 2>&1; then
+            ok "API keys encrypted. Plain copies saved before may linger in the disk's free space: rotate those keys at the provider."
+        else
+            warn "the API keys could not be encrypted (sudo agenti keys seal says why)"
+        fi
+    fi
+}
+
 installed_agents() {
     local d n
     for d in "$AGENTI_SHIPPED_AGENTS"/*/ "$AGENTI_BUILT_AGENTS"/*/; do
@@ -557,7 +580,25 @@ CapabilityBoundingSet=
 MemoryMax=256M
 TasksMax=256
 EOF
-    chmod 0644 "$AUTHD_UNIT" "$API_UNIT" "$API_SOCKET" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET"
+    cat > "$KEYS_UNIT" <<EOF
+# Rendered by $AGENTI_LIBDIR/configure.sh — DO NOT hand-edit.
+# The API keys are encrypted on disk (keystore.py). Sealed by this machine's
+# TPM, they unlock here, at start-up, into the in-memory /run/agenti-keys.
+# Sealed by the vault or a key passphrase, this does nothing: someone unlocks.
+[Unit]
+Description=Agenti API keys — unlock the TPM-sealed keys at start-up
+After=local-fs.target
+Before=agenti-api.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$KS_PY $AGENTI_LIBDIR/keystore.py unlock --auto
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    chmod 0644 "$AUTHD_UNIT" "$API_UNIT" "$API_SOCKET" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET" "$KEYS_UNIT"
     reload
     if is_loopback "$BIND_HOST"; then ok "GUI on $(listen_addr "$BIND_HOST" "$BIND_PORT") (this machine only${HOSTNAME:+; public name $HOSTNAME})"
     elif is_wildcard "$BIND_HOST"; then ok "GUI on port $BIND_PORT of every network address, over HTTPS (password + 2FA protect it)"
@@ -605,6 +646,9 @@ clean_bytecode() { find "$AGENTI_LIBDIR" -name __pycache__ -type d -prune -exec 
 start_services() {
     local first="$1"
     have_systemd || { warn "systemd is not running here — nothing was started"; return 0; }
+    # Starts on boot: a oneshot that unlocks TPM-sealed API keys (invariant 5).
+    systemctl enable --quiet agenti-keys.service
+    systemctl start agenti-keys.service 2>/dev/null || warn "the API keys did not unlock (sudo agenti keys status)"
     if [[ $first -eq 1 ]]; then
         systemctl enable --quiet agenti-authd.service agenti-api.socket agenti-api.service agenti-retention.timer \
             agenti-relay.socket
@@ -788,12 +832,14 @@ cmd_remove() {
     if have_systemd; then
         systemctl stop 'agenti-*-instance@*.service' 2>/dev/null || true
         systemctl disable --now --quiet agenti-api.service agenti-api.socket agenti-authd.service agenti-retention.timer \
-            agenti-relay.socket 2>/dev/null || true
+            agenti-relay.socket agenti-keys.service 2>/dev/null || true
         systemctl stop agenti-retention.service agenti-relay.service 2>/dev/null || true
     fi
     local p
     while read -r p; do rm -rf "${p:?}"; done < <(all_unit_paths)
-    rm -f "$API_UNIT" "$API_SOCKET" "$AUTHD_UNIT" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET" "$SUDOERS_DST" "$SUDOERS_DST.agenti-new"
+    rm -f "$API_UNIT" "$API_SOCKET" "$AUTHD_UNIT" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET" "$KEYS_UNIT" "$SUDOERS_DST" "$SUDOERS_DST.agenti-new"
+    # The unlocked keys live in memory: gone with Agenti (the encrypted files stay).
+    "$KS_PY" "$AGENTI_LIBDIR/keystore.py" lock >/dev/null 2>&1 || true
     clean_bytecode
     reload
     ok "stopped; units and the sudoers grant removed (settings, accounts and data kept)"

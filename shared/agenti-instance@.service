@@ -64,10 +64,16 @@ Environment=PYTHONUNBUFFERED=1
 Environment=CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 
 # GATE 2 — credentials: platform, organization, agent, then slot; last wins.
-# Read by systemd before the filesystem rules below apply.
+# Read by systemd (as root) before the filesystem rules below apply. The keys
+# are encrypted on disk (keystore.py); their unlocked copies exist only in the
+# in-memory /run/agenti-keys, root 0700, which the run itself cannot see. The
+# data-root paths are a box upgraded from before 0.1.4 with no seal yet.
 EnvironmentFile=-__ROOT__/shared/secrets.env
+EnvironmentFile=-__KEYS__/shared/secrets.env
 EnvironmentFile=-__ROOT__/org/secrets.env
+EnvironmentFile=-__KEYS__/org/secrets.env
 EnvironmentFile=-__ROOT__/org/__AGENT__/secrets.env
+EnvironmentFile=-__KEYS__/org/__AGENT__/secrets.env
 EnvironmentFile=-__ROOT__/org/__AGENT__/instances/%i/secrets.env
 
 # GATE 3 — preflight (incl. the admin scope-approval, and a pending change
@@ -89,6 +95,7 @@ BindPaths=__ROOT__/org/__AGENT__/instances/%i
 BindReadOnlyPaths=-__ROOT__/org/__AGENT__/agent-scope.json -__ROOT__/org/__AGENT__/tool-settings.json -__ROOT__/org/engagement.json -__ROOT__/org/engagement-pending.json -__ROOT__/org/approval.json -__ROOT__/org/secrets.env -__ROOT__/org/__AGENT__/secrets.env
 ReadWritePaths=__ROOT__/org/__AGENT__/instances/%i
 ProtectHome=yes
+InaccessiblePaths=-__KEYS__
 PrivateTmp=yes
 # Processes: each run has its own PID namespace and its own /proc, so one run
 # cannot read another's working folder, environment (API key) or command line

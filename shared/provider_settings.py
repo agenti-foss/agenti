@@ -16,10 +16,11 @@ def settings(root: Path, owner: str, agent: str = "") -> dict:
     for name in (owner, agent):
         if name and not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", name):
             raise ValueError("use an Agenti username and an installed agent name")
-    org = root / "org"
-    return read_secrets([org / "users" / owner / "secrets.env" if owner else None,
-                         org / agent / "secrets.env" if agent else None,
-                         org / "secrets.env", root / "shared" / "secrets.env"])
+    import keystore
+    locked = keystore.locked_reason()
+    if locked:
+        raise ValueError(locked)
+    return read_secrets(keystore.tier_paths(root, owner or None, agent or None))
 
 
 def status(root: Path, owner: str, agent: str = "") -> dict:

@@ -54,6 +54,14 @@ if [[ -f "$AGENTI_VAULT_CONF" ]]; then
     [[ -n "$IMG" && -n "$MAPPER" ]] || { printf '\nERROR: %s is damaged (needs IMAGE= and MAPPER= lines).\n' "$AGENTI_VAULT_CONF" >&2; exit 1; }
 fi
 DEV="/dev/mapper/$MAPPER"
+# The API keys' encryption (keystore.py) follows the vault: a vault seal opens
+# and closes with it, so one unlock opens both (operator decision 2026-11-08).
+KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
+keystore() { "$KS_PY" "$HERE/keystore.py" "$@"; }
+keystore_field() { python3 -c 'import json,sys
+try: v=json.loads(sys.stdin.read()).get(sys.argv[1])
+except Exception: v=None
+print("" if v is None else v)' "$1"; }
 
 ok()   { printf '  [ OK ] %s\n' "$*"; }
 warn() { printf '  [WARN] %s\n' "$*"; }
@@ -184,6 +192,8 @@ cmd_enable() {
     [[ -e "$IMG" ]] && die "$IMG already exists (an old container?). Move or delete it first."
     [[ -e "$DATA.pre-vault" ]] && die "$DATA.pre-vault exists from an earlier attempt. Check it, then remove or restore it."
     no_active_runs
+    [[ "$(keystore status 2>/dev/null | keystore_field state)" != locked ]] \
+        || die "the API keys are locked; unlock them first (sudo agenti keys unlock) so they can move into the vault"
     local need avail
     need=$(du -sk "$DATA" | cut -f1)
     avail=$(df -Pk "$(dirname "$IMG")" | awk 'NR==2 {print $4}')
@@ -237,6 +247,7 @@ EOF
     umount "$_E_STAGING"; rmdir "$_E_STAGING"; _E_STAGING=""
 
     local had_key=0
+    # A plain key file from before 0.1.4 (keystore.py encrypts it below).
     find "$DATA" -name secrets.env -size +0 -print -quit 2>/dev/null | grep -q . && had_key=1
     mv "$DATA" "$DATA.pre-vault"; _E_MOVED=1
     install -d -o root -g root -m 0751 "$DATA"
@@ -251,14 +262,20 @@ EOF
     _E_DONE=1; trap - EXIT
     ok "vault mounted at $DATA"
     rm -rf "${DATA:?}.pre-vault" && ok "the unencrypted original was deleted (the checked copy is in the vault)"
+    local ks_out
+    if ks_out=$(keystore vault-enabled 2>/dev/null); then
+        ok "API keys sealed by $(printf '%s' "$ks_out" | keystore_field seal): $( [[ "$(printf '%s' "$ks_out" | keystore_field seal)" == vault ]] && echo "unlocking the vault unlocks them" || echo "they unlock by themselves")"
+    else
+        warn "the API keys could not follow the vault: $(printf '%s' "$ks_out" | keystore_field error) (sudo agenti keys status)"
+    fi
     rerender_units
 
     echo; echo "vault enabled."
     [[ $had_key -eq 1 ]] && cat <<EOF
 
-  An API key was stored before the vault was on. Deleted files can survive
-  on the disk until overwritten, so replace the key now (the new one is
-  stored inside the vault):  sudo /usr/lib/agenti/set-secret.sh
+  An API key was stored unencrypted before. It is encrypted now, but deleted
+  files can survive on the disk until overwritten: rotate that key at the
+  provider and save the new one (Settings → AI providers).
 EOF
     cat <<EOF
 
@@ -284,6 +301,27 @@ data is only as protected as this disk.
 EOF
     local reply; read -r -p "continue? [y/N] " reply
     [[ "$reply" =~ ^[Yy]$ ]] || { echo "nothing changed."; exit 0; }
+
+    # The API keys' seal lives in the vault: give it a new home first, or the
+    # key that decrypts them would land on the bare disk beside them.
+    local ks; ks=$(keystore status 2>/dev/null)
+    if [[ "$(printf '%s' "$ks" | keystore_field seal)" == vault ]]; then
+        local ks_args=(vault-disabling) kp="" kp2=""
+        if [[ "$(printf '%s' "$ks" | keystore_field tpm)" != True ]]; then
+            echo
+            echo "The API keys unlock with the vault today. Without it they need a key passphrase"
+            echo "(no TPM chip here): an admin types it after every restart."
+            read -rs -p "Choose a key passphrase (12+ characters): " kp; echo
+            read -rs -p "Type it again: " kp2; echo
+            [[ "$kp" == "$kp2" ]] || die "the two passphrases are not the same — nothing was changed"
+            ks_args+=(--passphrase-stdin)
+        fi
+        local ks_out
+        ks_out=$(printf '%s\n' "$kp" | keystore "${ks_args[@]}" 2>/dev/null) \
+            || die "the API keys could not leave the vault: $(printf '%s' "$ks_out" | keystore_field error) — nothing was changed"
+        kp=""; kp2=""
+        ok "API keys now sealed by $(printf '%s' "$ks_out" | keystore_field seal)"
+    fi
 
     install -d -o root -g root -m 0751 "$stage"
     cp -a "$DATA/." "$stage/" || { rm -rf "${stage:?}"; die "copy failed — the vault is untouched"; }
@@ -334,11 +372,20 @@ cmd_unlock() {
     chown root:root "$DATA"; chmod 0751 "$DATA"
     ok "mounted at $DATA"
     provision_data
+    local ks_out
+    if ks_out=$(keystore unlock --auto 2>/dev/null); then
+        [[ "$(printf '%s' "$ks_out" | keystore_field state)" != unlocked ]] || ok "API keys unlocked"
+        [[ "$(printf '%s' "$ks_out" | keystore_field state)" != locked ]] \
+            || warn "the API keys use their own passphrase: sudo agenti keys unlock"
+    else
+        warn "the API keys did not unlock: $(printf '%s' "$ks_out" | keystore_field error)"
+    fi
     echo; echo "unlocked. Agents can run until you lock or power off."
 }
 
 cmd_lock() {
     agenti_vault_enabled || { ok "the vault is off — there is nothing to lock (data: $DATA)"; exit 0; }
+    keystore lock >/dev/null 2>&1 && ok "API keys locked" || true
     if is_mounted; then
         if ! umount "$DATA" 2>/dev/null; then
             echo "cannot unmount — something is using $DATA:" >&2

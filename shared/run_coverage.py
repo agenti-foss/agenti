@@ -152,14 +152,16 @@ def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: s
                 reasons.append("invalid run owner; use an existing Agenti username with --owner")
             else:
                 from agent_runtime import read_secrets
-                tiers = [org_dir / "users" / owner / "secrets.env",
-                         org_dir / agent / "secrets.env", org_dir / "secrets.env",
-                         org_dir.parent / "shared" / "secrets.env"]
+                import keystore
+                tiers = keystore.tier_paths(org_dir.parent, owner, agent, org_dir=org_dir)
                 try:
                     # systemd loads the files, not the launching shell's environment.
                     values = read_secrets(tiers)
                     flag = f" --provider {provider.name}"
-                    if provider.key_required and not values.get(provider.key_env):
+                    locked = keystore.locked_reason()
+                    if locked:
+                        reasons.append(locked[0].upper() + locked[1:])
+                    elif provider.key_required and not values.get(provider.key_env):
                         reasons.append(f"no {provider.label} API key for this run; set one with: "
                                        f"sudo /usr/lib/agenti/set-secret.sh{flag}")
                     if provider.base_url_env:

@@ -72,7 +72,7 @@ def validate_name(name: str) -> None:
     # its own, so it can't import that one), plus the vault's own folders.
     reserved = {
         "shared", "lost+found", "list",
-        "new", "admin", "vault", "gui", "help", "docs", "agents", "setup", "setup-code", "verify",
+        "new", "admin", "vault", "keys", "gui", "help", "docs", "agents", "setup", "setup-code", "verify",
         "team", "outputs",
         "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
         "user-history", "rename",

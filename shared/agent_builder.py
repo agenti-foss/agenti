@@ -61,7 +61,7 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 # api/cli_bridge.py's RESERVED_NAMES) plus the vault's own folders.
 RESERVED = frozenset({
     "shared", "lost+found", "list", "lib", "agents",
-    "new", "admin", "vault", "gui", "help", "docs", "setup", "setup-code", "verify",
+    "new", "admin", "vault", "keys", "gui", "help", "docs", "setup", "setup-code", "verify",
     "team", "outputs",
     "engagement", "dashboard", "models", "principals", "users", "bindings", "principal-history",
     "user-history", "rename",

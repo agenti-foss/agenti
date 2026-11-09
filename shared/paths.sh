@@ -31,6 +31,8 @@ AGENTI_VAULT_CONF="$AGENTI_ETC/vault.conf"
 AGENTI_API_CONF="$AGENTI_ETC/api.conf"
 AGENTI_IAM_DB="${AGENTI_IAM_DB:-$AGENTI_STATE/iam.db}"
 AGENTI_RUNTIME_DB="${AGENTI_RUNTIME_DB:-$AGENTI_STATE/authd/runtime.db}"
+# The unlocked API keys: a root-only, in-memory folder (keystore.py).
+AGENTI_KEYS_RUN="${AGENTI_KEYS_RUN:-/run/agenti-keys}"
 # The local relay IP-scoped runs reach Anthropic through (egress_relay.py).
 AGENTI_RELAY_ADDR="${AGENTI_RELAY_ADDR:-127.0.0.1:8429}"
 

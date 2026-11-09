@@ -60,8 +60,8 @@ def status(path) -> dict:
     return {"encrypted": True, "how": how, "device": dev, "path": path}
 
 
-WARNING = ("Data from agents is currently not encrypted: reports, scans, attached files "
-           "and the API key are stored as plain files on this disk. Turn on the vault "
+WARNING = ("Data from agents is currently not encrypted: reports, scans and attached files "
+           "are stored as plain files on this disk (API keys are encrypted either way). Turn on the vault "
            "(Settings → Platform → Vault, or sudo agenti vault enable), or use full-disk "
            "encryption.")
 

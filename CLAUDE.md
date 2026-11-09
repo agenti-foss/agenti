@@ -81,7 +81,12 @@ deliberate).
    `CAP_NET_ADMIN`; AF_PACKET: trafficmon only; file-analysis agents get `CAP_SYS_ADMIN` in the **bounding
    set only** for bubblewrap).
 5. **Agent run units are never `systemctl enable`d** (only the GUI, the relay's port
-   socket (2026-10-23) and the retention timer start on boot). **The vault is optional** (operator decision
+   socket (2026-10-23), the retention timer and `agenti-keys` (a oneshot unlocking
+   TPM-sealed keys) start on boot). **API keys are encrypted at all times**
+   (2026-11-08, `keystore.py`): `secrets.enc` root 0600, sealed by TPM > vault >
+   key passphrase; unlocked copies only in `/run/agenti-keys` (tmpfs noswap, root
+   0700, read by systemd for EnvironmentFile=, InaccessiblePaths= in runs). No
+   verb returns a key; the web may only unlock / set the first passphrase (grant). **The vault is optional** (operator decision
    2026-10-20; full-disk encryption recommended instead): when on, the data root
    is a LUKS container, nothing that needs data runs until `agenti vault
    unlock`, and locked it is an empty `chattr +i` folder. Code is never inside.
@@ -116,7 +121,7 @@ deliberate).
 /var/lib/agenti/                  works while the vault is locked: iam.db (0640
   root:agenti-authd), authd/runtime.db (0700 agenti-authd), tls/
 /var/lib/agenti/data/             THE DATA ROOT ($AGENTI_ROOT); the vault's mount point
-├── shared/                       secrets.env (last of 4 key tiers: org/users/<u>/ (via
+├── shared/                       secrets.enc (last of 4 key tiers: org/users/<u>/ (via
 │                                 the slot's userkey.conf), org/<agent>/, org/, shared/), context/ (instruction
 │                                 edits, root 0700), agents/<a>/ (built in Settings)
 └── org/                          engagement.json approval.json engagement-history.jsonl
@@ -140,7 +145,7 @@ from `/proc/<pid>/mountinfo`.
 - `shared/agenti` — the bash CLI (every verb; `usage()` is the real docs).
   `configure.sh` (the ONE system setup: accounts, state, sudoers, units; the
   package's postinst/prerm and `deploy.sh` both run it), `verify.sh` (`agenti
-  verify`), `vault.sh` (optional vault), `set-secret.sh`, `deploy.sh` (dev).
+  verify`), `vault.sh` (optional vault), `set-secret.sh` → `keystore.py`, `deploy.sh` (dev).
 - Packaging: `packaging/install-tree.sh` (the ONE file list; every shared/ file
   is classified or the build stops), `build-deb.sh`, `build-runtime.sh`,
   `runtime/*.lock` + `python.pin`, `debian/` maintainer scripts, `test-install.sh`.

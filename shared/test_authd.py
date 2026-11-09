@@ -666,6 +666,12 @@ for _op in ("create-user", "vault-enable"):
            "action": {"op": _op, "principal": "x", "kind": "user", "role": "admin", "resource": "org"}
            if _op == "create-user" else {"op": _op, "size": "8G", "resource": "org"}})
     check(f"{_op} right after a successful approval, with no credentials -> refused", r["status"] in (400, 403), True)
+for _op in ("keys-unlock", "keys-seal"):
+    r = H({"op": "approve_action", "session_id": grace_sid, "action": {"op": _op, "resource": "org"}})
+    check(f"{_op} with no credentials -> refused", r["status"] in (400, 403), True)
+check("keys-unlock is bound to the op alone: nothing else reaches the grant",
+      authd.Service._validate_action({"action": {"op": "keys-unlock", "resource": "org", "passphrase": "smuggled"}}),
+      {"op": "keys-unlock", "resource": "org"})
 r = H({"op": "admin_grace_status", "session_id": grace_sid})
 check("the grace-status operation is gone", (r.get("ok"), r.get("status")), (False, 400))
 

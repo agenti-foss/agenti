@@ -27,6 +27,10 @@ Deliberately NOT exposed (see CLAUDE.md §4 step 5 for the full reasoning):
     cannot grant itself anything (shared/iam.py's module docstring).
   - vault unlock/lock/passphrase — NEVER exposed. The vault passphrase must
     never pass through any programmatic channel. Not deferred — refused.
+  - keys lock/passphrase change/reset, and reading a key in any form —
+    terminal only. The web may unlock the API keys and set their FIRST key
+    passphrase (operator decision 2026-11-08), each behind a fresh grant; the
+    key passphrase is a different secret from the vault's.
 """
 
 from __future__ import annotations
@@ -1630,6 +1634,9 @@ class ApiKeyRequest(BaseModel):
     provider: Literal["anthropic", "openai", "local"] = "anthropic"
     key: Annotated[str, Field(max_length=512, pattern=r"^\S*$")] = ""
     base_url: Annotated[str, Field(max_length=512)] = ""
+    # The first key on a box with no TPM and no vault: the key passphrase that
+    # seals it (dashboard keys.needs_passphrase). Never stored here.
+    passphrase: Optional[Annotated[str, Field(min_length=12, max_length=512)]] = None
     password: Optional[ArgValue] = None
     totp: Optional[ArgValue] = None
     reauth: Optional[ReauthToken] = None
@@ -1656,11 +1663,48 @@ def set_api_key(body: ApiKeyRequest, request: Request,
                totp=body.totp or "", action={"op": "set-api-key", "sha256": sha,
                                              "resource": iam.ORG_RESOURCE},
                addr=_client_addr(request))
+    extra = ["--with-passphrase"] if body.passphrase else []
     try:
         return run_agenti("admin", "set-api-key", f"--provider={body.provider}", f"--base-url={body.base_url}",
-                          f"--grant={g['grant']}", stdin_text=body.key + "\n")
+                          f"--grant={g['grant']}", *extra,
+                          stdin_text=body.key + "\n" + (body.passphrase + "\n" if body.passphrase else ""))
     except AgentiError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+class KeysPassphraseRequest(BaseModel):
+    passphrase: Annotated[str, Field(min_length=12, max_length=512)]
+    password: Optional[ArgValue] = None
+    totp: Optional[ArgValue] = None
+    reauth: Optional[ReauthToken] = None
+
+
+def _keys_action(verb: str, body: KeysPassphraseRequest, request: Request, caller: Caller, what: str) -> dict:
+    """Settings → Platform → API key encryption. Behind a fresh admin
+    re-authentication; the passphrase goes to root as the request BODY on
+    stdin, never an argument, so it is in no command line and no log."""
+    if any(ord(c) < 32 for c in body.passphrase):
+        raise HTTPException(status_code=422, detail="the passphrase may not contain line breaks or control characters")
+    sid = _session_for_approval(request, caller, what)
+    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
+               totp=body.totp or "", action={"op": f"keys-{verb}", "resource": iam.ORG_RESOURCE},
+               addr=_client_addr(request))
+    try:
+        return run_agenti("keys", verb, f"--grant={g['grant']}", stdin_text=body.passphrase + "\n", timeout=60)
+    except AgentiError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+@app.post("/admin/keys/unlock")
+def keys_unlock(body: KeysPassphraseRequest, request: Request,
+                caller: Caller = Depends(require("iam:manage"))) -> dict:
+    return _keys_action("unlock", body, request, caller, "Unlocking the API keys")
+
+
+@app.post("/admin/keys/seal")
+def keys_seal(body: KeysPassphraseRequest, request: Request,
+              caller: Caller = Depends(require("iam:manage"))) -> dict:
+    return _keys_action("seal", body, request, caller, "Encrypting the API keys")
 
 
 class VaultEnableRequest(BaseModel):

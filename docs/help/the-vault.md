@@ -4,8 +4,9 @@
 
 ## The short version
 
-- The vault keeps Agenti's data (reports, scan data, attached files, API keys)
-  in an **encrypted file**. When it is locked, the data can't be read without
+- The vault keeps Agenti's data (reports, scan data, attached files) in an
+  **encrypted file**. (API keys are encrypted whether the vault is on or not;
+  with the vault on, unlocking it unlocks them too: see API key encryption.) When it is locked, the data can't be read without
   your passphrase.
 - **The cost:** after **every** reboot, someone must run
   `sudo agenti vault unlock` and type the passphrase before anyone can start an
@@ -53,10 +54,12 @@ Either way, Agenti then:
 If anything fails before step 3, nothing is lost: the data stays exactly as it
 was.
 
-If an API key was stored before the vault was turned on, Agenti tells you to
-replace it, because deleted files can linger on the disk until overwritten.
-`sudo agenti setup` asks about the vault before the API key, so a key set there
-goes straight into the vault.
+If an API key was saved unencrypted before (an install older than 0.1.4),
+Agenti encrypts it and tells you to replace it at the provider, because deleted
+files can linger on the disk until overwritten.
+
+Turning the vault **off** on a machine without a TPM chip asks for a key
+passphrase: the API keys used to unlock with the vault and now need their own.
 
 ## Every day
 

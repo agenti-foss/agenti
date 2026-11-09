@@ -129,6 +129,13 @@ check("decision 6: only 'vault enable' with its grant reaches root; every other 
        allowed(["vault", "unlock"]), allowed(["vault", "disable", "--grant=G"]),
        allowed(["vault", "enable", "--size=8G", "--grant=G", "--passphrase-stdin"])),
       (True, False, False, False, False))
+check("API keys: only unlock and seal, each with exactly one grant, reach root; nothing returns a key",
+      (allowed(["keys", "unlock", "--grant=G"]), allowed(["keys", "seal", "--grant=G", "--json"]),
+       allowed(["keys", "unlock"]), allowed(["keys", "unlock", "--grant=G", "--grant=H"]),
+       allowed(["keys", "lock", "--grant=G"]), allowed(["keys", "reset", "--grant=G"]),
+       allowed(["keys", "passphrase", "--grant=G"]), allowed(["keys", "status"]),
+       allowed(["keys", "unlock", "--grant=G", "--passphrase-stdin"])),
+      (True, True, False, False, False, False, False, False, False))
 check("logs with -n N and the run options passes", allowed(["enum", "logs", "-n", "50", "--owner", "op1", "--copy", "run-ab12cd34", "--json"]), True)
 
 section("audit run 2: only an installed agent's name opens the agent verbs")

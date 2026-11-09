@@ -128,6 +128,31 @@ document.addEventListener("DOMContentLoaded", async function () {
     await Agenti.dismissibleBanner(keyBanner, "no-provider");
   }
 
+  // The API keys (encrypted at all times): locked after a restart, or, on a
+  // box upgraded from before 0.1.4 with no TPM and no vault, not encrypted
+  // until an admin sets a key passphrase. Neither may be dismissed: each
+  // needs someone to act, and the fix is one step.
+  const keys = dash.keys || {};
+  if (!viewUser && dash.vault !== "locked" && (keys.state === "locked" || keys.state === "plain")) {
+    const me = await Agenti.me().catch(() => ({}));
+    const admin = (me.permissions || []).includes("iam:manage");
+    const kb = document.getElementById("keys-banner");
+    if (keys.state === "locked") {
+      kb.className = "banner err";
+      kb.innerHTML = `<strong>The API keys are locked after a restart.</strong> No run can start until they are unlocked. `
+        + (keys.seal === "vault" ? `Unlock the vault at the server: <code>sudo agenti vault unlock</code>`
+           : admin ? `<a href="settings.html#platform">Unlock them</a> in Settings → Platform.`
+           : `Ask an admin to unlock them (Settings → Platform).`);
+    } else {
+      kb.className = "banner warn";
+      kb.innerHTML = `<strong>The API keys are not encrypted yet.</strong> `
+        + (admin ? `<a href="settings.html#platform">Set a key passphrase</a> in Settings → Platform to encrypt them.`
+                 : `Ask an admin to encrypt them (Settings → Platform).`);
+    }
+    Agenti.cardBanner(kb, keys.state === "locked" ? "lock" : "warning");
+    kb.classList.add("show");
+  }
+
   if (dash.vault === "locked") {
     Agenti.banner(pageBanner, "err",
       "The vault is locked — no agent can run, and reports can't be read, until someone unlocks it on the host: sudo agenti vault unlock");
@@ -140,7 +165,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const me = await Agenti.me().catch(() => ({}));
     const admin = (me.permissions || []).includes("iam:manage");
     const storageBanner = document.getElementById("storage-banner");
-    storageBanner.innerHTML = `<strong>Data from agents is currently not encrypted.</strong> Reports, scans, attached files and the API key are stored as plain files on this server's disk. `
+    storageBanner.innerHTML = `<strong>Data from agents is currently not encrypted.</strong> Reports, scans and attached files are stored as plain files on this server's disk. `
       + (admin ? `<a href="settings.html#platform">Turn on the vault</a> in Settings → Platform.`
                : `Ask an admin to turn on the vault (Settings → Platform).`);
     storageBanner.classList.add("show");

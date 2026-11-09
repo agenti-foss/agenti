@@ -2641,6 +2641,10 @@ mark.docs-mark {
 .provider-card .provider-form .field.wide { flex-basis: 100%; }
 .provider-card .provider-form input { width: 100%; max-width: none; }
 .provider-card .provider-form .btn { flex: 0 0 auto; }
+/* The first key on a box with no TPM and no vault: its key passphrase. */
+.provider-card .provider-form .key-pass-fields { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.provider-card .provider-form .key-pass-fields[hidden] { display: none; }
+.provider-card .provider-form .key-pass-fields .hint { flex-basis: 100%; margin: 0; }
 #providers-list { gap: var(--space-4); }
 .provider-card .provider-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); font-size: 0.86rem; }
 .provider-card .provider-foot .check-result { color: var(--text-dim); }

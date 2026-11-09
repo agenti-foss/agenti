@@ -821,6 +821,25 @@ def web_approve_vault_enable(conn, runtime, size: str, grant_id: str) -> str:
     return approver
 
 
+KEYS_OPS = ("keys-unlock", "keys-seal")
+
+
+def web_approve_keys(conn, runtime, op: str, grant_id: str) -> str:
+    """Consumes a 'keys-unlock' or 'keys-seal' grant (Settings → Platform →
+    API key encryption) and re-checks, fresh, that the approver is an admin.
+    Unlocking restores the runs' ability to start, so it is behind a grant
+    like every other restoration of authority (invariant 9). Returns the
+    approver; keystore.py does the work, the passphrase never comes here."""
+    if op not in KEYS_OPS:
+        raise IAMError(f"not a key-encryption action: {op!r}")
+    action = {"op": op, "resource": ORG_RESOURCE}
+    approver = consume_action_grant(runtime, grant_id, action)
+    if not check(conn, approver, "iam:manage", ORG_RESOURCE).allowed:
+        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
+                       f"Nothing was changed.")
+    return approver
+
+
 def web_approve_api_key(conn, runtime, sha256: str, grant_id: str) -> str:
     """Consumes a 'set-api-key' grant for exactly this key (its SHA-256: the
     key itself never reaches authd) and re-checks, fresh, that the approver is
@@ -1915,10 +1934,14 @@ def delete_principal(conn, runtime, name: str, actor: str) -> dict:
     _revoke_sessions(runtime, name)
     # Their own API key is a credential: it goes with the account. (Memory is
     # kept, like reports: the name is tombstoned, so nobody inherits it.)
-    try:
-        (org_dir() / "users" / name / "secrets.env").unlink()
-    except OSError:
-        pass
+    # Encrypted (secrets.enc), its unlocked copy, and any pre-0.1.4 plain file.
+    users = org_dir() / "users" / name
+    for p in (users / "secrets.env", users / "secrets.enc",
+              Path(os.environ.get("AGENTI_KEYS_RUN", "/run/agenti-keys")) / "org" / "users" / name / "secrets.env"):
+        try:
+            p.unlink()
+        except OSError:
+            pass
     _append_principal_history({"ts": time.time(), "event": "deleted",
                                "name": name, "by": actor})
     return {"name": name, "deleted": True}
@@ -3694,6 +3717,11 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
     q.add_argument("--size", required=True)
     q.add_argument("--grant", required=True)
 
+    q = add("approve-keys", "consume a keys-unlock or keys-seal approval grant and return who "
+            "approved it — agenti keys does the work")
+    q.add_argument("--op", required=True, choices=KEYS_OPS)
+    q.add_argument("--grant", required=True)
+
     q = add("approve-api-key", "consume a set-api-key approval grant for exactly this key "
             "(its SHA-256) and return who approved it — agenti admin set-api-key does the work")
     q.add_argument("--sha256", required=True)
@@ -4303,6 +4331,17 @@ def _main() -> int:  # pragma: no cover - exercised via the CLI
                 raise IAMError(f"cannot open the runtime store ({e}).")
             try:
                 approver = web_approve_agent_build(conn, rt, action, a.grant)
+            finally:
+                rt.close()
+            return emit({"approved_by": approver}, [f"  ✓ approved by {approver}"])
+
+        if a.cmd == "approve-keys":
+            try:
+                rt = open_runtime()
+            except Exception as e:
+                raise IAMError(f"cannot open the runtime store ({e}).")
+            try:
+                approver = web_approve_keys(conn, rt, a.op, a.grant)
             finally:
                 rt.close()
             return emit({"approved_by": approver}, [f"  ✓ approved by {approver}"])

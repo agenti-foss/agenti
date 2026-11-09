@@ -143,7 +143,8 @@ with tempfile.TemporaryDirectory() as td:
     r = sh(sd, 'userkey_dropin bob')
     check("the owner's own key file is loaded last, optional (N01)",
           [l for l in r.stdout.splitlines() if l.startswith("EnvironmentFile")]
-          == [f"EnvironmentFile=-{td}/data/org/users/bob/secrets.env"], r.stdout)
+          == [f"EnvironmentFile=-{td}/data/org/users/bob/secrets.env",
+              "EnvironmentFile=-/run/agenti-keys/org/users/bob/secrets.env"], r.stdout)
 
     print("write_dropin / remove_dropin")
     u = "agenti-enum-instance@carol.team-q.service"

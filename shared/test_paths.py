@@ -19,7 +19,7 @@ import paths  # noqa: E402
 
 PASS = FAIL = 0
 NAMES = ("AGENTI_LIBDIR", "AGENTI_RUNTIME", "AGENTI_STATE", "AGENTI_ROOT", "AGENTI_ETC",
-         "AGENTI_BIN", "AGENTI_IAM_DB", "AGENTI_RUNTIME_DB", "AGENTI_SHIPPED_AGENTS", "AGENTI_BUILT_AGENTS")
+         "AGENTI_BIN", "AGENTI_IAM_DB", "AGENTI_RUNTIME_DB", "AGENTI_SHIPPED_AGENTS", "AGENTI_BUILT_AGENTS", "AGENTI_KEYS_RUN")
 
 
 def check(name, got, want):
@@ -54,7 +54,8 @@ def from_python(env):
                 "AGENTI_ETC": str(paths.etc()), "AGENTI_BIN": str(paths.agenti_bin()),
                 "AGENTI_IAM_DB": str(paths.iam_db()), "AGENTI_RUNTIME_DB": str(paths.runtime_db()),
                 "AGENTI_SHIPPED_AGENTS": str(paths.shipped_agents()),
-                "AGENTI_BUILT_AGENTS": str(paths.built_agents())}
+                "AGENTI_BUILT_AGENTS": str(paths.built_agents()),
+                "AGENTI_KEYS_RUN": str(paths.keys_run())}
     finally:
         os.environ.clear()
         os.environ.update(saved)

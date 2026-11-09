@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# set-secret.sh — install an AI provider's API key into the data root (the
-# vault, when it is enabled). Run through `sudo agenti setup` or `sudo agenti <agent> set-key`.
+# set-secret.sh — install an AI provider's API key, encrypted (keystore.py:
+# AES-256-GCM on disk, sealed by the TPM, the vault or a key passphrase). Run
+# through `sudo agenti setup` or `sudo agenti <agent> set-key`.
 #
 #   --provider anthropic   ANTHROPIC_API_KEY (the default)
 #   --provider openai      OPENAI_API_KEY
@@ -24,14 +25,16 @@
 #   set-secret.sh --agent enum         -> <data root>/org/enum/secrets.env            (per-agent)
 #   set-secret.sh --user alice         -> <data root>/org/users/alice/secrets.env     (per-user)
 #
-# PERMISSIONS DIFFER BY TIER, deliberately:
-#   shared:               0640 root:agenti-shared — every service account is a
-#                         member of agenti-shared.
-#   org / agent / user:   0600 agenti-run:agenti-run — owned by the one account
-#                         that runs the agents.
+# STORAGE: <tier>/secrets.enc, root 0600, encrypted; the unlocked copy lives
+# only in the in-memory folder /run/agenti-keys (root 0700). A box upgraded
+# from before 0.1.4 with no TPM and no vault keeps plain secrets.env files
+# (shared 0640 root:agenti-shared, others 0600 agenti-run) until an admin sets
+# a key passphrase: sudo agenti keys seal.
 #
 # Usage:  sudo ./set-secret.sh [--provider anthropic|openai|local] [--base-url <url>]
-#                               [--org | --agent <a> | --user <u>] [--show | --stdin]
+#                               [--org | --agent <a> | --user <u>] [--show | --stdin | --remove]
+#         --stdin --passphrase-first: stdin's first line is a new key passphrase
+#         (a box with no TPM and no vault, before its first key), the second the key.
 #
 set -euo pipefail
 
@@ -47,6 +50,8 @@ die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 ORG=0
 STDIN=0        # --stdin: the key is the first line of stdin, no questions (Settings → Platform)
+PASS_FIRST=0   # --passphrase-first: a key passphrase line comes before the key
+REMOVE=0
 AGENT=""
 USER_NAME=""
 PROVIDER="anthropic"
@@ -73,6 +78,8 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         --show) break ;;
         --stdin) STDIN=1; shift ;;
+        --passphrase-first) PASS_FIRST=1; shift ;;
+        --remove) REMOVE=1; shift ;;
         *) break ;;
     esac
 done
@@ -82,26 +89,36 @@ tiers=$ORG
 [[ -z "$AGENT" ]] || tiers=$((tiers + 1))
 [[ -z "$USER_NAME" ]] || tiers=$((tiers + 1))
 [[ $tiers -le 1 ]] || die "choose one tier: --org, --agent or --user"
-[[ $# -eq 0 || ( $# -eq 1 && "$1" == --show ) ]] || die "unknown option '$1'; use --provider anthropic|openai|local [--base-url URL] [--org | --agent NAME | --user NAME] [--stdin | --show]"
+[[ $# -eq 0 || ( $# -eq 1 && "$1" == --show ) ]] || die "unknown option '$1'; use --provider anthropic|openai|local [--base-url URL] [--org | --agent NAME | --user NAME] [--stdin | --show | --remove]"
+[[ $PASS_FIRST -eq 0 || $STDIN -eq 1 ]] || die "--passphrase-first goes with --stdin"
 
 if [[ -n "$USER_NAME" ]]; then
+    REL="org/users/$USER_NAME"
     PREFIX="$AGENTI_ROOT/org/users/$USER_NAME"
     OWNER="$SVC_USER"
     TIER="per-user ($USER_NAME)"
 elif [[ -n "$AGENT" ]]; then
+    REL="org/$AGENT"
     PREFIX="$AGENTI_ROOT/org/$AGENT"
     OWNER="$SVC_USER"
     TIER="agent-specific ($AGENT)"
 elif [[ $ORG -eq 1 ]]; then
+    REL="org"
     PREFIX="$AGENTI_ROOT/org"
     OWNER="$SVC_USER"
     TIER="org-wide"
 else
+    REL="shared"
     PREFIX="$AGENTI_ROOT/shared"
     OWNER=""            # shared tier: root:agenti-shared, not one account
     TIER="shared"
 fi
-SECRETS="$PREFIX/secrets.env"
+# keystore.py needs the cryptography package: the bundled runtime's Python.
+KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
+KEYSTORE=("$KS_PY" "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/keystore.py")
+ks_field() { python3 -c 'import json,sys
+d=json.loads(sys.stdin.read() or "{}"); v=d.get(sys.argv[1]); print("" if v is None else v)' "$1"; }
+ks_error() { printf '%s' "$1" | ks_field error; }
 case "$PROVIDER" in
     anthropic) KEY_VAR=ANTHROPIC_API_KEY; KEY_LABEL="Anthropic"; KEY_PREFIX="sk-ant-" ;;
     openai)    KEY_VAR=OPENAI_API_KEY;    KEY_LABEL="OpenAI";    KEY_PREFIX="sk-" ;;
@@ -127,36 +144,68 @@ if [[ -n "$OWNER" ]]; then
     id "$OWNER" &>/dev/null || die "service account '$OWNER' missing — recreate it:  sudo dpkg-reconfigure agenti"
 fi
 
+# The tier's current lines (decrypted in memory; nothing is written).
+current_text() { "${KEYSTORE[@]}" get --tier "$REL" 2>/dev/null || true; }
+STATUS=$("${KEYSTORE[@]}" status 2>/dev/null) || STATUS='{}'
+KSTATE=$(printf '%s' "$STATUS" | ks_field state)
+
+# --- remove mode ------------------------------------------------------------
+if [[ $REMOVE -eq 1 ]]; then
+    "${KEYSTORE[@]}" forget --tier "$REL" >/dev/null || die "the $TIER keys could not be removed"
+    echo "  [ OK ] the $TIER keys are removed"
+    exit 0
+fi
+
 # --- status mode ------------------------------------------------------------
 if [[ "${1:-}" == "--show" ]]; then
-    if [[ -f "$SECRETS" ]]; then
-        mode=$(stat -c '%a' "$SECRETS"); owner=$(stat -c '%U:%G' "$SECRETS")
-        echo "secrets.env ($TIER) present: mode $mode, owner $owner"
+    case "$KSTATE" in
+        unlocked) echo "keys: encrypted ($(printf '%s' "$STATUS" | ks_field seal) seal), unlocked" ;;
+        locked)   die "the keys are locked, so nothing can be shown. Unlock them:  sudo agenti keys unlock" ;;
+        plain)    echo "keys: NOT encrypted (set a key passphrase:  sudo agenti keys seal)" ;;
+        *)        echo "keys: none saved yet" ;;
+    esac
+    TEXT=$(current_text)
+    if [[ -n "$TEXT" ]]; then
+        echo "$TIER tier:"
         # Show ONLY a fingerprint — never the key.
         for var in ANTHROPIC_API_KEY OPENAI_API_KEY LOCAL_LLM_API_KEY; do
-            if grep -q "^$var=." "$SECRETS"; then
-                key=$(grep "^$var=" "$SECRETS" | head -1 | cut -d= -f2-)
+            key=$(printf '%s\n' "$TEXT" | sed -n "s/^$var=//p" | head -1)
+            if [[ -n "$key" ]]; then
                 echo "$var set: ${key:0:7}… (${#key} chars, sha256 $(printf '%s' "$key" | sha256sum | cut -c1-12))"
             else
                 echo "$var: NOT SET"
             fi
         done
-        url=$(sed -n 's/^LOCAL_LLM_BASE_URL=//p' "$SECRETS" | head -1)
+        url=$(printf '%s\n' "$TEXT" | sed -n 's/^LOCAL_LLM_BASE_URL=//p' | head -1)
         echo "LOCAL_LLM_BASE_URL: ${url:-NOT SET}"
+        unset TEXT key
     else
-        echo "secrets.env ($TIER) not present at $SECRETS"
+        echo "$TIER tier: no keys"
     fi
     exit 0
 fi
 
+[[ "$KSTATE" != locked ]] || die "the API keys are locked, so no key can be written. Unlock them first:  sudo agenti keys unlock"
+
 # --- write mode -------------------------------------------------------------
+PASSPHRASE=""
 if [[ $STDIN -eq 1 ]]; then
+    [[ $PASS_FIRST -eq 0 ]] || IFS= read -r PASSPHRASE || true
     IFS= read -r API_KEY || true
 else
-    if [[ -f "$SECRETS" ]] && grep -q "^$KEY_VAR=." "$SECRETS"; then
-        echo "$SECRETS ($TIER) already holds a $KEY_LABEL key; this will REPLACE it."
+    if current_text | grep -q "^$KEY_VAR=."; then
+        echo "The $TIER tier already holds a $KEY_LABEL key; this will REPLACE it."
         read -r -p "continue? [y/N] " reply
         [[ "$reply" =~ ^[Yy]$ ]] || { echo "aborted."; exit 0; }
+    fi
+    if [[ "$(printf '%s' "$STATUS" | ks_field needs_passphrase)" == True && "$KSTATE" == none ]]; then
+        echo "This machine has no TPM chip and the vault is off, so the API keys are"
+        echo "encrypted with a key passphrase. After every restart, an admin unlocks them"
+        echo "(Settings → Platform, or sudo agenti keys unlock). Store it somewhere safe."
+        read -rs -p "Choose a key passphrase (12+ characters): " PASSPHRASE; echo
+        read -rs -p "Type it again: " p2; echo
+        [[ "$PASSPHRASE" == "$p2" ]] || die "the two passphrases are not the same"
+        unset p2
     fi
     if [[ "$PROVIDER" == local ]]; then
         echo "Paste the self-hosted model's API key, or just press Enter if it needs none."
@@ -173,78 +222,36 @@ fi
 [[ -z "$KEY_PREFIX" || "$API_KEY" == "$KEY_PREFIX"* ]] \
     || die "that does not look like an $KEY_LABEL key (expected it to start with '$KEY_PREFIX')"
 [[ "$API_KEY" != *[[:space:]]* ]] || die "the key contains whitespace — likely a bad paste"
-[[ "$PROVIDER" != local || -n "$BASE_URL" ]] || grep -qs '^LOCAL_LLM_BASE_URL=.' "$SECRETS" \
+[[ "$PROVIDER" != local || -n "$BASE_URL" ]] || current_text | grep -qs '^LOCAL_LLM_BASE_URL=.' \
     || die "a self-hosted model needs its address: add --base-url http://<host>:<port>/v1"
 
-# Write via a temp file in the same directory, then atomically move it, so
-# the key is never briefly readable at a looser mode.
-TMP=$(mktemp "$PREFIX/.secrets.XXXXXX")
-if [[ -n "$OWNER" ]]; then
-    chmod 600 "$TMP"
-else
-    chmod 640 "$TMP"
-fi
-{
-    cat <<EOF
-# secrets.env ($TIER) — loaded by the harness via agent_runtime.load_secrets()'s
-# ordered candidate list. $( [[ -n "$OWNER" ]] && echo "0600 ${OWNER}:${OWNER}." || echo "0640 root:${SHARED_GROUP} — the service account is a member." )
-# Never commit this file anywhere.
-EOF
-    # Every other provider's line stays as it was; this one is replaced.
-    if [[ -f "$SECRETS" ]]; then
-        grep -E '^[A-Z_]+=' "$SECRETS" | grep -v "^$KEY_VAR=" \
-            | { if [[ -n "$BASE_URL" ]]; then grep -v '^LOCAL_LLM_BASE_URL='; else cat; fi; } || true
-    fi
-    [[ -n "$API_KEY" ]] && printf '%s=%s\n' "$KEY_VAR" "$API_KEY"
-    [[ -n "$BASE_URL" ]] && printf 'LOCAL_LLM_BASE_URL=%s\n' "$BASE_URL"
-    true
-} > "$TMP"
-if [[ -n "$OWNER" ]]; then
-    chown "$OWNER:$OWNER" "$TMP"
-else
-    chown "root:$SHARED_GROUP" "$TMP"
-fi
-mv -f "$TMP" "$SECRETS"
-unset API_KEY
+# The tier's new text: every other provider's line as it was, this one replaced.
+# It goes to keystore.py on stdin, never an argument or a file.
+PUT_ARGS=(put --tier "$REL")
+[[ -z "$PASSPHRASE" ]] || PUT_ARGS+=(--passphrase-first)
+OUT=$({
+    [[ -z "$PASSPHRASE" ]] || printf '%s\n' "$PASSPHRASE"
+    echo "# $TIER keys. Never commit or copy this anywhere."
+    current_text | grep -E '^[A-Z_]+=' | grep -v "^$KEY_VAR=" \
+        | { if [[ -n "$BASE_URL" ]]; then grep -v '^LOCAL_LLM_BASE_URL='; else cat; fi; } || true
+    [[ -z "$API_KEY" ]] || printf '%s=%s\n' "$KEY_VAR" "$API_KEY"
+    [[ -z "$BASE_URL" ]] || printf 'LOCAL_LLM_BASE_URL=%s\n' "$BASE_URL"
+} | "${KEYSTORE[@]}" "${PUT_ARGS[@]}" 2>/dev/null) || die "$(ks_error "$OUT")"
+unset API_KEY PASSPHRASE
 
-# --- verify what we wrote ---------------------------------------------------
-mode=$(stat -c '%a' "$SECRETS")
-owner=$(stat -c '%U:%G' "$SECRETS")
-if [[ -n "$OWNER" ]]; then
-    [[ "$mode" == "600" ]]              || die "mode ended up $mode, expected 600"
-    [[ "$owner" == "$OWNER:$OWNER" ]]   || die "owner ended up $owner"
+if [[ "$(printf '%s' "$OUT" | ks_field stored)" == encrypted ]]; then
+    ENC="$PREFIX/secrets.enc"
+    mode=$(stat -c '%a' "$ENC"); owner=$(stat -c '%U:%G' "$ENC")
+    [[ "$mode" == 600 && "$owner" == root:root ]] || die "$ENC ended up $owner $mode, expected root:root 600"
+    grep -q "$KEY_PREFIX" "$ENC" 2>/dev/null && [[ -n "$KEY_PREFIX" ]] && die "$ENC holds the key in plain text"
+    echo "  [ OK ] $ENC  encrypted ($(printf '%s' "$OUT" | ks_field seal) seal)  $owner $mode"
 else
-    [[ "$mode" == "640" ]]                        || die "mode ended up $mode, expected 640"
-    [[ "$owner" == "root:$SHARED_GROUP" ]]        || die "owner ended up $owner"
-fi
-
-echo "  [ OK ] $SECRETS  $owner  $mode"
-
-# Prove the RIGHT accounts can read it and an unrelated one cannot.
-if [[ -n "$OWNER" ]]; then
-    if runuser -u "$OWNER" -- test -r "$SECRETS"; then
-        echo "  [ OK ] readable by $OWNER"
-    else
-        die "$OWNER cannot read $SECRETS"
+    SECRETS="$PREFIX/secrets.env"
+    echo "  [WARN] $SECRETS is NOT encrypted: this machine has no TPM and no vault, and no key"
+    echo "         passphrase is set yet. Set one:  sudo agenti keys seal"
+    if runuser -u nobody -- test -r "$SECRETS" 2>/dev/null; then
+        die "SECRETS READABLE BY 'nobody' — permissions are wrong"
     fi
-else
-    # Shared tier: prove a member of the shared group can read it via group
-    # membership — the actual mechanism this tier depends on, not just "the
-    # mode bits look right." An actual MEMBER, not just any agenti-* account
-    # (agenti-api and agenti-authd are not members).
-    local_acct=$(getent group "$SHARED_GROUP" | cut -d: -f4 | tr ',' '\n' | sed -n 1p || true)
-    if [[ -n "$local_acct" ]]; then
-        if runuser -u "$local_acct" -- test -r "$SECRETS"; then
-            echo "  [ OK ] readable by '$local_acct' via group '$SHARED_GROUP'"
-        else
-            die "'$local_acct' cannot read $SECRETS — check its membership in '$SHARED_GROUP'"
-        fi
-    fi
-fi
-if runuser -u nobody -- test -r "$SECRETS" 2>/dev/null; then
-    die "SECRETS READABLE BY 'nobody' — permissions are wrong"
-else
-    echo "  [ OK ] not readable by unrelated accounts"
 fi
 
 echo

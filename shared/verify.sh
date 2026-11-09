@@ -109,7 +109,7 @@ verify_platform() {
             | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["how"], d["device"])' 2>/dev/null || echo "unknown ?")
         case "${enc%% *}" in
             vault|full-disk) ok "data at rest: encrypted (${enc%% *}, ${enc#* })" ;;
-            none) warn "DATA FROM AGENTS IS CURRENTLY NOT ENCRYPTED (${enc#* }): reports, scans, attached files and the API key are plain files. Turn on the vault: Settings → Platform → Vault, or sudo agenti vault enable" ;;
+            none) warn "DATA FROM AGENTS IS CURRENTLY NOT ENCRYPTED (${enc#* }): reports, scans and attached files are plain files (API keys are encrypted either way). Turn on the vault: Settings → Platform → Vault, or sudo agenti vault enable" ;;
             *) warn "data at rest: could not tell whether $AGENTI_ROOT is encrypted" ;;
         esac
     fi
@@ -902,21 +902,60 @@ verify_agent_data() {
 }
 
 
+# The API keys: encrypted on disk at all times (keystore.py). Every encrypted
+# file root 0600, no plain file once sealed, the unlocked copies only in the
+# in-memory folder (root 0700, tmpfs). Checked once per verify.
+_KEYS_VERIFIED=0
+verify_keys() {
+    [[ $_KEYS_VERIFIED -eq 0 ]] || return 0
+    _KEYS_VERIFIED=1
+    local py="$AUTHD_PYTHON"; [[ -x "$py" ]] || py=python3
+    local st rc=0 state seal f
+    st=$("$py" "$AGENTI_LIBDIR/keystore.py" status 2>/dev/null) || { fail "cannot read the API keys' state"; return 1; }
+    state=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
+    seal=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["seal"] or "")')
+    case "$state" in
+        unlocked) ok "API keys encrypted (sealed by $seal) and unlocked" ;;
+        locked)   warn "API keys encrypted (sealed by $seal) but LOCKED — runs cannot start: sudo agenti keys unlock" ;;
+        plain)    warn "API keys NOT encrypted (saved before 0.1.4, no TPM, no vault) — sudo agenti keys seal" ;;
+        *)        warn "no API key yet — set one:  sudo agenti setup" ;;
+    esac
+    while IFS= read -r -d '' f; do
+        [[ "$(stat -c '%a %U:%G' "$f")" == "600 root:root" ]] \
+            || { fail "$f is $(stat -c '%a %U:%G' "$f"), expected 600 root:root"; rc=1; }
+    done < <(find "$AGENTI_ROOT" -name secrets.enc -print0 2>/dev/null)
+    if [[ -n "$seal" ]]; then
+        if find "$AGENTI_ROOT" -name secrets.env -size +0 -print -quit 2>/dev/null | grep -q .; then
+            fail "a plain secrets.env exists although the keys are sealed: sudo agenti keys status"; rc=1
+        else
+            ok "no plain key file on disk"
+        fi
+    fi
+    if [[ "$state" == unlocked ]]; then
+        [[ "$(stat -c '%a %U' "$AGENTI_KEYS_RUN")" == "700 root" ]] \
+            && ok "$AGENTI_KEYS_RUN is root-only (700)" \
+            || { fail "$AGENTI_KEYS_RUN is $(stat -c '%a %U' "$AGENTI_KEYS_RUN"), expected 700 root"; rc=1; }
+        if [[ "$(findmnt -no FSTYPE "$AGENTI_KEYS_RUN" 2>/dev/null)" == tmpfs ]]; then
+            findmnt -no OPTIONS "$AGENTI_KEYS_RUN" | grep -q noswap \
+                && ok "$AGENTI_KEYS_RUN is in memory and kept out of swap" \
+                || warn "$AGENTI_KEYS_RUN is in memory, but this kernel cannot keep it out of swap (Linux 6.4+)"
+        else
+            fail "$AGENTI_KEYS_RUN is not an in-memory filesystem"; rc=1
+        fi
+        if svc_exists && runuser -u "$SVC_USER" -- test -r "$AGENTI_KEYS_RUN" 2>/dev/null; then
+            fail "$SVC_USER can read $AGENTI_KEYS_RUN"; rc=1
+        fi
+    fi
+    return $rc
+}
+
 verify_agent() {
     local AGENT="$1" rc=0
     verify_agent_code "$AGENT" || rc=1
     echo
     verify_agent_data "$AGENT" || rc=1
     echo
-    local SECRETS="$AGENTI_ROOT/shared/secrets.env"
-
-    if [[ -f "$SECRETS" ]]; then
-        local mode; mode=$(stat -c '%a' "$SECRETS")
-        [[ "$mode" == "640" ]] && ok "shared secrets.env mode 640 ($SHARED_GROUP-readable)" \
-                               || warn "shared secrets.env mode $mode — expected 640"
-    else
-        warn "no shared API key yet — set one:  sudo agenti setup"
-    fi
+    verify_keys || rc=1
 
     if [[ -x "$AGENT_PYTHON" ]]; then
         if svc_exists; then

@@ -63,6 +63,10 @@
     "updates": {
       "summary": "Checking whether a newer release is out. Report-only.",
       "icon": "refresh"
+    },
+    "api-keys": {
+      "summary": "How the AI provider keys are encrypted, and unlocking them after a restart.",
+      "icon": "key"
     }
   }
 }

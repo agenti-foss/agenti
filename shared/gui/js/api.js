@@ -728,27 +728,34 @@ const Agenti = (() => {
         .forEach((k) => localStorage.removeItem(k));
     } catch (e) { /* no storage */ }
   }
+  // A banner laid out as a card: an icon, its bold lead as the title line,
+  // the rest beneath. Returns the text column (dismissibleBanner adds to it).
+  function cardBanner(el, iconName = "warning") {
+    if (el.classList.contains("banner-card")) return el.querySelector(".banner-text");
+    el.classList.add("banner-card");
+    const text = document.createElement("div");
+    text.className = "banner-text";
+    while (el.firstChild) text.appendChild(el.firstChild);
+    const lead = text.firstElementChild;
+    if (lead && lead.tagName === "STRONG" && text.firstChild === lead) {
+      lead.classList.add("banner-title");
+      if (lead.nextSibling && lead.nextSibling.nodeType === 3) {
+        lead.nextSibling.textContent = lead.nextSibling.textContent.replace(/^\s+/, "");
+      }
+    }
+    const ic = document.createElement("span");
+    ic.className = "banner-icon";
+    ic.innerHTML = icon(iconName, 18);
+    el.append(ic, text);
+    return text;
+  }
   async function dismissibleBanner(el, id) {
     if (!el) return false;
     const hidden = await _hiddenBanners(), closed = await _closedBanners();
     const hide = () => { el.hidden = true; el.classList.remove("show"); };
     if (hidden.ids.has(id) || closed.ids.has(id)) { hide(); return false; }
     if (!el.classList.contains("banner-card")) {
-      el.classList.add("banner-card");
-      const text = document.createElement("div");
-      text.className = "banner-text";
-      while (el.firstChild) text.appendChild(el.firstChild);
-      // The bold lead, when the banner has one, is the card's title line.
-      const lead = text.firstElementChild;
-      if (lead && lead.tagName === "STRONG" && text.firstChild === lead) {
-        lead.classList.add("banner-title");
-        if (lead.nextSibling && lead.nextSibling.nodeType === 3) {
-          lead.nextSibling.textContent = lead.nextSibling.textContent.replace(/^\s+/, "");
-        }
-      }
-      const ic = document.createElement("span");
-      ic.className = "banner-icon";
-      ic.innerHTML = icon("warning", 18);
+      const text = cardBanner(el);
       const x = document.createElement("button");
       x.type = "button";
       x.className = "banner-x";
@@ -762,7 +769,7 @@ const Agenti = (() => {
       never.textContent = "Don't show again";
       never.addEventListener("click", () => { hidden.add(id); hide(); });
       text.appendChild(never);
-      el.append(ic, text, x);
+      el.append(x);
     }
     return true;
   }
@@ -1387,7 +1394,7 @@ const Agenti = (() => {
     copyText, copyButton, copyButtonHtml, wireCopyButtons, qrCode,
     webauthnCreate, webauthnGet, webauthnOriginHint, webauthnConfig, passkeysUsable,
     requireApproval, confirmDanger, frameDialog,
-    dismissibleBanner, hiddenBannerCount, showHiddenBanners, forgetClosedBanners, tip, codeWaitHtml, codeWaitCount,
+    cardBanner, dismissibleBanner, hiddenBannerCount, showHiddenBanners, forgetClosedBanners, tip, codeWaitHtml, codeWaitCount,
     icon, iconEl, ti, avatarInner, avatarHue, spriteSvg, roleAtLeast, roleLabel,
     userHistory, userLabel,
   };

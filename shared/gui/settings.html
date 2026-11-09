@@ -292,8 +292,15 @@
             <div id="policy-list" class="stack" style="gap:6px;"></div>
           </div>
 
+          <div class="panel" id="keys-panel" hidden>
+            <h2 class="ih" data-icon="key">API key encryption<button type="button" class="info-tip" aria-label="More information" data-tip="AI provider keys are always stored encrypted. Unlocked, they exist only in this server's memory, where only Agenti's own system can read them. Powered off or locked, they can't be read, even from a stolen disk."></button></h2>
+            <div id="keys-banner" class="banner"></div>
+            <div id="keys-state" class="stack" style="gap:6px;"></div>
+            <div class="row" id="keys-action-row" style="margin-top:12px;" hidden><button type="button" class="btn btn-primary" id="keys-action-btn" data-icon="key">Unlock the keys</button></div>
+          </div>
+
           <div class="panel" id="vault-panel" hidden>
-            <h2 class="ih" data-icon="lock">Vault<button type="button" class="info-tip" aria-label="More information" data-tip="The vault keeps reports, scans, attached files and API keys in an encrypted container on this server."></button></h2>
+            <h2 class="ih" data-icon="lock">Vault<button type="button" class="info-tip" aria-label="More information" data-tip="The vault keeps reports, scans and attached files in an encrypted container on this server. API keys are encrypted either way."></button></h2>
             <div id="vault-banner" class="banner"></div>
             <div id="vault-state" class="stack" style="gap:6px;"></div>
             <div class="row" id="vault-on-row" style="margin-top:12px;" hidden><button type="button" class="btn btn-primary" id="vault-on-btn" data-icon="lock">Turn on the vault</button></div>
@@ -467,6 +474,27 @@
        Save hidden) unless the caller also holds engagement:manage — js decides
        which on open. Save always replaces BOTH scope kinds' lists wholesale
        (what-you-see-is-what-you-get for a form), matching POST /engagement. -->
+  <dialog id="keys-dialog" aria-labelledby="keys-dialog-title">
+    <form id="keys-form" method="dialog" class="stack">
+      <h2 id="keys-dialog-title" style="margin-top:0;" class="ih" data-icon="key">Unlock the API keys</h2>
+      <div id="keys-form-banner" class="banner err"></div>
+      <div id="keys-dialog-intro" class="stack" style="gap:6px;"></div>
+      <div class="field">
+        <label for="keys-pass">Key passphrase</label>
+        <input type="password" id="keys-pass" minlength="12" maxlength="512" autocomplete="off" required>
+      </div>
+      <div class="field" id="keys-pass2-field">
+        <label for="keys-pass2">The same passphrase again</label>
+        <input type="password" id="keys-pass2" minlength="12" maxlength="512" autocomplete="off">
+      </div>
+      <label class="row" id="keys-ack-row" style="gap:8px; align-items:flex-start;"><input type="checkbox" id="keys-ack"> <span>I have stored the passphrase somewhere safe. Without it, the keys must be entered again.</span></label>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" id="keys-submit" data-icon="key">Continue</button>
+        <button type="button" class="btn" id="keys-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="vault-dialog" aria-labelledby="vault-dialog-title">
     <form id="vault-form" method="dialog" class="stack">
       <h2 id="vault-dialog-title" style="margin-top:0;" class="ih" data-icon="lock">Turn on the vault</h2>

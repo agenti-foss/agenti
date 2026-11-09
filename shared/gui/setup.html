@@ -69,12 +69,19 @@
             <label for="finish-key-input" class="sr-only">API key</label>
             <input type="password" id="finish-key-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1 1 200px; min-width:0;">
             <button type="submit" class="btn btn-primary" id="finish-key-btn">Save key</button>
+            <div class="stack key-pass-fields" id="finish-pass-wrap" hidden style="flex:1 1 100%; gap:8px;">
+              <p class="hint" style="margin:0;">This machine has no TPM security chip, so the key is encrypted with a key passphrase. After every restart, an admin unlocks the keys with it in Settings → Platform. Store it somewhere safe.</p>
+              <label for="finish-pass" class="sr-only">Key passphrase</label>
+              <input type="password" id="finish-pass" placeholder="Key passphrase (12+ characters)" autocomplete="off" minlength="12" maxlength="512">
+              <label for="finish-pass2" class="sr-only">The same passphrase again</label>
+              <input type="password" id="finish-pass2" placeholder="The same passphrase again" autocomplete="off" minlength="12" maxlength="512">
+            </div>
           </form>
         </div>
 
         <div class="setup-item">
           <div class="ti-title">Encrypt the data (vault)</div>
-          <p class="hint" id="finish-vault-hint">Reports, scans and the API key are kept in an encrypted container. Skip it if this machine already has full-disk encryption.</p>
+          <p class="hint" id="finish-vault-hint">Reports, scans and attached files are kept in an encrypted container (API keys are encrypted either way). Skip it if this machine already has full-disk encryption.</p>
           <a class="btn" href="settings.html#platform" id="finish-vault-link">Open the vault settings</a>
         </div>
 
@@ -165,6 +172,8 @@
             kForm.hidden = true;
             document.getElementById("finish-key-provider").hidden = true;
           }
+          document.getElementById("finish-pass-wrap").hidden =
+            !(d.keys && d.keys.needs_passphrase && d.keys.state === "none" && d.api_key !== "set");
           if (d.vault !== "off" || (d.storage && d.storage.encrypted)) {
             document.getElementById("finish-vault-hint").textContent = d.vault !== "off"
               ? "The vault is on." : "This machine's disk is already encrypted, so the data is encrypted at rest.";
@@ -185,18 +194,22 @@
               : "That doesn't look like an OpenAI API key: it should start with sk- and have no spaces.");
             return;
           }
+          const needPass = !document.getElementById("finish-pass-wrap").hidden;
+          const passphrase = needPass ? document.getElementById("finish-pass").value : undefined;
+          if (needPass && passphrase.length < 12) { Agenti.banner(kBanner, "err", "Choose a key passphrase of at least 12 characters."); return; }
+          if (needPass && passphrase !== document.getElementById("finish-pass2").value) { Agenti.banner(kBanner, "err", "The two key passphrases are not the same."); return; }
           kBtn.disabled = true;
           try {
             const r = await Agenti.requireApproval({
               title: "Save the API key",
               description: `Confirm it's you to save this ${name} key for the organization's runs.`,
-              submit: (creds) => Agenti.post("admin/api-key", { key, provider,
+              submit: (creds) => Agenti.post("admin/api-key", { key, provider, passphrase,
                 password: creds.password, totp: creds.totp, reauth: creds.reauth }),
             });
             if (!r) { Agenti.banner(kBanner, "warn", "Canceled — nothing was saved."); return; }
             kForm.reset();
             Agenti.banner(kBanner, "ok", `${name} key saved.`);
-            paint({ api_key: "set", vault: "off" });
+            paint({ api_key: "set", vault: "off", keys: { state: "unlocked" } });
           } catch (err) {
             Agenti.banner(kBanner, "err", Agenti.errorText(err));
           } finally {

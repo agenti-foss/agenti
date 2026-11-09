@@ -481,6 +481,7 @@ class Service:
                  "reset-password", "reset-mfa",
                  "edit-context", "build-agent", "remove-agent", "update-agent", "edit-catalog",
                  "action-approve", "action-reject", "vault-enable", "set-api-key",
+                 "keys-unlock", "keys-seal",
                  "exploit-approve", "exploit-reject")  # kept as aliases
 
     @staticmethod
@@ -596,6 +597,12 @@ class Service:
             if not re.fullmatch(r"[1-9][0-9]{0,3}G", size):
                 raise AuthError(400, "action.size must be whole gigabytes, like 8G")
             return {"op": op, "size": size, "resource": resource}
+
+        if op in ("keys-unlock", "keys-seal"):
+            # Settings → Platform → API key encryption: unlock the keys after a
+            # restart, or seal them with a first key passphrase. Bound to the
+            # op alone; the passphrase never comes here.
+            return {"op": op, "resource": resource}
 
         if op == "set-api-key":
             # Saving the Anthropic API key from Settings → Platform. Bound to

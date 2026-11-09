@@ -1539,7 +1539,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         } else {
           vState.innerHTML = "";
           Agenti.banner(vBanner, "warn", "");
-          vBanner.innerHTML = "<strong>Data from agents is currently not encrypted.</strong> Reports, scans, attached files and the API key are plain files on this server's disk.";
+          vBanner.innerHTML = "<strong>Data from agents is currently not encrypted.</strong> Reports, scans and attached files are plain files on this server's disk.";
           await Agenti.dismissibleBanner(vBanner, "vault-unencrypted");
         }
       } catch (err) {
@@ -1581,6 +1581,105 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     });
 
+    // API key encryption (operator decision 2026-11-08): the keys are always
+    // encrypted; this says how they unlock, and offers the two things the web
+    // may do, each behind a fresh re-authentication: unlock them after a
+    // restart (passphrase seal), or set the first key passphrase on a box
+    // upgraded from before 0.1.4 with no TPM and no vault. The passphrase goes
+    // to the server in the request body and reaches root on stdin.
+    const kPanel = document.getElementById("keys-panel");
+    kPanel.hidden = false;
+    const kState = document.getElementById("keys-state");
+    const kBanner = document.getElementById("keys-banner");
+    const kRow = document.getElementById("keys-action-row");
+    const kBtn = document.getElementById("keys-action-btn");
+    const kDlg = document.getElementById("keys-dialog");
+    const kForm = document.getElementById("keys-form");
+    const kFormBanner = document.getElementById("keys-form-banner");
+    let kMode = "";
+    const SEALED_BY = {
+      tpm2: "this server's TPM security chip. They unlock by themselves when it starts; nothing to do.",
+      vault: "the vault. Unlocking the vault unlocks them too.",
+      passphrase: "a key passphrase. After every restart of the server, an admin unlocks them here.",
+    };
+    async function paintKeys() {
+      try {
+        const d = await Agenti.get("dashboard");
+        const k = d.keys || {};
+        kBanner.className = "banner";
+        kRow.hidden = true; kMode = "";
+        if (k.state === "unlocked") {
+          kState.innerHTML = `<p><strong>Encrypted and unlocked.</strong> Sealed by ${esc(SEALED_BY[k.seal] || "")}</p>`;
+        } else if (k.state === "locked") {
+          kState.innerHTML = `<p>Sealed by ${esc(SEALED_BY[k.seal] || "")}</p>`;
+          if (k.seal === "vault") {
+            Agenti.banner(kBanner, "err", "The API keys are locked with the vault, so no run can start. Unlock the vault at the server: sudo agenti vault unlock");
+          } else {
+            Agenti.banner(kBanner, "err", "The API keys are locked after a restart, so no run can start until they are unlocked.");
+            kMode = "unlock"; kRow.hidden = false; kBtn.lastChild.textContent = "Unlock the keys";
+          }
+        } else if (k.state === "plain") {
+          kState.innerHTML = "";
+          Agenti.banner(kBanner, "warn", "");
+          kBanner.innerHTML = "<strong>The API keys are not encrypted yet.</strong> They were saved before this version, and this server has no TPM security chip and no vault. Set a key passphrase to encrypt them.";
+          kMode = "seal"; kRow.hidden = false; kBtn.lastChild.textContent = "Set a key passphrase";
+        } else {
+          kState.innerHTML = `<p>No key is saved yet. ${k.needs_passphrase
+            ? "This server has no TPM security chip and the vault is off, so saving the first key also asks for a key passphrase."
+            : `The first key will be sealed by ${k.tpm ? "this server's TPM security chip" : "the vault"}.`}</p>`;
+        }
+      } catch (err) {
+        Agenti.banner(kBanner, "err", Agenti.errorText(err));
+      }
+    }
+    tasks.push(paintKeys());
+    kBtn.addEventListener("click", () => {
+      kForm.reset(); kFormBanner.className = "banner err";
+      const seal = kMode === "seal";
+      document.getElementById("keys-dialog-title").lastChild.textContent = seal ? "Set a key passphrase" : "Unlock the API keys";
+      document.getElementById("keys-dialog-intro").innerHTML = seal
+        ? `<p>The saved API keys are encrypted with this passphrase and the unencrypted files are deleted.</p>
+           <ul class="hint" style="margin:0; padding-left:1.2em;">
+             <li>After <strong>every restart</strong> of the server, an admin types it here (or runs <code>sudo agenti keys unlock</code>). Until then no run can start.</li>
+             <li>Copies saved before may linger in the disk's free space: replace those keys at the provider afterwards.</li>
+           </ul>`
+        : `<p>Type the key passphrase. The keys stay unlocked until the server restarts.</p>`;
+      document.getElementById("keys-pass2-field").hidden = !seal;
+      document.getElementById("keys-ack-row").hidden = !seal;
+      document.getElementById("keys-submit").lastChild.textContent = seal ? "Encrypt the keys" : "Unlock";
+      kDlg.showModal();
+      document.getElementById("keys-pass").focus();
+    });
+    document.getElementById("keys-cancel").addEventListener("click", () => kDlg.close());
+    kForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const seal = kMode === "seal";
+      const pass = document.getElementById("keys-pass").value;
+      if (pass.length < 12) { Agenti.banner(kFormBanner, "err", "The key passphrase is at least 12 characters."); return; }
+      if (seal && pass !== document.getElementById("keys-pass2").value) { Agenti.banner(kFormBanner, "err", "The two passphrases are not the same."); return; }
+      if (seal && !document.getElementById("keys-ack").checked) { Agenti.banner(kFormBanner, "err", "Tick the box to confirm you have stored the passphrase."); return; }
+      kDlg.close();
+      kBtn.disabled = true;
+      try {
+        const r = await Agenti.requireApproval({
+          title: seal ? "Encrypt the API keys" : "Unlock the API keys",
+          description: seal ? "Confirm it's you to encrypt the API keys with this passphrase."
+                            : "Confirm it's you to unlock the API keys so runs can start.",
+          submit: (creds) => Agenti.post(`admin/keys/${seal ? "seal" : "unlock"}`, { passphrase: pass,
+            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+        });
+        if (!r) { Agenti.banner(kBanner, "warn", "Canceled. Nothing was changed."); return; }
+        await paintKeys();
+        Agenti.banner(kBanner, "ok", seal ? "The API keys are encrypted. Replace keys saved before at the provider when you can."
+                                         : "The API keys are unlocked. Runs can start.");
+      } catch (err) {
+        Agenti.banner(kBanner, "err", Agenti.errorText(err));
+      } finally {
+        kBtn.disabled = false;
+        kForm.reset();
+      }
+    });
+
     // Settings → AI providers: one card per provider (models.js holds the
     // list). Saving goes behind a fresh re-authentication bound to the
     // provider, address and key (model_registry.secret_digest); the key goes to
@@ -1614,6 +1713,17 @@ document.addEventListener("DOMContentLoaded", async function () {
             <label for="pv-${p.id}-key">API key${local ? ' <span class="hint">(optional)</span>' : ""}</label>
             <input id="pv-${p.id}-key" type="password" ${local ? "" : "required"} spellcheck="false" autocomplete="off" placeholder="${esc(p.keyHint)}">
           </div>
+          <div class="key-pass-fields" data-pass hidden>
+            <p class="hint">This server has no TPM security chip, so the first key is encrypted with a key passphrase. After every restart, an admin unlocks the keys with it (Settings → Platform). Store it somewhere safe.</p>
+            <div class="field">
+              <label for="pv-${p.id}-pass">Key passphrase</label>
+              <input id="pv-${p.id}-pass" type="password" minlength="12" maxlength="512" autocomplete="off" placeholder="12+ characters">
+            </div>
+            <div class="field">
+              <label for="pv-${p.id}-pass2">The same passphrase again</label>
+              <input id="pv-${p.id}-pass2" type="password" minlength="12" maxlength="512" autocomplete="off">
+            </div>
+          </div>
           <button type="submit" class="btn btn-primary" data-save data-icon="key">Save</button>
         </form>
         ${local ? `
@@ -1633,6 +1743,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     async function paintProviders() {
       const providers = await AgentiModels.status({ fresh: true });
+      // The first key on a box with no TPM and no vault asks for the key
+      // passphrase that seals it (keystore.py).
+      const dk = await Agenti.get("dashboard").then((d) => d.keys || {}).catch(() => ({}));
+      const askPass = !!(dk.needs_passphrase && dk.state === "none");
+      pList.querySelectorAll("[data-pass]").forEach((el) => { el.hidden = !askPass; });
       for (const p of AgentiModels.PROVIDERS) {
         const card = pList.querySelector(`[data-provider="${p.id}"]`);
         const badge = card.querySelector("[data-badge]");
@@ -1670,12 +1785,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (/\s/.test(key)) { Agenti.banner(banner, "err", "An API key has no spaces. Paste it again without them."); return; }
         if (p.id !== "local" && !key) { Agenti.banner(banner, "err", `Paste the ${p.name} API key first.`); keyEl.focus(); return; }
         if (addrEl && !relayCmd(base_url)) { Agenti.banner(banner, "err", "Enter the server's full address, starting with http:// or https://, e.g. http://model.example.com:11434/v1"); addrEl.focus(); return; }
+        const passBox = card.querySelector("[data-pass]");
+        const passphrase = passBox.hidden ? undefined : card.querySelector(`#pv-${p.id}-pass`).value;
+        if (!passBox.hidden && passphrase.length < 12) { Agenti.banner(banner, "err", "Choose a key passphrase of at least 12 characters."); return; }
+        if (!passBox.hidden && passphrase !== card.querySelector(`#pv-${p.id}-pass2`).value) { Agenti.banner(banner, "err", "The two key passphrases are not the same."); return; }
         save.disabled = true;
         try {
           const r = await Agenti.requireApproval({
             title: `Save the ${p.name} settings`,
             description: `Confirm it's you to save the organization's ${p.name} ${p.id === "local" ? "server" : "key"}. Runs started from now on use it.`,
-            submit: (creds) => Agenti.post("admin/api-key", { key, provider: p.id, base_url,
+            submit: (creds) => Agenti.post("admin/api-key", { key, provider: p.id, base_url, passphrase,
               password: creds.password, totp: creds.totp, reauth: creds.reauth }),
           });
           if (!r) { Agenti.banner(banner, "warn", "Canceled — nothing was changed."); return; }
@@ -1684,6 +1803,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           Agenti.banner(banner, "ok", `Saved. Runs started from now on use this ${p.id === "local" ? "server" : "key"}. Use Check connection to confirm it works.`);
           result.textContent = ""; result.className = "check-result";
           await paintProviders();
+          await paintKeys();
         } catch (err) {
           Agenti.banner(banner, "err", Agenti.errorText(err));
         } finally { save.disabled = false; }

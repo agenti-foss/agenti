@@ -103,7 +103,7 @@ render_slot_template() {
     local rendered
     local packet=''
     [[ " $PACKET_CAPTURE_AGENTS " == *" $agent "* ]] && packet='s/^RestrictAddressFamilies=\(.*\)$/RestrictAddressFamilies=\1 AF_PACKET/;'
-    rendered=$(sed "${gate:+$gate;}${packet}s/__SVC_USER__/$acct/g; s/__AGENT__/$agent/g; s#__ROOT__#$AGENTI_ROOT#g; s#__LIBDIR__#$AGENTI_LIBDIR#g; s#__MASTER__#$master#g; s#__PYTHON__#$AGENT_PYTHON#g" "$src")
+    rendered=$(sed "${gate:+$gate;}${packet}s/__SVC_USER__/$acct/g; s/__AGENT__/$agent/g; s#__ROOT__#$AGENTI_ROOT#g; s#__KEYS__#$AGENTI_KEYS_RUN#g; s#__LIBDIR__#$AGENTI_LIBDIR#g; s#__MASTER__#$master#g; s#__PYTHON__#$AGENT_PYTHON#g" "$src")
     [[ -f "$path" && "$(cat "$path")" == "$rendered" ]] && return 0
     printf '%s\n' "$rendered" > "$path"
     chown root:root "$path"; chmod 0644 "$path"
@@ -277,6 +277,7 @@ userkey_dropin() {
 # The run owner's own API key, when they have one, wins over every other tier.
 [Service]
 EnvironmentFile=-$AGENTI_ROOT/org/users/$1/secrets.env
+EnvironmentFile=-$AGENTI_KEYS_RUN/org/users/$1/secrets.env
 EOF2
 }
 
