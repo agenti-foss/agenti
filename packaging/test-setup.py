@@ -55,7 +55,7 @@ def main() -> int:
     checks = {
         "finished the half-made admin": "was created by an earlier setup but has no password yet" in text,
         "refused the 4-character password and asked again": "it needs at least 8" in text,
-        "the API key was skipped": "skipped — configure the provider you want" in text,
+        "the API key was skipped": "skipped — set the provider you want" in text,
         "setup reached the end": "Done." in text and os.waitstatus_to_exitcode(status) == 0,
     }
     for k, v in checks.items():

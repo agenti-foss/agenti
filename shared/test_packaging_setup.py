@@ -23,7 +23,7 @@ input("type it again")
 print("secret: {SENTINEL}", flush=True)
 input("turn the vault on?")
 input("set it now?")
-{f'print("skipped — configure the provider you want", flush=True)' if skip_message else 'pass'}
+{f'print("skipped — set the provider you want", flush=True)' if skip_message else 'pass'}
 input("choose 1, 2 or 3")
 print("Done.", flush=True)
 ''')
