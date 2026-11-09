@@ -234,6 +234,24 @@
    "path": "shared/tool_registry.py",
    "line": "fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o640)",
    "reason": "A sandboxed program's output in the run's own slot (agenti-run:agenti-run). Group read is what the slot's other files have, so root's link-safe reader and the run can use it; it replaced open('w'), which made it 0644."
+  },
+  {
+   "rule": "py/clear-text-logging-sensitive-data",
+   "path": "shared/keystore.py",
+   "line": "print(json.dumps(out))",
+   "reason": "out is a verb's result: ok/state/seal/counts, has()'s yes/no per variable. No verb puts a passphrase or key in it (get writes the tier to stdout itself, root-only, by design); the passphrase only taints the call chain."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/keystore.py",
+   "line": "fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)",
+   "reason": "mode defaults to 0600; only a pre-0.1.4 shared plain key file (no seal yet) is written 0640 root:agenti-shared, its long-standing layout, so an upgraded box keeps working until a passphrase is set (operator decision 2026-11-08)."
+  },
+  {
+   "rule": "py/overly-permissive-file",
+   "path": "shared/keystore.py",
+   "line": "os.chmod(tmp, mode)",
+   "reason": "Same as the os.open above: 0600 except the legacy shared plain file (0640 root:agenti-shared) on an unsealed upgraded box."
   }
  ]
 }
