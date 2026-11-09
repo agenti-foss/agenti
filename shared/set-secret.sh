@@ -38,9 +38,9 @@
 #
 set -euo pipefail
 
+HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 # shellcheck source=paths.sh
-source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/paths.sh"
-SHARED_GROUP="${AGENTI_SHARED_GROUP:-agenti-shared}"
+source "$HERE/paths.sh"
 
 # The ONE service account every agent runs as (kept identical in vault.sh,
 # agenti, configure.sh and here).
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         --base-url)
             BASE_URL="${2:-}"
-            python3 -c 'import sys; sys.path.insert(0,sys.argv[1]); from model_registry import validate_base_url; validate_base_url(sys.argv[2])' "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" "$BASE_URL" \
+            python3 -c 'import sys; sys.path.insert(0,sys.argv[1]); from model_registry import validate_base_url; validate_base_url(sys.argv[2])' "$HERE" "$BASE_URL" \
                 || die "--base-url needs the model server's HTTP or HTTPS address, e.g. http://model.example.com:11434/v1"
             shift 2 ;;
         --org) ORG=1; shift ;;
@@ -93,32 +93,15 @@ tiers=$ORG
 [[ $PASS_FIRST -eq 0 || $STDIN -eq 1 ]] || die "--passphrase-first goes with --stdin"
 
 if [[ -n "$USER_NAME" ]]; then
-    REL="org/users/$USER_NAME"
-    PREFIX="$AGENTI_ROOT/org/users/$USER_NAME"
-    OWNER="$SVC_USER"
-    TIER="per-user ($USER_NAME)"
+    REL="org/users/$USER_NAME"; TIER="per-user ($USER_NAME)"
 elif [[ -n "$AGENT" ]]; then
-    REL="org/$AGENT"
-    PREFIX="$AGENTI_ROOT/org/$AGENT"
-    OWNER="$SVC_USER"
-    TIER="agent-specific ($AGENT)"
+    REL="org/$AGENT"; TIER="agent-specific ($AGENT)"
 elif [[ $ORG -eq 1 ]]; then
-    REL="org"
-    PREFIX="$AGENTI_ROOT/org"
-    OWNER="$SVC_USER"
-    TIER="org-wide"
+    REL="org"; TIER="org-wide"
 else
-    REL="shared"
-    PREFIX="$AGENTI_ROOT/shared"
-    OWNER=""            # shared tier: root:agenti-shared, not one account
-    TIER="shared"
+    REL="shared"; TIER="shared"
 fi
-# keystore.py needs the cryptography package: the bundled runtime's Python.
-KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
-KEYSTORE=("$KS_PY" "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/keystore.py")
-ks_field() { python3 -c 'import json,sys
-d=json.loads(sys.stdin.read() or "{}"); v=d.get(sys.argv[1]); print("" if v is None else v)' "$1"; }
-ks_error() { printf '%s' "$1" | ks_field error; }
+PREFIX="$AGENTI_ROOT/$REL"
 case "$PROVIDER" in
     anthropic) KEY_VAR=ANTHROPIC_API_KEY; KEY_LABEL="Anthropic"; KEY_PREFIX="sk-ant-" ;;
     openai)    KEY_VAR=OPENAI_API_KEY;    KEY_LABEL="OpenAI";    KEY_PREFIX="sk-" ;;
@@ -140,31 +123,29 @@ if [[ -n "$USER_NAME" ]]; then
 fi
 [[ -d "$PREFIX" ]] || die "$PREFIX does not exist.
 recreate the data folders:  sudo dpkg-reconfigure agenti"
-if [[ -n "$OWNER" ]]; then
-    id "$OWNER" &>/dev/null || die "service account '$OWNER' missing — recreate it:  sudo dpkg-reconfigure agenti"
+if [[ "$REL" != shared ]]; then   # the shared tier is root's, not one account's
+    id "$SVC_USER" &>/dev/null || die "service account '$SVC_USER' missing — recreate it:  sudo dpkg-reconfigure agenti"
 fi
-
-# The tier's current lines (decrypted in memory; nothing is written).
-current_text() { "${KEYSTORE[@]}" get --tier "$REL" 2>/dev/null || true; }
-STATUS=$("${KEYSTORE[@]}" status 2>/dev/null) || STATUS='{}'
-KSTATE=$(printf '%s' "$STATUS" | ks_field state)
 
 # --- remove mode ------------------------------------------------------------
 if [[ $REMOVE -eq 1 ]]; then
-    "${KEYSTORE[@]}" forget --tier "$REL" >/dev/null || die "the $TIER keys could not be removed"
+    agenti_keystore forget --tier "$REL" >/dev/null || die "the $TIER keys could not be removed"
     echo "  [ OK ] the $TIER keys are removed"
     exit 0
 fi
 
+STATUS=$(agenti_keystore status 2>/dev/null) || STATUS='{}'
+KSTATE=$(printf '%s' "$STATUS" | agenti_json_field state)
+
 # --- status mode ------------------------------------------------------------
 if [[ "${1:-}" == "--show" ]]; then
     case "$KSTATE" in
-        unlocked) echo "keys: encrypted ($(printf '%s' "$STATUS" | ks_field seal) seal), unlocked" ;;
+        unlocked) echo "keys: encrypted ($(printf '%s' "$STATUS" | agenti_json_field seal) seal), unlocked" ;;
         locked)   die "the keys are locked, so nothing can be shown. Unlock them:  sudo agenti keys unlock" ;;
         plain)    echo "keys: NOT encrypted (set a key passphrase:  sudo agenti keys seal)" ;;
         *)        echo "keys: none saved yet" ;;
     esac
-    TEXT=$(current_text)
+    TEXT=$(agenti_keystore get --tier "$REL" 2>/dev/null || true)
     if [[ -n "$TEXT" ]]; then
         echo "$TIER tier:"
         # Show ONLY a fingerprint — never the key.
@@ -188,24 +169,23 @@ fi
 [[ "$KSTATE" != locked ]] || die "the API keys are locked, so no key can be written. Unlock them first:  sudo agenti keys unlock"
 
 # --- write mode -------------------------------------------------------------
+# What the tier already sets (yes/no; no key leaves keystore.py).
+HAS=$(agenti_keystore has --tier "$REL" "$KEY_VAR" LOCAL_LLM_BASE_URL 2>/dev/null) || HAS='{}'
 PASSPHRASE=""
 if [[ $STDIN -eq 1 ]]; then
     [[ $PASS_FIRST -eq 0 ]] || IFS= read -r PASSPHRASE || true
     IFS= read -r API_KEY || true
 else
-    if current_text | grep -q "^$KEY_VAR=."; then
+    if [[ "$(printf '%s' "$HAS" | agenti_json_field "$KEY_VAR")" == True ]]; then
         echo "The $TIER tier already holds a $KEY_LABEL key; this will REPLACE it."
         read -r -p "continue? [y/N] " reply
         [[ "$reply" =~ ^[Yy]$ ]] || { echo "aborted."; exit 0; }
     fi
-    if [[ "$(printf '%s' "$STATUS" | ks_field needs_passphrase)" == True && "$KSTATE" == none ]]; then
+    if [[ "$(printf '%s' "$STATUS" | agenti_json_field needs_passphrase)" == True && "$KSTATE" == none ]]; then
         echo "This machine has no TPM chip and the vault is off, so the API keys are"
         echo "encrypted with a key passphrase. After every restart, an admin unlocks them"
         echo "(Settings → Platform, or sudo agenti keys unlock). Store it somewhere safe."
-        read -rs -p "Choose a key passphrase (12+ characters): " PASSPHRASE; echo
-        read -rs -p "Type it again: " p2; echo
-        [[ "$PASSPHRASE" == "$p2" ]] || die "the two passphrases are not the same"
-        unset p2
+        PASSPHRASE=$(agenti_read_new_passphrase "key passphrase") || exit 1
     fi
     if [[ "$PROVIDER" == local ]]; then
         echo "Paste the self-hosted model's API key, or just press Enter if it needs none."
@@ -222,29 +202,29 @@ fi
 [[ -z "$KEY_PREFIX" || "$API_KEY" == "$KEY_PREFIX"* ]] \
     || die "that does not look like an $KEY_LABEL key (expected it to start with '$KEY_PREFIX')"
 [[ "$API_KEY" != *[[:space:]]* ]] || die "the key contains whitespace — likely a bad paste"
-[[ "$PROVIDER" != local || -n "$BASE_URL" ]] || current_text | grep -qs '^LOCAL_LLM_BASE_URL=.' \
+[[ "$PROVIDER" != local || -n "$BASE_URL" || "$(printf '%s' "$HAS" | agenti_json_field LOCAL_LLM_BASE_URL)" == True ]] \
     || die "a self-hosted model needs its address: add --base-url http://<host>:<port>/v1"
 
-# The tier's new text: every other provider's line as it was, this one replaced.
-# It goes to keystore.py on stdin, never an argument or a file.
-PUT_ARGS=(put --tier "$REL")
-[[ -z "$PASSPHRASE" ]] || PUT_ARGS+=(--passphrase-first)
+# keystore.py replaces this provider's line(s) and keeps every other line, all
+# under its own lock. Values go on stdin, never an argument or a file; an empty
+# key removes that line (a self-hosted server with no key).
+SET_ARGS=(set --tier "$REL")
+[[ -z "$PASSPHRASE" ]] || SET_ARGS+=(--passphrase-first)
+SET_ARGS+=("$KEY_VAR")
+[[ -z "$BASE_URL" ]] || SET_ARGS+=(LOCAL_LLM_BASE_URL)
 OUT=$({
     [[ -z "$PASSPHRASE" ]] || printf '%s\n' "$PASSPHRASE"
-    echo "# $TIER keys. Never commit or copy this anywhere."
-    current_text | grep -E '^[A-Z_]+=' | grep -v "^$KEY_VAR=" \
-        | { if [[ -n "$BASE_URL" ]]; then grep -v '^LOCAL_LLM_BASE_URL='; else cat; fi; } || true
-    [[ -z "$API_KEY" ]] || printf '%s=%s\n' "$KEY_VAR" "$API_KEY"
-    [[ -z "$BASE_URL" ]] || printf 'LOCAL_LLM_BASE_URL=%s\n' "$BASE_URL"
-} | "${KEYSTORE[@]}" "${PUT_ARGS[@]}" 2>/dev/null) || die "$(ks_error "$OUT")"
+    printf '%s\n' "$API_KEY"
+    [[ -z "$BASE_URL" ]] || printf '%s\n' "$BASE_URL"
+} | agenti_keystore "${SET_ARGS[@]}" 2>/dev/null) || die "$(printf '%s' "$OUT" | agenti_json_field error)"
 unset API_KEY PASSPHRASE
 
-if [[ "$(printf '%s' "$OUT" | ks_field stored)" == encrypted ]]; then
+if [[ "$(printf '%s' "$OUT" | agenti_json_field stored)" == encrypted ]]; then
     ENC="$PREFIX/secrets.enc"
     mode=$(stat -c '%a' "$ENC"); owner=$(stat -c '%U:%G' "$ENC")
     [[ "$mode" == 600 && "$owner" == root:root ]] || die "$ENC ended up $owner $mode, expected root:root 600"
     grep -q "$KEY_PREFIX" "$ENC" 2>/dev/null && [[ -n "$KEY_PREFIX" ]] && die "$ENC holds the key in plain text"
-    echo "  [ OK ] $ENC  encrypted ($(printf '%s' "$OUT" | ks_field seal) seal)  $owner $mode"
+    echo "  [ OK ] $ENC  encrypted ($(printf '%s' "$OUT" | agenti_json_field seal) seal)  $owner $mode"
 else
     SECRETS="$PREFIX/secrets.env"
     echo "  [WARN] $SECRETS is NOT encrypted: this machine has no TPM and no vault, and no key"

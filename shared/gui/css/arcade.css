@@ -332,12 +332,10 @@
 [data-skin="arcade"] .raw-source, [data-skin="arcade"] .report pre, [data-skin="arcade"] .cmd-block, [data-skin="arcade"] code.value {
   border-width: 2px;
 }
-[data-skin="arcade"] .console .row.says .says-text { border-width: 2px; border-radius: 4px; }
 [data-skin="arcade"] .say, [data-skin="arcade"] .chat-card, [data-skin="arcade"] .member-row { border-width: 2px; border-radius: 4px; }
 [data-skin="arcade"] .composer-controls { border-left-width: 2px; }
 [data-skin="arcade"] .chat-bubble { border-radius: 4px; border-width: 2px; }
 [data-skin="arcade"] .chat-msg.you .chat-bubble { border-radius: 4px; border: 2px solid var(--accent-hover); }
-[data-skin="arcade"] .chat-system .pill { border-radius: 3px; border-width: 2px; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; }
 [data-skin="arcade"] .banner { border-width: 2px; }
 [data-skin="arcade"] .chip { border-radius: 3px; }
 [data-skin="arcade"] .back-link { border-radius: var(--radius-sm); font-weight: 600; }

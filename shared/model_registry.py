@@ -181,6 +181,22 @@ def validate_base_url(value: str) -> str:
     return value
 
 
+def setup_problems(p: Provider, values: dict) -> list[str]:
+    """What stops a run of provider `p` with these key-tier values, each with
+    its fix; empty = ready. The one readiness rule: the launch precheck,
+    Settings → AI providers and the model list all ask here."""
+    out = []
+    fix = f"sudo /usr/lib/agenti/set-secret.sh --provider {p.name}"
+    if p.key_required and not values.get(p.key_env):
+        out.append(f"no {p.label} API key for this run; set one with: {fix}")
+    if p.base_url_env:
+        try:
+            validate_base_url(values.get(p.base_url_env, ""))
+        except ValueError:
+            out.append(f"no valid {p.label} address; set one with: {fix} --base-url http://<host>:<port>/v1")
+    return out
+
+
 # ---------------------------------------------------------------------------
 # What a key can use, live from the provider (GET /models). Through the relay
 # when a run or the CLI has one (HTTPS_PROXY); the caller supplies the key.

@@ -15,12 +15,11 @@ every precondition for safely running an unattended drop box is met:
      (CLAUDE.md "Current plan") — loads for this agent's scope kind, is
      in its authorized window and has a non-empty scope for that kind
      (one engagement for the whole organization, not per agent)
-  7. Admin approval, UNLESS the organization's policy has it turned off: an
-     admin has approved the engagement AS IT STANDS — the approval
-     is bound to the record's content digest, so an edit after approval
-     fails this check until it is re-approved (§3g). require_approval
-     defaults to true; it may be turned off (agenti engagement
-     set --no-require-approval) as part of its own operational policy.
+  7. Admin approval, always: an admin has approved the engagement AS IT
+     STANDS — the approval is bound to the record's content digest, so an
+     edit after approval fails this check until it is re-approved (§3g).
+     While a change waits for a second admin, the run must fit both
+     versions (engagement_context.stricter_of).
 
 All checks run, so the operator sees the full picture, then the script exits 1
 if ANY failed. A clean exit (0) is the only thing that lets the harness launch.

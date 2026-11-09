@@ -3,18 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
 from pathlib import Path
 
 import engagement_context as ec
 import model_registry as mr
+import paths
 from agent_runtime import read_secrets
+from context_store import NAME_RE
 
 
 def settings(root: Path, owner: str, agent: str = "") -> dict:
     for name in (owner, agent):
-        if name and not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", name):
+        if name and not NAME_RE.fullmatch(name):
             raise ValueError("use an Agenti username and an installed agent name")
     import keystore
     locked = keystore.locked_reason()
@@ -25,14 +25,8 @@ def settings(root: Path, owner: str, agent: str = "") -> dict:
 
 def status(root: Path, owner: str, agent: str = "") -> dict:
     values = settings(root, owner, agent)
-    address = values.get("LOCAL_LLM_BASE_URL", "")
-    if address:
-        try:
-            mr.validate_base_url(address)
-        except ValueError:
-            values["LOCAL_LLM_BASE_URL"] = ""
     return {p.name: {"label": p.label, "key": "set" if values.get(p.key_env) else "missing",
-                     "ready": bool(values.get(p.key_env)) if p.key_required else bool(values.get(p.base_url_env))}
+                     "ready": not mr.setup_problems(p, values)}
             for p in mr.PROVIDERS.values()}
 
 
@@ -52,14 +46,14 @@ def main(argv=None):
         else:
             values = settings(root, args.owner, args.agent)
             p = mr.PROVIDERS[args.provider]
-            if p.key_required and not values.get(p.key_env):
-                raise ValueError(f"no {p.label} key for this run; set one: sudo /usr/lib/agenti/set-secret.sh --provider {p.name}")
-            if p.base_url_env and not values.get(p.base_url_env):
-                raise ValueError("no self-hosted model address; set one: sudo /usr/lib/agenti/set-secret.sh --provider local --base-url http://model.example.com:11434/v1")
-            policy = ec.resolve_policy(ec.read_record(root / "org" / "engagement.json") if (root / "org" / "engagement.json").exists() else None)
+            problems = mr.setup_problems(p, values)
+            if problems:
+                raise ValueError(problems[0])
+            record_path = root / "org" / ec.ORG_ENGAGEMENT_FILENAME
+            policy = ec.resolve_policy(ec.read_record(record_path) if record_path.exists() else None)
             models = mr.list_models(p.name, api_key=values.get(p.key_env, ""),
                                     base_url=values.get(p.base_url_env, "") if p.base_url_env else "",
-                                    relay=os.environ.get("AGENTI_RELAY", "http://127.0.0.1:8429"))
+                                    relay="http://" + paths.relay_addr())
             result = {"provider": p.name, "models": [m for m in models if mr.allowed(m, policy["allowed_models"])],
                       "allowed_models": policy["allowed_models"]}
         print(json.dumps(result) if args.json or args.status else "\n".join(result["models"]) or "No models returned within the organization's allowed list.")

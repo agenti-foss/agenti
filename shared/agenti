@@ -54,10 +54,6 @@ _here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 [[ -f "$VAULT_SH" ]] || VAULT_SH="$_here/vault.sh"
 [[ -f "$SET_SECRET_SH" ]] || SET_SECRET_SH="$_here/set-secret.sh"
 IAM_PY="$LIBDIR/iam.py"
-KEYSTORE_PY="$LIBDIR/keystore.py"
-[[ -f "$KEYSTORE_PY" ]] || KEYSTORE_PY="$_here/keystore.py"
-# keystore.py's crypto needs the cryptography package: the bundled runtime's Python.
-KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
 
 DRY_RUN=0
 JSON=0
@@ -401,10 +397,11 @@ ensure_slot_userkey_dropin() {
 # record of them lets _stop_uncovered_runs tell a NEW exclusion under the
 # run's target (the run must stop) from one it already honors (audit run 2).
 record_run_exclusions() {
-    local agent="$1"
+    local agent="$1" kind
     local dir; dir=$(agent_dir "$agent")
-    record_run_payloads "$agent" "$dir"
-    if [[ "$(_agent_scope_kind "$agent")" != domain ]]; then
+    kind=$(_agent_scope_kind "$agent")
+    record_run_payloads "$agent" "$dir" "$kind"
+    if [[ "$kind" != domain ]]; then
         [[ $DRY_RUN -eq 1 ]] || rm -f "$dir/run-excluded"
         return 0
     fi
@@ -412,22 +409,15 @@ record_run_exclusions() {
     out=$(python3 "$LIBDIR/run_coverage.py" exclusions --org-dir "$(org_dir)" --agent "$agent" 2>&1) || rc=$?
     [[ $rc -eq 0 ]] || die "could not read the engagement's exclusions for $agent, so the run was not started:
 $out"
-    if [[ $DRY_RUN -eq 1 ]]; then
-        note '  %s$ write %s/run-excluded <- %s%s\n' "$c_d" "$dir" "${out:-(none)}" "$c_0"
-        return 0
-    fi
-    rm -f "$dir/run-excluded"
-    printf '%s\n' "$out" > "$dir/run-excluded"
-    chown root:"$SVC_USER" "$dir/run-excluded"; chmod 0640 "$dir/run-excluded"
+    _write_run_marker "$dir/run-excluded" "$out"
 }
 
 # Whether this run may capture payload contents, as of its start (root-owned,
 # like run-excluded): switching payload capture off later stops a run that
 # started with it on, through _stop_uncovered_runs (operator decision
 # 2026-11-06 — taking a permission away applies at once).
-record_run_payloads() {
-    local agent="$1" dir="$2" kind out
-    kind=$(_agent_scope_kind "$agent")
+record_run_payloads() {    # <agent> <slot dir> <scope kind>
+    local agent="$1" dir="$2" kind="$3" out
     if [[ "$kind" != cidr && "$kind" != domain ]]; then
         [[ $DRY_RUN -eq 1 ]] || rm -f "$dir/run-payloads"
         return 0
@@ -435,13 +425,18 @@ record_run_payloads() {
     out=$(python3 "$LIBDIR/run_coverage.py" payloads --org-dir "$(org_dir)" --agent "$agent" \
             --kind "$kind" 2>/dev/null) || out=off
     [[ "$out" == on ]] || out=off
+    _write_run_marker "$dir/run-payloads" "$out"
+}
+
+# A root-owned marker the run can read but not change (0640 root:agenti-run).
+_write_run_marker() {    # <path> <content>
     if [[ $DRY_RUN -eq 1 ]]; then
-        note '  %s$ write %s/run-payloads <- %s%s\n' "$c_d" "$dir" "$out" "$c_0"
+        note '  %s$ write %s <- %s%s\n' "$c_d" "$1" "${2:-(none)}" "$c_0"
         return 0
     fi
-    rm -f "$dir/run-payloads"
-    printf '%s\n' "$out" > "$dir/run-payloads"
-    chown root:"$SVC_USER" "$dir/run-payloads"; chmod 0640 "$dir/run-payloads"
+    rm -f "$1"
+    printf '%s\n' "$2" > "$1"
+    chown root:"$SVC_USER" "$1"; chmod 0640 "$1"
 }
 
 ensure_slot_scope_dropin() {
@@ -1777,9 +1772,13 @@ _engagement_policy() {
         die "could not read the engagement-second-approver policy, so nothing was changed:
 $out"
     fi
-    ENG_SECOND_APPROVER=$(printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["second_approver"])' 2>/dev/null) || true
-    mapfile -t ENG_APPROVERS < <(printf '%s' "$out" | python3 -c 'import json,sys
-for a in json.load(sys.stdin)["approvers"]: print(a)' 2>/dev/null)
+    # One parse: the policy on the first line, then one approver per line.
+    local -a lines=()
+    mapfile -t lines < <(printf '%s' "$out" | python3 -c 'import json,sys
+d = json.load(sys.stdin); print(d["second_approver"])
+for a in d["approvers"]: print(a)' 2>/dev/null)
+    ENG_SECOND_APPROVER="${lines[0]:-}"
+    ENG_APPROVERS=("${lines[@]:1}")
     if [[ "$ENG_SECOND_APPROVER" != on && "$ENG_SECOND_APPROVER" != off ]]; then
         ENG_SECOND_APPROVER=""
         [[ "${1:-}" == soft ]] || die "the engagement-second-approver policy reads as neither on nor off, so nothing was changed.
@@ -3898,16 +3897,7 @@ EOF
 # lesson from vault enable). --pipe hands the job this stdin.
 _keystore_job() {
     systemd-run --quiet --wait --pipe --collect --unit="agenti-keys-$1-$$" \
-        --property=Type=exec -- "$KS_PY" "$KEYSTORE_PY" "$@"
-}
-
-_keys_read_new_passphrase() {   # prints it; prompts twice, silently
-    local a b
-    read -rs -p "New key passphrase (12+ characters): " a; echo >&2
-    read -rs -p "Type it again: " b; echo >&2
-    [[ "$a" == "$b" ]] || die "the two passphrases are not the same — nothing was changed"
-    [[ ${#a} -ge 12 ]] || die "the key passphrase must be at least 12 characters"
-    printf '%s' "$a"
+        --property=Type=exec -- "$AGENTI_KS_PY" "$AGENTI_KEYSTORE_PY" "$@"
 }
 
 _keys_status_text() {
@@ -3949,15 +3939,15 @@ cmd_keys_web() {
     local aout arc=0
     aout=$(python3 "$IAM_PY" --json approve-keys "--op=keys-$verb" "--grant=$grant" 2>&1) || arc=$?
     if [[ $arc -ne 0 ]]; then
-        local e; e=$(printf '%s' "$aout" | _json_field error)
+        local e; e=$(printf '%s' "$aout" | agenti_json_field error)
         die "${e:-$aout}"
     fi
-    local by; by=$(printf '%s' "$aout" | _json_field approved_by)
+    local by; by=$(printf '%s' "$aout" | agenti_json_field approved_by)
     local out rc=0
     out=$(_keystore_job "$verb" --passphrase-stdin 2>/dev/null) || rc=$?
     logger -t agenti "KEYS_${verb^^} | by=$by | via=api | rc=$rc" 2>/dev/null || true
     if [[ $rc -ne 0 ]]; then
-        local e; e=$(printf '%s' "$out" | _json_field error)
+        local e; e=$(printf '%s' "$out" | agenti_json_field error)
         die "${e:-the keys were not ${verb}ed}"
     fi
     if [[ $JSON -eq 1 ]]; then
@@ -3968,7 +3958,7 @@ cmd_keys_web() {
 }
 
 _keys_die_from() {   # _keys_die_from <json>: the keystore's own refusal
-    local e; e=$(printf '%s' "$1" | _json_field error)
+    local e; e=$(printf '%s' "$1" | agenti_json_field error)
     die "${e:-the keys could not be changed (details: sudo journalctl -t agenti -n 20)}"
 }
 
@@ -3978,13 +3968,13 @@ cmd_keys() {
     case "$verb" in
         help|-h|--help) keys_usage; return ;;
         status)
-            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
+            st=$(agenti_keystore status) || die "could not read the keys' state"
             if [[ $JSON -eq 1 ]]; then printf '%s\n' "$st"; else printf '%s' "$st" | _keys_status_text; fi
             return ;;
         unlock)
-            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
-            [[ "$(printf '%s' "$st" | _json_field state)" != unlocked ]] || { ok "the API keys are already unlocked"; return; }
-            case "$(printf '%s' "$st" | _json_field seal)" in
+            st=$(agenti_keystore status) || die "could not read the keys' state"
+            [[ "$(printf '%s' "$st" | agenti_json_field state)" != unlocked ]] || { ok "the API keys are already unlocked"; return; }
+            case "$(printf '%s' "$st" | agenti_json_field seal)" in
                 passphrase)
                     read -rs -p "Key passphrase: " p; echo >&2
                     out=$(printf '%s\n' "$p" | _keystore_job unlock --passphrase-stdin 2>/dev/null) || rc=$?
@@ -3997,28 +3987,28 @@ cmd_keys() {
             logger -t agenti "KEYS_UNLOCK | by=$(invoking_user) | via=console" 2>/dev/null || true
             ok "API keys unlocked: runs can start" ;;
         lock)
-            "$KS_PY" "$KEYSTORE_PY" lock >/dev/null || die "could not lock the keys"
+            agenti_keystore lock >/dev/null || die "could not lock the keys"
             logger -t agenti "KEYS_LOCK | by=$(invoking_user)" 2>/dev/null || true
             ok "API keys locked: runs cannot start until  sudo agenti keys unlock" ;;
         seal)
-            st=$("$KS_PY" "$KEYSTORE_PY" status) || die "could not read the keys' state"
-            [[ -z "$(printf '%s' "$st" | _json_field seal)" ]] || { ok "the API keys are already encrypted"; return; }
+            st=$(agenti_keystore status) || die "could not read the keys' state"
+            [[ -z "$(printf '%s' "$st" | agenti_json_field seal)" ]] || { ok "the API keys are already encrypted"; return; }
             local -a seal_args=(seal)
-            if [[ "$(printf '%s' "$st" | _json_field needs_passphrase)" == True ]]; then
+            if [[ "$(printf '%s' "$st" | agenti_json_field needs_passphrase)" == True ]]; then
                 echo "This machine has no TPM chip and the vault is off: choose a key passphrase."
                 echo "After every restart an admin types it (Settings → Platform, or sudo agenti keys unlock)."
-                p=$(_keys_read_new_passphrase)
+                p=$(agenti_read_new_passphrase "key passphrase") || exit 1
                 seal_args+=(--passphrase-stdin)
             fi
             out=$(printf '%s\n' "$p" | _keystore_job "${seal_args[@]}" 2>/dev/null) || rc=$?
             p=""
             [[ $rc -eq 0 ]] || _keys_die_from "$out"
             logger -t agenti "KEYS_SEAL | by=$(invoking_user) | via=console" 2>/dev/null || true
-            ok "API keys encrypted ($(printf '%s' "$out" | _json_field encrypted) file(s))."
+            ok "API keys encrypted ($(printf '%s' "$out" | agenti_json_field encrypted) file(s))."
             echo "  Plain copies written before may linger in the disk's free space: rotate those keys at the provider." ;;
         passphrase)
-            p=$(_keys_read_new_passphrase)
-            out=$(printf '%s\n' "$p" | "$KS_PY" "$KEYSTORE_PY" passphrase --passphrase-stdin 2>/dev/null) || rc=$?
+            p=$(agenti_read_new_passphrase "key passphrase") || exit 1
+            out=$(printf '%s\n' "$p" | agenti_keystore passphrase --passphrase-stdin 2>/dev/null) || rc=$?
             p=""
             [[ $rc -eq 0 ]] || _keys_die_from "$out"
             logger -t agenti "KEYS_PASSPHRASE | by=$(invoking_user)" 2>/dev/null || true
@@ -4028,7 +4018,7 @@ cmd_keys() {
             echo "Afterwards, enter the keys again (Settings → AI providers, or sudo agenti setup)."
             local reply; read -r -p "Type RESET to continue: " reply
             [[ "$reply" == RESET ]] || { echo "aborted: nothing was changed."; return; }
-            "$KS_PY" "$KEYSTORE_PY" reset --yes >/dev/null || die "the reset did not finish"
+            agenti_keystore reset --yes >/dev/null || die "the reset did not finish"
             logger -t agenti "KEYS_RESET | by=$(invoking_user)" 2>/dev/null || true
             ok "every saved API key is deleted; enter them again" ;;
         *) die "keys verbs: status | unlock | lock | seal | passphrase | reset   (agenti keys help)" ;;
@@ -4341,12 +4331,6 @@ itself once an admin can sign in. Prefer the terminal?  sudo agenti setup
 EOF
 }
 
-_json_field() {   # _json_field <key>: one string field of the JSON on stdin, or nothing
-    python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get(sys.argv[1],""))
-except Exception: print("")' "$1" 2>/dev/null
-}
-
 cmd_setup_code() {
     local -a args=()
     local if_needed=0
@@ -4362,10 +4346,10 @@ $(setup_code_usage)" ;;
     [[ -f "$IAM_PY" ]] || die "$IAM_PY is missing. reinstall it:  $REINSTALL"
     local out rc=0 code
     out=$(python3 "$IAM_PY" --json --actor "$(invoking_user)" setup-code "${args[@]}" 2>&1) || rc=$?
-    code=$(printf '%s' "$out" | _json_field setup_code)
+    code=$(printf '%s' "$out" | agenti_json_field setup_code)
     if [[ $rc -ne 0 || -z "$code" ]]; then
         [[ $if_needed -eq 1 ]] && return 0
-        local e; e=$(printf '%s' "$out" | _json_field error)
+        local e; e=$(printf '%s' "$out" | agenti_json_field error)
         die "${e:-$out}"
     fi
     if [[ $JSON -eq 1 ]]; then printf '%s\n' "$out"; return 0; fi
@@ -4417,11 +4401,11 @@ At the terminal instead:  sudo agenti setup"
     local aout arc=0
     aout=$(python3 "$IAM_PY" --json approve-api-key "--sha256=$sha" "--grant=$grant" 2>&1) || arc=$?
     if [[ $arc -ne 0 ]]; then
-        local e; e=$(printf '%s' "$aout" | _json_field error)
+        local e; e=$(printf '%s' "$aout" | agenti_json_field error)
         unset key
         die "${e:-$aout}"
     fi
-    local by; by=$(printf '%s' "$aout" | _json_field approved_by)
+    local by; by=$(printf '%s' "$aout" | agenti_json_field approved_by)
     local out rc=0
     local -a key_args=(--provider "$provider" --stdin)
     [[ -z "$base_url" ]] || key_args+=(--base-url "$base_url")
@@ -4538,14 +4522,14 @@ EOF
     printf '\n%s3. The Anthropic API key%s\n' "$c_b" "$c_0"
     if agenti_vault_enabled && ! agenti_data_ready; then
         warn "the vault is locked — unlock it first (sudo agenti vault unlock), then re-run setup"
-    elif "$KS_PY" "$KEYSTORE_PY" get --tier shared 2>/dev/null | grep -q '^ANTHROPIC_API_KEY=.'; then
+    elif [[ "$(agenti_keystore has --tier shared ANTHROPIC_API_KEY 2>/dev/null | agenti_json_field ANTHROPIC_API_KEY)" == True ]]; then
         ok "a key is already set — skipped (replace it:  sudo $SET_SECRET_SH)"
     else
         echo "  Claude runs use it. Get one at https://console.anthropic.com/ (it starts sk-ant-)."
-        echo "  OpenAI and self-hosted providers can be configured in Settings → Platform."
+        echo "  OpenAI and self-hosted providers are set in Settings → AI providers."
         read -r -p "  set it now? [Y/n] " reply
         if [[ "$reply" =~ ^[Nn] ]]; then
-            ok "skipped — configure the provider you want in Settings → Platform, or return here for Claude: sudo agenti setup"
+            ok "skipped — set the provider you want in Settings → AI providers, or return here for Claude: sudo agenti setup"
         else
             "$SET_SECRET_SH" || warn "no key was saved; set it later:  sudo agenti setup"
         fi

@@ -933,8 +933,7 @@ def create_principal(body: CreatePrincipalRequest, request: Request,
                    f"key cannot do this — use the CLI: sudo agenti admin create-user {body.name}")
     action = {"op": "create-user", "principal": body.name, "kind": body.kind, "role": body.role,
               "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     args = ["admin", "create-user", body.name, "--kind", body.kind, "--role", body.role,
             f"--grant={g['grant']}"]
     if body.no_link:
@@ -957,19 +956,12 @@ def disable_principal(name: PrincipalName, body: ReauthRequest, request: Request
                       caller: Caller = Depends(require("iam:manage"))) -> dict:
     """Disable a user: a fresh password + 2FA/passkey check like re-enable
     (operator decision 2026-11-08), so a stolen session cannot lock people out."""
-    sid = request.cookies.get(sessions.COOKIE_NAME)
-    if caller.via != "session" or not sid:
-        raise HTTPException(
-            status_code=400,
-            detail="disabling a user needs a signed-in browser session: the approving admin "
-                   "re-enters their password and a fresh 2FA code. An API key cannot do "
-                   f"this — use the CLI: sudo agenti admin disable-user {name}")
+    sid = _session_for_approval(request, caller, "Disabling a user", f"sudo agenti admin disable-user {name}")
     if name == caller.principal:
         raise HTTPException(status_code=400, detail="you cannot disable the account you are "
                                                     "currently using — ask another admin to do it.")
     action = {"op": "disable-principal", "principal": name, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "disable-user", name, "--by", caller.principal, f"--grant={g['grant']}")
 
 
@@ -1039,8 +1031,7 @@ def grant_access(name: PrincipalName, body: GrantAccessRequest, request: Request
                                    f"sudo agenti admin bind user {name} --role "
                                    f"{body.role}")
     action = {"op": "bind", "principal": name, "role": body.role, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "web-bind", name, "--role", body.role, f"--grant={g['grant']}")
 
 
@@ -1099,8 +1090,7 @@ def rename_principal_route(name: PrincipalName, body: RenamePrincipalRequest, re
                    f"{body.new_name} --grant <id>")
     action = {"op": "rename-principal", "principal": name, "new_name": body.new_name,
              "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-              totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "rename-user", name, body.new_name,
                 f"--grant={g['grant']}")
 
@@ -1118,8 +1108,7 @@ def delete_principal_route(name: PrincipalName, body: ReauthRequest, request: Re
                    f"this — use the CLI: sudo agenti admin delete-user {name} "
                    f"--grant <id>")
     action = {"op": "delete-principal", "principal": name, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-              totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "delete-user", name, f"--grant={g['grant']}")
 
 
@@ -1138,8 +1127,7 @@ def enable_principal_route(name: PrincipalName, body: ReauthRequest, request: Re
                    "re-enters their password and a fresh 2FA code. An API key cannot do "
                    f"this — use the CLI: sudo agenti admin user enable {name}")
     action = {"op": "enable-principal", "principal": name, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-              totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "enable-user", name, f"--grant={g['grant']}")
 
 
@@ -1188,8 +1176,7 @@ def reset_principal_password_route(name: PrincipalName, body: ResetPasswordReque
              "mode": body.mode}
     if body.mode == "direct":
         action["new_password"] = body.new_password
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-              totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     if body.mode == "direct":
         return _call("admin", "reset-user-password", name, 
                      f"--new={body.new_password}", f"--grant={g['grant']}")
@@ -1210,8 +1197,7 @@ def reset_principal_mfa_route(name: PrincipalName, body: ReauthRequest, request:
                    f"do this — use the CLI: sudo agenti admin reset-user-mfa {name} "
                    f"--grant <id>")
     action = {"op": "reset-mfa", "principal": name, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-              totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _call("admin", "reset-user-mfa", name, f"--grant={g['grant']}")
 
 
@@ -1527,8 +1513,7 @@ def _context_edit(request: Request, caller: "Caller", body: ContextEditRequest, 
         if not body.version:
             raise HTTPException(status_code=422, detail="'version' is required to revert")
         action["version"] = body.version
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     args = ["admin", "context-web", body.change, kind, *who, f"--grant={g['grant']}"]
     if body.change == "revert":
         args.append(f"--version={body.version}")
@@ -1609,13 +1594,24 @@ def _spec_json(spec: AgentSpec) -> str:
     return json.dumps(spec.model_dump(), ensure_ascii=False)
 
 
-def _session_for_approval(request: Request, caller: "Caller", what: str) -> str:
+def _session_for_approval(request: Request, caller: "Caller", what: str,
+                          cli: str = "the matching sudo agenti command") -> str:
+    """The caller's browser session, which a fresh re-authentication needs:
+    an API key cannot approve anything (invariant 9)."""
     sid = request.cookies.get(sessions.COOKIE_NAME)
     if caller.via != "session" or not sid:
         raise HTTPException(status_code=400, detail=f"{what} needs a signed-in browser session: "
-                            "the approving admin re-authenticates. From a terminal use "
-                            "sudo agenti admin agent-build ... instead.")
+                            "you re-enter your password and a fresh 2FA code (or use a passkey). "
+                            f"An API key cannot do it — from a terminal use {cli} instead.")
     return sid
+
+
+def _approve(sid: str, body, action: dict, request: Request) -> dict:
+    """authd's single-use grant for exactly `action`, from the caller re-proving
+    themselves (password + 2FA, or a passkey token) in this request's body."""
+    return _authd("approve_action", session_id=sid, password=body.password or "",
+                  reauth=body.reauth or "", totp=body.totp or "", action=action,
+                  addr=_client_addr(request))
 
 
 @app.get("/models")
@@ -1645,11 +1641,11 @@ class ApiKeyRequest(BaseModel):
 @app.post("/admin/api-key")
 def set_api_key(body: ApiKeyRequest, request: Request,
                 caller: Caller = Depends(require("iam:manage"))) -> dict:
-    """Settings → Platform → API key: the organization's Anthropic key (the
-    shared tier). Behind a fresh admin re-authentication bound to the key's
+    """Settings → AI providers: one provider's key (and, for a self-hosted
+    model, its address) in the shared tier. Behind a fresh admin re-authentication bound to the key's
     SHA-256; the key goes to root as the request BODY on stdin, never an
     argument, and is never sent back."""
-    sid = _session_for_approval(request, caller, "Saving the API key")
+    sid = _session_for_approval(request, caller, "Saving the API key", "sudo agenti setup")
     import model_registry
     if body.provider != "local" and (not body.key or body.base_url):
         raise HTTPException(400, "A cloud provider needs a key and uses its fixed provider address.")
@@ -1659,10 +1655,7 @@ def set_api_key(body: ApiKeyRequest, request: Request,
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
     sha = model_registry.secret_digest(body.provider, body.key, body.base_url)
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action={"op": "set-api-key", "sha256": sha,
-                                             "resource": iam.ORG_RESOURCE},
-               addr=_client_addr(request))
+    g = _approve(sid, body, {"op": "set-api-key", "sha256": sha, "resource": iam.ORG_RESOURCE}, request)
     extra = ["--with-passphrase"] if body.passphrase else []
     try:
         return run_agenti("admin", "set-api-key", f"--provider={body.provider}", f"--base-url={body.base_url}",
@@ -1685,10 +1678,8 @@ def _keys_action(verb: str, body: KeysPassphraseRequest, request: Request, calle
     stdin, never an argument, so it is in no command line and no log."""
     if any(ord(c) < 32 for c in body.passphrase):
         raise HTTPException(status_code=422, detail="the passphrase may not contain line breaks or control characters")
-    sid = _session_for_approval(request, caller, what)
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action={"op": f"keys-{verb}", "resource": iam.ORG_RESOURCE},
-               addr=_client_addr(request))
+    sid = _session_for_approval(request, caller, what, f"sudo agenti keys {verb}")
+    g = _approve(sid, body, {"op": f"keys-{verb}", "resource": iam.ORG_RESOURCE}, request)
     try:
         return run_agenti("keys", verb, f"--grant={g['grant']}", stdin_text=body.passphrase + "\n", timeout=60)
     except AgentiError as e:
@@ -1725,11 +1716,8 @@ def vault_enable(body: VaultEnableRequest, request: Request,
     disable and passphrase changes stay at the host's terminal."""
     if any(ord(c) < 32 for c in body.passphrase):
         raise HTTPException(status_code=422, detail="the passphrase may not contain line breaks or control characters")
-    sid = _session_for_approval(request, caller, "Turning the vault on")
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action={"op": "vault-enable", "size": body.size,
-                                             "resource": iam.ORG_RESOURCE},
-               addr=_client_addr(request))
+    sid = _session_for_approval(request, caller, "Turning the vault on", "sudo agenti vault enable")
+    g = _approve(sid, body, {"op": "vault-enable", "size": body.size, "resource": iam.ORG_RESOURCE}, request)
     try:
         # Allocating, formatting and copying the data in takes minutes, not seconds.
         return run_agenti("vault", "enable", f"--size={body.size}", f"--grant={g['grant']}",
@@ -1758,13 +1746,12 @@ def agent_builder_check(spec: AgentSpec, caller: Caller = Depends(require("iam:m
 @app.post("/admin/agent-builder/create")
 def agent_builder_create(body: AgentBuildRequest, request: Request,
                          caller: Caller = Depends(require("iam:manage"))) -> dict:
-    sid = _session_for_approval(request, caller, "Building an agent")
+    sid = _session_for_approval(request, caller, "Building an agent", "sudo agenti admin agent-build")
     text = _spec_json(body.spec)
     checked = _agent_build("check", stdin_text=text)
     action = {"op": "build-agent", "name": checked["spec"]["name"],
               "sha256": checked["sha256"], "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _agent_build("create", f"--grant={g['grant']}", stdin_text=text, timeout=180)
 
 
@@ -1793,13 +1780,12 @@ def agent_builder_check_update(spec: AgentEditSpec, caller: Caller = Depends(req
 @app.post("/admin/agent-builder/update")
 def agent_builder_update(body: AgentEditRequest, request: Request,
                          caller: Caller = Depends(require("iam:manage"))) -> dict:
-    sid = _session_for_approval(request, caller, "Editing an agent")
+    sid = _session_for_approval(request, caller, "Editing an agent", "sudo agenti admin agent-build")
     text = json.dumps(body.spec.model_dump(exclude_none=True), ensure_ascii=False)
     checked = _agent_build("check-update", stdin_text=text)
     action = {"op": "update-agent", "name": checked["spec"]["name"],
               "sha256": checked["sha256"], "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _agent_build("update", f"--grant={g['grant']}", stdin_text=text, timeout=120)
 
 
@@ -1812,13 +1798,12 @@ def agent_builder_remove_preview(built_name: AgentName,
 @app.post("/admin/agent-builder/{built_name}/remove")
 def agent_builder_remove(built_name: AgentName, body: AgentRemoveRequest, request: Request,
                          caller: Caller = Depends(require("iam:manage"))) -> dict:
-    sid = _session_for_approval(request, caller, "Removing an agent")
+    sid = _session_for_approval(request, caller, "Removing an agent", "sudo agenti admin agent-build")
     preview = _agent_build("preview", built_name)
     if preview.get("blocked"):
         raise HTTPException(status_code=409, detail=f"Can't remove it yet: {preview['blocked']}.")
     action = {"op": "remove-agent", "name": built_name, "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _agent_build("remove", built_name, f"--grant={g['grant']}", timeout=180)
 
 
@@ -1879,8 +1864,7 @@ def _catalog_change(change: str, body: CatalogEditRequest, request: Request, cal
     checked = _catalog_call("check" if change == "add" else "check-update", stdin_text=text)
     action = {"op": "edit-catalog", "name": checked["entry"]["name"], "change": change,
               "sha256": checked["sha256"], "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _catalog_call(change, f"--grant={g['grant']}", stdin_text=text)
 
 
@@ -1902,8 +1886,7 @@ def catalog_remove(program: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-
                    caller: Caller = Depends(require("iam:manage"))) -> dict:
     sid = _session_for_approval(request, caller, "Changing the program catalog")
     action = {"op": "edit-catalog", "name": program, "change": "remove", "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     return _catalog_call("remove", program, f"--grant={g['grant']}")
 
 
@@ -2051,8 +2034,7 @@ def decide_exploit_pending(agent: AgentName, request_id: str, body: ExploitAppro
     action = {"op": f"action-{body.decision}", "agent": agent, "request_id": request_id,
               "options_hash": row.get("options_hash", ""), "owner": caller.principal,
               "resource": iam.ORG_RESOURCE}
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
+    g = _approve(sid, body, action, request)
     args = [agent, f"action-{body.decision}", request_id, f"--owner={caller.principal}",
            f"--grant={g['grant']}"]
     if body.decision == "reject":
@@ -2136,15 +2118,8 @@ ENGAGEMENT_FORM_CAPABILITIES = ("exploit",)
 def _engagement_grant(request: Request, caller: Caller, body, action: dict, cli_hint: str) -> str:
     """A single-use grant for exactly `action`, from the caller re-proving
     themselves (password + 2FA, or a passkey token)."""
-    sid = request.cookies.get(sessions.COOKIE_NAME)
-    if caller.via != "session" or not sid:
-        raise HTTPException(
-            status_code=400,
-            detail="this needs a signed-in browser session: you re-enter your password and a "
-                   f"fresh 2FA code (or use a passkey). An API key cannot do it — use the CLI: {cli_hint}")
-    g = _authd("approve_action", session_id=sid, password=body.password or "", reauth=body.reauth or "",
-               totp=body.totp or "", action=action, addr=_client_addr(request))
-    return g["grant"]
+    sid = _session_for_approval(request, caller, "This", cli_hint)
+    return _approve(sid, body, action, request)["grant"]
 
 
 @app.post("/engagement")
@@ -2300,44 +2275,40 @@ def _pending_precheck(caller: Caller, digest: str, decision: str) -> dict:
     return pending
 
 
+def _decide_pending(argv: list[str], body: PendingDecision, request: Request, caller: Caller) -> dict:
+    """argv = ["engagement", "<decision>-pending", extra...] (literal at each
+    route, so test_api_bridge sees the verb)."""
+    verb = argv[1]
+    _pending_precheck(caller, body.digest, verb.removesuffix("-pending"))
+    grant = _engagement_grant(request, caller, body, {"op": f"engagement-{verb}",
+                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
+                              f"sudo agenti engagement {verb}")
+    return _call(*argv[:2], f"--expect-digest={body.digest}", f"--grant={grant}", *argv[2:])
+
+
 @app.post("/engagement/pending/approve")
 def approve_pending_engagement(body: PendingDecision, request: Request,
                                caller: Caller = Depends(require("engagement:approve"))) -> dict:
     """Approve the change waiting for a second admin: it becomes the
     engagement, approved, in one step."""
-    _pending_precheck(caller, body.digest, "approve")
-    grant = _engagement_grant(request, caller, body, {"op": "engagement-approve-pending",
-                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
-                              "sudo agenti engagement approve-pending")
-    args = ["engagement", "approve-pending", f"--expect-digest={body.digest}", f"--grant={grant}"]
-    if body.engagement_id:
-        args += ["--engagement-id", body.engagement_id]
-    return _call(*args)
+    return _decide_pending(["engagement", "approve-pending",
+                            *(["--engagement-id", body.engagement_id] if body.engagement_id else [])],
+                           body, request, caller)
 
 
 @app.post("/engagement/pending/reject")
 def reject_pending_engagement(body: PendingDecision, request: Request,
                               caller: Caller = Depends(require("engagement:approve"))) -> dict:
     """Reject another admin's pending change (its author withdraws instead)."""
-    _pending_precheck(caller, body.digest, "reject")
-    grant = _engagement_grant(request, caller, body, {"op": "engagement-reject-pending",
-                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
-                              "sudo agenti engagement reject-pending")
-    args = ["engagement", "reject-pending", f"--expect-digest={body.digest}", f"--grant={grant}"]
-    if body.reason:
-        args += ["--reason", body.reason]
-    return _call(*args)
+    return _decide_pending(["engagement", "reject-pending",
+                            *(["--reason", body.reason] if body.reason else [])], body, request, caller)
 
 
 @app.post("/engagement/pending/withdraw")
 def withdraw_pending_engagement(body: PendingDecision, request: Request,
                                 caller: Caller = Depends(require("engagement:manage"))) -> dict:
     """Withdraw your own pending change."""
-    _pending_precheck(caller, body.digest, "withdraw")
-    grant = _engagement_grant(request, caller, body, {"op": "engagement-withdraw-pending",
-                                                      "digest": body.digest, "resource": iam.ORG_RESOURCE},
-                              "sudo agenti engagement withdraw-pending")
-    return _call("engagement", "withdraw-pending", f"--expect-digest={body.digest}", f"--grant={grant}")
+    return _decide_pending(["engagement", "withdraw-pending"], body, request, caller)
 
 
 @app.get("/agents/{agent}/tools")

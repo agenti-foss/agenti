@@ -36,6 +36,32 @@ AGENTI_KEYS_RUN="${AGENTI_KEYS_RUN:-/run/agenti-keys}"
 # The local relay IP-scoped runs reach Anthropic through (egress_relay.py).
 AGENTI_RELAY_ADDR="${AGENTI_RELAY_ADDR:-127.0.0.1:8429}"
 
+# The key store (keystore.py, beside this table) and the Python its crypto
+# needs: the bundled runtime's, which carries the cryptography package.
+AGENTI_KEYSTORE_PY="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/keystore.py"
+AGENTI_KS_PY="$AUTHD_PYTHON"; [[ -x "$AGENTI_KS_PY" ]] || AGENTI_KS_PY=python3
+agenti_keystore() { "$AGENTI_KS_PY" "$AGENTI_KEYSTORE_PY" "$@"; }
+
+# agenti_json_field <key>: one field of the JSON on stdin; nothing when the
+# field is missing or null, or the input is not JSON.
+agenti_json_field() {
+    python3 -c 'import json,sys
+try: v = json.load(sys.stdin).get(sys.argv[1])
+except Exception: v = None
+print("" if v is None else v)' "$1" 2>/dev/null
+}
+
+# agenti_read_new_passphrase <what>: prompt twice, silently, on the terminal;
+# prints the passphrase, or fails (status 1) when the two differ. The
+# keystore/vault itself enforces the minimum length.
+agenti_read_new_passphrase() {
+    local a b
+    read -rs -p "New $1 (12+ characters): " a; echo >&2
+    read -rs -p "Type it again: " b; echo >&2
+    [[ "$a" == "$b" ]] || { echo "the two passphrases are not the same — nothing was changed" >&2; return 1; }
+    printf '%s' "$a"
+}
+
 # agenti_master_dir <agent>: the one copy of an agent's code. A shipped agent
 # (the package's) wins over one built in Settings; the builder refuses a name
 # a shipped agent already has, so both existing is never expected.

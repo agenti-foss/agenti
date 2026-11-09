@@ -132,7 +132,7 @@ window.AgentiSlash = (() => {
       return true;
     }
 
-    return { handle, close, open: (text) => { input.value = text; input.focus(); update(); } };
+    return { handle, open: (text) => { input.value = text; input.focus(); update(); } };
   }
 
   return { attach };

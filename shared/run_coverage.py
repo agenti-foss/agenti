@@ -153,29 +153,16 @@ def why_refused(org_dir: Path, agent: str, kind: str, target_text: str, model: s
             else:
                 from agent_runtime import read_secrets
                 import keystore
-                tiers = keystore.tier_paths(org_dir.parent, owner, agent, org_dir=org_dir)
-                try:
-                    # systemd loads the files, not the launching shell's environment.
-                    values = read_secrets(tiers)
-                    flag = f" --provider {provider.name}"
-                    locked = keystore.locked_reason()
-                    if locked:
-                        reasons.append(locked[0].upper() + locked[1:])
-                    elif provider.key_required and not values.get(provider.key_env):
-                        reasons.append(f"no {provider.label} API key for this run; set one with: "
-                                       f"sudo /usr/lib/agenti/set-secret.sh{flag}")
-                    if provider.base_url_env:
-                        try:
-                            mr.validate_base_url(values.get(provider.base_url_env, ""))
-                            valid = True
-                        except ValueError:
-                            valid = False
-                        if not valid:
-                            reasons.append(f"no valid {provider.label} address; set one with: "
-                                           f"sudo /usr/lib/agenti/set-secret.sh{flag} "
-                                           "--base-url http://<host>:<port>/v1")
-                except (OSError, SystemExit) as e:
-                    reasons.append(f"could not load this run's provider settings: {e}")
+                locked = keystore.locked_reason()
+                if locked:
+                    reasons.append(locked[0].upper() + locked[1:])
+                else:
+                    try:
+                        # systemd loads the files, not the launching shell's environment.
+                        values = read_secrets(keystore.tier_paths(org_dir.parent, owner, agent, org_dir=org_dir))
+                        reasons += mr.setup_problems(provider, values)
+                    except (OSError, SystemExit) as e:
+                        reasons.append(f"could not load this run's provider settings: {e}")
     if kind not in ("cidr", "domain"):
         return reasons
     why = why_uncovered(org_dir, agent, kind, target_text, starting=True)

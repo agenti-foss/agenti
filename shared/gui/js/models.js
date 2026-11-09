@@ -15,21 +15,30 @@ window.AgentiModels = (() => {
   const PROVIDERS = [
     { id: "anthropic", name: "Claude", by: "Anthropic", icon: "claude",
       blurb: "Anthropic's Claude models, through the Claude Agent SDK.",
-      keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys" },
+      keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys", noun: "key" },
     { id: "openai", name: "ChatGPT", by: "OpenAI", icon: "openai",
       blurb: "OpenAI's GPT models, through Agenti's own run loop.",
-      keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys" },
+      keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", noun: "key" },
     { id: "local", name: "Self-hosted", by: "Your own model server", icon: "cpu",
       blurb: "Any server speaking the OpenAI-compatible API: Ollama, vLLM, LM Studio, llama.cpp, LiteLLM.",
-      keyHint: "optional" },
+      keyHint: "optional", noun: "server", selfHosted: true },   // an address; the key is optional
   ];
   const IDS = PROVIDERS.map((p) => p.id);
   const LAST_PROVIDER_KEY = "agenti-last-provider";
+  // Claude's short names, as an older launch may have named the model.
+  const ALIASES = ["haiku", "sonnet", "opus"];
   const providerOf = (model) => {
     const prefix = String(model || "").split(":", 1)[0];
     if (IDS.includes(prefix)) return prefix;
-    return model && (String(model).startsWith("claude-") || ["haiku", "sonnet", "opus"].includes(model)) ? "anthropic" : "";
+    return model && (String(model).startsWith("claude-") || ALIASES.includes(model)) ? "anthropic" : "";
   };
+  // "openai:gpt-5" → "gpt-5" for that provider; anything else as it is.
+  const bareName = (model, provider) => {
+    const m = String(model || "");
+    return m.startsWith(provider + ":") ? m.slice(provider.length + 1) : m;
+  };
+  // A short name ("haiku") stands for the listed model it begins.
+  const matchesAlias = (alias, listed) => ALIASES.includes(alias) && listed.startsWith(`claude-${alias}`);
   function remember(model) {
     const p = providerOf(model);
     try { if (p) localStorage.setItem(LAST_PROVIDER_KEY, p); } catch (e) { /* no persistence */ }
@@ -38,7 +47,7 @@ window.AgentiModels = (() => {
   function describe(model) {
     const id = providerOf(model);
     const provider = PROVIDERS.find((p) => p.id === id);
-    const bare = String(model || "").startsWith(id + ":") ? String(model).slice(id.length + 1) : String(model || "");
+    const bare = bareName(model, id);
     return { provider: id, name: provider ? provider.name : "", icon: provider ? provider.icon : "cpu", bare };
   }
   function lastProvider() {
@@ -126,8 +135,7 @@ window.AgentiModels = (() => {
         + models.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")
         + `<option value="${OTHER}">Other model…</option>`;
       // An old short name ("haiku") is the listed model it stands for.
-      const alias = ["haiku", "sonnet", "opus"].includes(wanted)
-        ? models.find((m) => m.startsWith(`claude-${wanted}`)) : "";
+      const alias = models.find((m) => matchesAlias(wanted, m));
       if (alias) wanted = alias;
       if (wanted && models.includes(wanted)) {
         select.value = wanted;
@@ -158,7 +166,7 @@ window.AgentiModels = (() => {
         if (agent) params.set("agent", agent);
         const result = await Agenti.get("models?" + params);
         if (request !== sequence) return;
-        const models = (result.models || []).map((name) => (name.startsWith(p + ":") ? name.slice(p.length + 1) : name));
+        const models = (result.models || []).map((name) => bareName(name, p));
         fillSelect(models, models.length ? "" : "No allowed model listed");
         hint.textContent = models.length
           ? `${models.length} model${models.length === 1 ? "" : "s"} allowed for this organization.`
@@ -228,5 +236,5 @@ window.AgentiModels = (() => {
     };
   }
 
-  return { PROVIDERS, status, mount, remember, providerOf, describe };
+  return { PROVIDERS, status, mount, remember, providerOf, describe, bareName, matchesAlias };
 })();

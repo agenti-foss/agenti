@@ -24,7 +24,6 @@ BCH validity, and the byte-mode header the decoder reads first.
 """
 import hashlib
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -156,25 +155,6 @@ check("bytes and their utf-8 str encode identically", qr.encode("ünï"), qr.enc
 check("deterministic", qr.encode("determinism"), qr.encode("determinism"))
 
 section("renderers")
-svg = qr.to_svg(m)
-root = ET.fromstring(svg)
-check("svg is well-formed xml with the svg root", root.tag, "{http://www.w3.org/2000/svg}svg")
-check("svg has a quiet zone of 4 modules (scale 4)", root.get("width"), str((21 + 8) * 4))
-check("svg contains no text or script", any(el.tag.endswith(("text", "script")) for el in root.iter()), False)
-path = root.find("{http://www.w3.org/2000/svg}path")
-check("svg draws dark modules as one path", path is not None and path.get("d", "").startswith("M"), True)
-# Every dark module is covered exactly once by the run rectangles.
-rects = 0
-for r, row in enumerate(m):
-    c = 0
-    while c < size:
-        if row[c]:
-            rects += 1
-            while c < size and row[c]:
-                c += 1
-        else:
-            c += 1
-check("one rectangle per horizontal run of dark modules", path.get("d", "").count("M"), rects)
 txt = qr.to_text(m, border=2)
 lines = txt.split("\n")
 check("text rendering: two module rows per line, quiet zone included", len(lines), (21 + 4 + 1) // 2)

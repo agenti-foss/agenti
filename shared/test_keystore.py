@@ -101,6 +101,22 @@ keystore.put("org/users/alice", "OPENAI_API_KEY=sk-alice\n")
 check("status: unlocked, two encrypted tiers",
       keystore.status()["state"] == "unlocked" and keystore.status()["encrypted_tiers"] == ["org/users/alice", "shared"])
 
+print("== has and set: one line replaced, the others kept, under one lock")
+r = keystore.set_vars("org", {"OPENAI_API_KEY": "sk-one"})
+keystore.set_vars("org", {"ANTHROPIC_API_KEY": "sk-ant-two"})
+check("set keeps the other provider's line",
+      "OPENAI_API_KEY=sk-one" in keystore.get("org") and "ANTHROPIC_API_KEY=sk-ant-two" in keystore.get("org"))
+keystore.set_vars("org", {"OPENAI_API_KEY": "sk-three"})
+check("set replaces its own line once", keystore.get("org").count("OPENAI_API_KEY=") == 1
+      and "sk-three" in keystore.get("org"))
+check("has says yes/no, never a value",
+      keystore.has("org", ["OPENAI_API_KEY", "LOCAL_LLM_BASE_URL"]) == {"OPENAI_API_KEY": True, "LOCAL_LLM_BASE_URL": False})
+keystore.set_vars("org", {"OPENAI_API_KEY": ""})
+check("an empty value removes the line", "OPENAI_API_KEY" not in keystore.get("org"))
+check("a bad variable name is refused", raises(lambda: keystore.set_vars("org", {"x=y": "1"}), "variable name"))
+check("whitespace in a value is refused", raises(lambda: keystore.set_vars("org", {"OPENAI_API_KEY": "a b"}), "whitespace"))
+keystore.forget("org")
+
 print("== lock and unlock")
 keystore.lock()
 check("locked: the in-memory copies are gone", not (run / "shared" / "secrets.env").exists())

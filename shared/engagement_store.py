@@ -146,6 +146,12 @@ def _remove(path: Path) -> None:
         raise StoreError(f"cannot remove {path}: {e}")
 
 
+def _log(path: Path, gid: int | None, args, action: str, ts: float | None = None, **fields) -> None:
+    """One history row: when, who, how, what, then the action's own fields."""
+    _append_history(path, {"ts": time.time() if ts is None else ts, "by": args.by,
+                           "via": args.via, "action": action, **fields}, gid)
+
+
 def _append_history(path: Path, row: dict, gid: int | None) -> None:
     try:
         existed = path.exists()
@@ -290,9 +296,10 @@ def _pending_view(pending: dict, live: dict | None, approvers: list[str],
             pend_e = ec.engagement_from_record(pending["record"], kind)
             m = ec.stricter_of(live_e, pend_e, kind)
             view["scope"][kind] = {"in_scope": m.in_scope, "out_of_scope": m.out_of_scope}
-            view.update({"valid_from": m.valid_from, "valid_until": m.valid_until,
-                         "capture_payloads": m.capture_payloads,
-                         "enabled_capabilities": m.enabled_capabilities})
+        # The window, payloads and capabilities do not depend on the kind.
+        view.update({"valid_from": m.valid_from, "valid_until": m.valid_until,
+                     "capture_payloads": m.capture_payloads,
+                     "enabled_capabilities": m.enabled_capabilities})
         out["in_force_now"] = view
     return out
 
@@ -530,17 +537,17 @@ def _set_direct(args, org_dir, rec_path, appr_path, hist_path, gid, live, invali
     """Policy off: write the record, and the saver's approval of it."""
     normalized = _merged_record(live, invalid, args)
     created = live is None
-    changed = _changed(live, normalized) if not created else ["(created)"]
+    changed = _changed(live, normalized)      # ["(created)"] for a new record
     policy_changed = live is not None and (live.get("policy") or {}) != normalized["policy"]
-    status = ec.approval_status(live if live is not None else None, ec.read_approval(appr_path))
+    status = ec.approval_status(live, ec.read_approval(appr_path))
     now = time.time()
     wrote = approved = False
-    if created or changed or not status.get("current"):
+    if changed or not status.get("current"):
         # Approval first: a crash between the two writes leaves the record
         # "stale" (runs refused), never approved content that isn't on disk.
         _approve_record(appr_path, normalized, by=args.by, via=args.via, kind="save", gid=gid)
         approved = True
-    if created or changed or policy_changed:
+    if changed or policy_changed:
         _write_record(rec_path, normalized, by=args.by, via=args.via, gid=gid)
         wrote = True
         row = {"ts": now, "by": args.by, "via": args.via, "action": "set",
@@ -550,20 +557,18 @@ def _set_direct(args, org_dir, rec_path, appr_path, hist_path, gid, live, invali
             row["replaced_invalid"] = invalid
         _append_history(hist_path, row, gid)
     if approved:
-        _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via, "action": "approve",
-                                    "kind": "save", "engagement_id": normalized["engagement_id"],
-                                    "digest": ec.record_digest(normalized),
-                                    **({} if wrote else {"unchanged": True})}, gid)
+        _log(hist_path, gid, args, "approve", ts=now, kind="save",
+             engagement_id=normalized["engagement_id"], digest=ec.record_digest(normalized),
+             **({} if wrote else {"unchanged": True}))
     if pending is not None:
         _remove(_pending_path(org_dir))
-        _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via,
-                                    "action": "pending-cleared", "reason": "superseded by a direct save",
-                                    "author": pending.get("author"), "digest": pending["digest"]}, gid)
+        _log(hist_path, gid, args, "pending-cleared", ts=now, reason="superseded by a direct save",
+             author=pending.get("author"), digest=pending["digest"])
     if not wrote and not approved:
         return _result(rec_path, appr_path, normalized, created=False, changed=[],
                        unchanged=True, pending=None, second_approver="off")
     out = _result(rec_path, appr_path, normalized, created=created,
-                  changed=changed if (created or changed) else (["policy"] if policy_changed else []),
+                  changed=changed or (["policy"] if policy_changed else []),
                   approved=approved, pending=None, second_approver="off")
     if invalid:
         out["replaced_invalid"] = invalid
@@ -580,21 +585,16 @@ def _set_pending(args, org_dir, rec_path, appr_path, hist_path, gid,
         # Caps, models and prices are outside the approval: they apply at once.
         live = _write_record(rec_path, {**live, "policy": normalized["policy"]},
                              by=args.by, via=args.via, gid=gid)
-        _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via, "action": "set",
-                                    "engagement_id": live["engagement_id"],
-                                    "digest": ec.record_digest(live), "created": False,
-                                    "changed": ["policy"]}, gid)
+        _log(hist_path, gid, args, "set", ts=now, engagement_id=live["engagement_id"],
+             digest=ec.record_digest(live), created=False, changed=["policy"])
     digest = ec.record_digest(normalized)
     pend_path = _pending_path(org_dir)
     if live is not None and digest == ec.record_digest(live):
         # Saved back to exactly the version in force: nothing waits any more.
         if pending is not None or pending_invalid:
             _remove(pend_path)
-            _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via,
-                                        "action": "pending-cleared",
-                                        "reason": "saved back to the version in force",
-                                        **({"author": pending.get("author"), "digest": pending["digest"]}
-                                           if pending else {})}, gid)
+            _log(hist_path, gid, args, "pending-cleared", ts=now, reason="saved back to the version in force",
+                 **({"author": pending.get("author"), "digest": pending["digest"]} if pending else {}))
             return _result(rec_path, appr_path, live, created=False, changed=[], pending=None,
                            cleared=True, second_approver="on")
         return _result(rec_path, appr_path, live, created=False, changed=[], unchanged=True,
@@ -692,9 +692,8 @@ def cmd_agent_scope_set(args) -> dict:
         now = time.time()
         new.update({"updated_at": now, "updated_by": args.by, "updated_via": args.via})
         _atomic_write(path, json.dumps(new, indent=2, ensure_ascii=False) + "\n", gid)
-        _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via, "action": "agent-scope",
-                                    "agent": args.agent, "scope_kind": args.scope_kind,
-                                    "in_scope": new["in_scope"], "out_of_scope": new["out_of_scope"]}, gid)
+        _log(hist_path, gid, args, "agent-scope", ts=now, agent=args.agent, scope_kind=args.scope_kind,
+             in_scope=new["in_scope"], out_of_scope=new["out_of_scope"])
     out = {"ok": True, "unchanged": False}
     out.update(_agent_scope_view(org_dir, rec_path, args.agent, args.scope_kind))
     return out
@@ -735,9 +734,8 @@ def cmd_approve(args) -> dict:
                 f"the engagement-second-approver policy is on, and {args.by} saved this version "
                 f"last — another admin approves it. Nothing was approved.")
         approval = _approve_record(appr_path, record, by=args.by, via=args.via, kind="direct", gid=gid)
-        _append_history(hist_path, {"ts": approval["approved_at"], "by": args.by, "via": args.via,
-                                    "action": "approve", "kind": "direct",
-                                    "engagement_id": record["engagement_id"], "digest": digest}, gid)
+        _log(hist_path, gid, args, "approve", ts=approval["approved_at"], kind="direct",
+             engagement_id=record["engagement_id"], digest=digest)
     return {"ok": True, "path": str(appr_path),
             "approval": approval, "approval_status": ec.approval_status(record, approval)}
 
@@ -784,11 +782,9 @@ def cmd_approve_pending(args) -> dict:
                                    kind="second-approver", gid=gid, proposed_by=author)
         _write_record(rec_path, record, by=author, via=pending.get("via") or args.via, gid=gid)
         _remove(_pending_path(org_dir))
-        _append_history(hist_path, {"ts": approval["approved_at"], "by": args.by, "via": args.via,
-                                    "action": "approve-pending", "author": author,
-                                    "engagement_id": record["engagement_id"],
-                                    "digest": pending["digest"], "replaced_digest": live_digest,
-                                    "changed": _changed(live, record)}, gid)
+        _log(hist_path, gid, args, "approve-pending", ts=approval["approved_at"], author=author,
+             engagement_id=record["engagement_id"], digest=pending["digest"],
+             replaced_digest=live_digest, changed=_changed(live, record))
     return {"ok": True, "path": str(rec_path), "engagement_id": record["engagement_id"],
             "digest": pending["digest"], "approval": approval, "author": author,
             "approval_status": ec.approval_status(record, approval)}
@@ -827,8 +823,7 @@ def cmd_withdraw_pending(args) -> dict:
                 f"only {author}, who made this change, can withdraw it; another admin rejects "
                 f"it instead:\n  sudo agenti engagement reject-pending")
         _remove(_pending_path(org_dir))
-        _append_history(hist_path, {"ts": time.time(), "by": args.by, "via": args.via,
-                                    "action": "withdraw-pending", "digest": pending["digest"]}, gid)
+        _log(hist_path, gid, args, "withdraw-pending", digest=pending["digest"])
     return {"ok": True, "withdrawn": True, "digest": pending["digest"]}
 
 
@@ -877,9 +872,8 @@ def cmd_import(args) -> dict:
         pending, _pinv = _load_pending(org_dir)
         if pending is not None or _pinv:
             _remove(_pending_path(org_dir))
-            _append_history(hist_path, {"ts": now, "by": args.by, "via": args.via,
-                                        "action": "pending-cleared", "reason": "replaced by an import",
-                                        "author": (pending or {}).get("author")}, gid)
+            _log(hist_path, gid, args, "pending-cleared", ts=now, reason="replaced by an import",
+                 author=(pending or {}).get("author"))
     return {"ok": True, "path": str(rec_path),
             "engagement_id": normalized["engagement_id"], "digest": digest,
             "replaced": existing is not None,

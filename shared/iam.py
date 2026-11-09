@@ -735,6 +735,18 @@ def context_text_sha256(text: str) -> str:
 API_ACCOUNT = os.environ.get("AGENTI_API_USER", "agenti-api")
 
 
+def _consume_admin_grant(conn, runtime, grant_id: str, action: dict, resource: str, *,
+                         named: bool = False, nothing: str = "Nothing was changed.") -> str:
+    """Spends a single-use grant for exactly `action`, then re-checks, fresh,
+    that its approver holds iam:manage on `resource` (invariant 9). Returns
+    the approver."""
+    approver = consume_action_grant(runtime, grant_id, action)
+    if not check(conn, approver, "iam:manage", resource).allowed:
+        who = f"does not hold iam:manage on {resource}" if named else "is not an admin"
+        raise IAMError(f"{approver!r} approved this but {who} — refusing. {nothing}")
+    return approver
+
+
 def web_approve_create_user(conn, runtime, action: dict, grant_id: str) -> str:
     """Consumes a 'create-user' grant for exactly `action` (name, kind and
     role, rebuilt by the CLI from its own arguments) and re-checks, fresh,
@@ -743,10 +755,7 @@ def web_approve_create_user(conn, runtime, action: dict, grant_id: str) -> str:
     account from the web needs a fresh re-authentication every time)."""
     if action.get("op") != "create-user":
         raise IAMError("not a create-user action")
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", action["resource"]).allowed:
-        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
-                       f"No account was created.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, action["resource"], nothing="No account was created.")
     return approver
 
 
@@ -786,10 +795,7 @@ def web_approve_context_edit(conn, runtime, action: dict, grant_id: str) -> str:
     file is context_store's job."""
     if action.get("op") != "edit-context":
         raise IAMError("not an edit-context action")
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", action["resource"]).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{action['resource']} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, action["resource"], named=True)
     return approver
 
 
@@ -802,10 +808,7 @@ def web_approve_agent_build(conn, runtime, action: dict, grant_id: str) -> str:
         raise IAMError("not an agent build/update/remove or catalog-edit action")
     if action.get("resource") != ORG_RESOURCE:
         raise IAMError("building or removing an agent is an organization-wide action")
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", action["resource"]).allowed:
-        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
-                       f"Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, action["resource"])
     return approver
 
 
@@ -814,10 +817,7 @@ def web_approve_vault_enable(conn, runtime, size: str, grant_id: str) -> str:
     re-checks, fresh, that the approver is an admin (decision 6, audit run 1).
     Returns the approver; vault.sh does the work."""
     action = {"op": "vault-enable", "size": size, "resource": ORG_RESOURCE}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", ORG_RESOURCE).allowed:
-        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
-                       f"Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, ORG_RESOURCE)
     return approver
 
 
@@ -833,10 +833,7 @@ def web_approve_keys(conn, runtime, op: str, grant_id: str) -> str:
     if op not in KEYS_OPS:
         raise IAMError(f"not a key-encryption action: {op!r}")
     action = {"op": op, "resource": ORG_RESOURCE}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", ORG_RESOURCE).allowed:
-        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
-                       f"Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, ORG_RESOURCE)
     return approver
 
 
@@ -845,10 +842,7 @@ def web_approve_api_key(conn, runtime, sha256: str, grant_id: str) -> str:
     key itself never reaches authd) and re-checks, fresh, that the approver is
     an admin. Returns the approver; set-secret.sh writes the key."""
     action = {"op": "set-api-key", "sha256": sha256, "resource": ORG_RESOURCE}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", ORG_RESOURCE).allowed:
-        raise IAMError(f"{approver!r} approved this but is not an admin — refusing. "
-                       f"No key was saved.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, ORG_RESOURCE, nothing="No key was saved.")
     return approver
 
 
@@ -1937,7 +1931,7 @@ def delete_principal(conn, runtime, name: str, actor: str) -> dict:
     # Encrypted (secrets.enc), its unlocked copy, and any pre-0.1.4 plain file.
     users = org_dir() / "users" / name
     for p in (users / "secrets.env", users / "secrets.enc",
-              Path(os.environ.get("AGENTI_KEYS_RUN", "/run/agenti-keys")) / "org" / "users" / name / "secrets.env"):
+              paths.keys_run() / "org" / "users" / name / "secrets.env"):
         try:
             p.unlink()
         except OSError:
@@ -2429,10 +2423,7 @@ def web_reset_principal_password(conn, runtime, name: str, resource: str, grant_
     different one."""
     action = {"op": "reset-password", "principal": name, "resource": resource,
               "mode": "direct", "new_password": new_password}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     return {**reset_principal_password(conn, runtime, name, new_password, approver),
             "approved_by": approver}
 
@@ -2443,10 +2434,7 @@ def web_mint_password_reset_link(conn, runtime, name: str, resource: str, grant_
     carries no password value at all (mode='link'): nobody but the target
     ever learns what they set it to."""
     action = {"op": "reset-password", "principal": name, "resource": resource, "mode": "link"}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     token = mint_password_reset_link(runtime, conn, name, approver)
     return {"principal": name, "reset_token": token, "approved_by": approver}
 
@@ -2455,10 +2443,7 @@ def web_reset_principal_mfa(conn, runtime, name: str, resource: str, grant_id: s
     """The web-reachable form of reset_principal_mfa() — same grant-and-
     re-check shape as the two functions above."""
     action = {"op": "reset-mfa", "principal": name, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     return {**reset_principal_mfa(conn, runtime, name, approver), "approved_by": approver}
 
 
@@ -2919,10 +2904,7 @@ def web_bind(conn, runtime, principal: str, role: str, resource: str, grant_id: 
     if conn.execute("SELECT 1 FROM principals WHERE name=?", (principal,)).fetchone() is None:
         raise IAMError(f"no user named {principal!r}")
     action = {"op": "bind", "principal": principal, "role": role, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on {resource} — "
-                       f"refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     set_principal_role(conn, principal, role, approver)
     return {"principal": principal, "role": role, "resource": resource,
             "effect": "allow", "approved_by": approver}
@@ -2957,10 +2939,7 @@ def web_rename_principal(conn, runtime, old: str, new: str, resource: str, grant
     that the approver holds iam:manage on `resource`. The approver, not
     anything the API claims, becomes the recorded actor."""
     action = {"op": "rename-principal", "principal": old, "new_name": new, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     return {**rename_principal(conn, runtime, old, new, approver), "approved_by": approver}
 
 
@@ -2968,10 +2947,7 @@ def web_delete_principal(conn, runtime, name: str, resource: str, grant_id: str)
     """The web-reachable form of delete_principal() — same grant-and-
     re-check shape as web_rename_principal() above."""
     action = {"op": "delete-principal", "principal": name, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     return {**delete_principal(conn, runtime, name, approver), "approved_by": approver}
 
 
@@ -2982,10 +2958,7 @@ def web_disable_principal(conn, runtime, name: str, resource: str, grant_id: str
     stolen session cannot lock the team out one account at a time. The usual
     two lockout refusals (yourself, the last admin) still apply."""
     action = {"op": "disable-principal", "principal": name, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     set_principal_active(conn, name, False, approver)
     return {"principal": name, "active": False, "approved_by": approver}
 
@@ -2996,10 +2969,7 @@ def web_enable_principal(conn, runtime, name: str, resource: str, grant_id: str)
     it is never a plain web action: a single-use grant from a fresh password
     + 2FA/passkey check, and the approver must hold iam:manage on `resource`."""
     action = {"op": "enable-principal", "principal": name, "resource": resource}
-    approver = consume_action_grant(runtime, grant_id, action)
-    if not check(conn, approver, "iam:manage", resource).allowed:
-        raise IAMError(f"{approver!r} approved this but does not hold iam:manage on "
-                       f"{resource} — refusing. Nothing was changed.")
+    approver = _consume_admin_grant(conn, runtime, grant_id, action, resource, named=True)
     set_principal_active(conn, name, True)
     return {"principal": name, "active": True, "approved_by": approver}
 

@@ -44,6 +44,8 @@ those keys at the provider.
     keystore.py passphrase --passphrase-stdin   change it (passphrase seal, unlocked)
     keystore.py get  --tier REL              the tier's plain text, to stdout
     keystore.py put  --tier REL              the tier's new plain text, from stdin
+    keystore.py has --tier REL NAME...       which variables the tier sets (yes/no, no values)
+    keystore.py set --tier REL NAME...       replace those lines; values on stdin, one per line
     keystore.py forget --tier REL            remove one tier's keys
     keystore.py reset --yes                  drop the seal and every encrypted key
     keystore.py vault-enabled | vault-disabling [--passphrase-stdin]
@@ -172,9 +174,18 @@ def tpm_available() -> bool:
         return forced == "1"
     if not shutil.which("systemd-creds") or not any(Path("/dev").glob("tpmrm*")):
         return False
+    # A real seal probe takes up to a second or so, and status() runs on every
+    # dashboard poll: probe once per boot (the answer describes the hardware,
+    # not a secret; /run is emptied at every start-up).
+    memo = run_dir().with_name("agenti-keys-tpm")
+    with contextlib.suppress(OSError):
+        return memo.read_text().strip() == "1"
     r = subprocess.run(["systemd-creds", "encrypt", "--with-key=tpm2", "--tpm2-pcrs=",
                         f"--name={CRED_NAME}-probe", "-", "-"],
                        input=b"probe", capture_output=True, timeout=60, check=False)
+    if os.geteuid() == 0:
+        with contextlib.suppress(OSError):
+            _write(memo, b"1" if r.returncode == 0 else b"0", mode=0o600)
     return r.returncode == 0
 
 
@@ -188,13 +199,15 @@ def locked_reason() -> str:
     return _locked_message() if _seal_info() and not unlocked() else ""
 
 
+def _tiers_with(root: Path, name: str) -> list[str]:
+    return [t for t in (all_tiers(root) if root.is_dir() else []) if (root / t / name).is_file()]
+
+
 def status(root=None) -> dict:
     root = Path(root or paths.data_root())
     info = _seal_info()
     kind = info.get("kind")
-    tiers = all_tiers(root) if root.is_dir() else []
-    plain = [t for t in tiers if (root / t / PLAIN).is_file()]
-    enc = [t for t in tiers if (root / t / ENC).is_file()]
+    plain, enc = _tiers_with(root, PLAIN), _tiers_with(root, ENC)
     if kind:
         state = "unlocked" if unlocked() else "locked"
     elif plain:
@@ -230,17 +243,21 @@ def _unb64(s: str) -> bytes:
     return base64.b64decode(s.encode(), validate=True)
 
 
+def _aad(rel: str) -> bytes:
+    """Binds each encrypted file to its tier: a copy in another tier fails."""
+    return f"agenti-keys-v1:{rel}".encode()
+
+
 def encrypt_tier(kmk: bytes, rel: str, text: str) -> bytes:
     nonce = os.urandom(12)
-    ct = _aes()(kmk).encrypt(nonce, text.encode(), f"agenti-keys-v1:{rel}".encode())
+    ct = _aes()(kmk).encrypt(nonce, text.encode(), _aad(rel))
     return json.dumps({"v": 1, "n": _b64(nonce), "c": _b64(ct)}).encode()
 
 
 def decrypt_tier(kmk: bytes, rel: str, blob: bytes) -> str:
     try:
         d = json.loads(blob)
-        return _aes()(kmk).decrypt(_unb64(d["n"]), _unb64(d["c"]),
-                                   f"agenti-keys-v1:{rel}".encode()).decode()
+        return _aes()(kmk).decrypt(_unb64(d["n"]), _unb64(d["c"]), _aad(rel)).decode()
     except KeystoreError:
         raise
     except Exception as e:
@@ -379,6 +396,19 @@ def _umount_run() -> None:
                 p.rmdir()
 
 
+def _install_kmk(kmk: bytes) -> None:
+    """The unlocked master key, in the in-memory folder only."""
+    _mount_run()
+    _write(run_dir() / ".kmk", _b64(kmk).encode())
+
+
+def _store_tier(kmk: bytes, root: Path, rel: str, text: str) -> None:
+    """One tier: encrypted on disk, unlocked copy in memory, no plain file."""
+    _write(root / rel / ENC, encrypt_tier(kmk, rel, text))
+    _write(run_dir() / rel / PLAIN, text.encode())
+    _shred(root / rel / PLAIN)
+
+
 def _kmk_now() -> bytes:
     try:
         return _unb64((run_dir() / ".kmk").read_text().strip())
@@ -439,8 +469,7 @@ def unlock(passphrase: str | None = None, auto: bool = False, root=None) -> dict
         kmk = _kmk_from_seal(info, passphrase, auto)
         if kmk is None:
             return {"ok": True, "state": "locked", "unlocked": 0}
-        _mount_run()
-        _write(run_dir() / ".kmk", _b64(kmk).encode())
+        _install_kmk(kmk)
         n = _mirror(kmk, root)
     return {"ok": True, "state": "unlocked", "unlocked": n, "seal": info["kind"]}
 
@@ -471,6 +500,11 @@ def _check_passphrase(p: str) -> str:
     return p
 
 
+def _seal_files() -> dict[str, Path]:
+    return {"tpm2": seal_dir() / "kmk.tpm2", "passphrase": seal_dir() / "kmk.pass",
+            "vault": vault_kmk()}
+
+
 def _store_seal(kind: str, kmk: bytes, passphrase: str | None) -> None:
     d = seal_dir()
     if kind == "tpm2":
@@ -480,7 +514,7 @@ def _store_seal(kind: str, kmk: bytes, passphrase: str | None) -> None:
     else:
         _write(d / "kmk.pass", wrap_passphrase(kmk, _check_passphrase(passphrase or "")))
     _write(d / "seal.json", json.dumps({"v": 1, "kind": kind}).encode())
-    for other, path in (("tpm2", d / "kmk.tpm2"), ("passphrase", d / "kmk.pass"), ("vault", vault_kmk())):
+    for other, path in _seal_files().items():
         if other != kind:
             _shred(path)
 
@@ -488,25 +522,21 @@ def _store_seal(kind: str, kmk: bytes, passphrase: str | None) -> None:
 def seal(passphrase: str | None = None, root=None, kind: str | None = None) -> dict:
     """The first seal: a new KMK, sealed the best way this box allows, then
     every plain key file encrypted and shredded, and the keys left unlocked."""
-    root = Path(root or paths.data_root())
     with _lock():
-        if _seal_info():
-            raise KeystoreError("the API keys are already encrypted (sudo agenti keys status)")
-        kind = kind or _choose_kind(passphrase)
-        kmk = os.urandom(32)
-        _store_seal(kind, kmk, passphrase)
-        _mount_run()
-        _write(run_dir() / ".kmk", _b64(kmk).encode())
-        moved = 0
-        for rel in all_tiers(root):
-            plain = root / rel / PLAIN
-            if plain.is_file():
-                text = plain.read_text()
-                _write(root / rel / ENC, encrypt_tier(kmk, rel, text))
-                _write(run_dir() / rel / PLAIN, text.encode())
-                _shred(plain)
-                moved += 1
-    return {"ok": True, "state": "unlocked", "seal": kind, "encrypted": moved}
+        return _seal(passphrase, Path(root or paths.data_root()), kind)
+
+
+def _seal(passphrase: str | None, root: Path, kind: str | None) -> dict:   # holds _lock()
+    if _seal_info():
+        raise KeystoreError("the API keys are already encrypted (sudo agenti keys status)")
+    kind = kind or _choose_kind(passphrase)
+    kmk = os.urandom(32)
+    _store_seal(kind, kmk, passphrase)
+    _install_kmk(kmk)
+    plain = _tiers_with(root, PLAIN)
+    for rel in plain:
+        _store_tier(kmk, root, rel, (root / rel / PLAIN).read_text())
+    return {"ok": True, "state": "unlocked", "seal": kind, "encrypted": len(plain)}
 
 
 def change_passphrase(passphrase: str) -> dict:
@@ -533,24 +563,58 @@ def put(rel: str, text: str, root=None, passphrase: str | None = None) -> dict:
     """Store one tier's whole plain text. Encrypted when there is a seal; on a
     fresh box the first put seals first (TPM, vault, or the passphrase given);
     an upgraded box without a seal keeps a plain file, as before 0.1.4."""
-    root = Path(root or paths.data_root())
     check_tier(rel)
+    with _lock():
+        return _put(rel, text, Path(root or paths.data_root()), passphrase)
+
+
+def _put(rel: str, text: str, root: Path, passphrase: str | None) -> dict:   # holds _lock()
     if len(text.encode()) > 65536:
         raise KeystoreError("a key file is limited to 64 KiB")
+    if not _seal_info() and (passphrase is not None or not _tiers_with(root, PLAIN)):
+        _seal(passphrase, root, None)
     info = _seal_info()
-    if not info and (passphrase is not None or not status(root)["plain_tiers"]):
-        seal(passphrase, root)
-        info = _seal_info()
+    if info:
+        _store_tier(_kmk_now(), root, rel, text)
+        return {"ok": True, "stored": "encrypted", "seal": info["kind"]}
+    owner, mode = _plain_owner(rel)
+    _write(root / rel / PLAIN, text.encode(), mode=mode, owner=owner)
+    return {"ok": True, "stored": "plain", "seal": None}
+
+
+VAR_RE = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
+
+
+def _check_vars(names: list[str]) -> list[str]:
+    bad = [n for n in names if not VAR_RE.fullmatch(n)]
+    if bad or not names:
+        raise KeystoreError(f"not a key variable name: {', '.join(bad) or '(none given)'}")
+    return names
+
+
+def has(rel: str, names: list[str], root=None) -> dict:
+    """Which of these variables the tier sets to something: yes/no, never a value."""
+    check_tier(rel)
+    held = {line.split("=", 1)[0] for line in get(rel, root).splitlines()
+            if "=" in line and line.split("=", 1)[1]}
+    return {n: n in held for n in _check_vars(names)}
+
+
+def set_vars(rel: str, values: dict[str, str], root=None, passphrase: str | None = None) -> dict:
+    """Replace these variables' lines in one tier, keeping every other line;
+    an empty value removes the line. Read, change and write under one lock."""
+    check_tier(rel)
+    _check_vars(list(values))
+    for v in values.values():
+        if any(c.isspace() for c in v):
+            raise KeystoreError("a key value may not contain whitespace (likely a bad paste)")
+    root = Path(root or paths.data_root())
     with _lock():
-        if info:
-            kmk = _kmk_now()
-            _write(root / rel / ENC, encrypt_tier(kmk, rel, text))
-            _write(run_dir() / rel / PLAIN, text.encode())
-            _shred(root / rel / PLAIN)
-            return {"ok": True, "stored": "encrypted", "seal": info["kind"]}
-        owner, mode = _plain_owner(rel)
-        _write(root / rel / PLAIN, text.encode(), mode=mode, owner=owner)
-        return {"ok": True, "stored": "plain", "seal": None}
+        kept = [line for line in get(rel, root).splitlines()
+                if VAR_RE.match(line) and "=" in line and line.split("=", 1)[0] not in values]
+        new = [f"{k}={v}" for k, v in values.items() if v]
+        text = "\n".join([f"# {rel} keys. Never commit or copy this anywhere.", *kept, *new]) + "\n"
+        return _put(rel, text, root, passphrase)
 
 
 def forget(rel: str, root=None) -> dict:
@@ -570,7 +634,7 @@ def reset(root=None) -> dict:
         for rel in all_tiers(root):
             _shred(root / rel / ENC)
         _umount_run()
-        for p in (seal_dir() / "kmk.tpm2", seal_dir() / "kmk.pass", seal_dir() / "seal.json", vault_kmk()):
+        for p in (*_seal_files().values(), seal_dir() / "seal.json"):
             _shred(p)
     return {"ok": True, "state": status(root)["state"]}
 
@@ -582,9 +646,7 @@ def vault_enabled_hook(root=None) -> dict:
     root = Path(root or paths.data_root())
     info = _seal_info()
     if not info:
-        if tpm_available():
-            return seal(None, root, kind="tpm2")
-        return seal(None, root, kind="vault")
+        return seal(None, root, kind="tpm2" if tpm_available() else "vault")
     if info["kind"] == "passphrase":
         with _lock():
             _store_seal("vault", _kmk_now(), None)
@@ -638,6 +700,15 @@ def main(argv: list[str]) -> int:
     p.add_argument("--tier", required=True)
     p.add_argument("--passphrase-first", action="store_true",
                    help="stdin's first line is a key passphrase to seal with first")
+    p = sub.add_parser("has", allow_abbrev=False, help="which variables a tier sets (yes/no)")
+    p.add_argument("--tier", required=True)
+    p.add_argument("names", nargs="+")
+    p = sub.add_parser("set", allow_abbrev=False,
+                       help="replace these variables' lines; values on stdin, one per line")
+    p.add_argument("--tier", required=True)
+    p.add_argument("--passphrase-first", action="store_true",
+                   help="stdin's first line is a key passphrase to seal with first")
+    p.add_argument("names", nargs="+")
     p = sub.add_parser("reset", allow_abbrev=False)
     p.add_argument("--yes", action="store_true", required=True)
     sub.add_parser("vault-enabled", allow_abbrev=False)
@@ -661,6 +732,11 @@ def main(argv: list[str]) -> int:
         elif a.cmd == "put":
             pp = _read_passphrase(True) if a.passphrase_first else None
             out = put(a.tier, sys.stdin.read(), passphrase=pp)
+        elif a.cmd == "has":
+            out = has(a.tier, a.names)
+        elif a.cmd == "set":
+            pp = _read_passphrase(True) if a.passphrase_first else None
+            out = set_vars(a.tier, {n: _read_passphrase(True) or "" for n in a.names}, passphrase=pp)
         elif a.cmd == "forget":
             out = forget(a.tier)
         elif a.cmd == "reset":

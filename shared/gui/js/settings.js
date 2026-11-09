@@ -1,7 +1,7 @@
 // settings.js — the Settings page: Account, Security (password, 2FA,
 // passkeys), Appearance (theme + mode), and — for an admin — Agents,
-// Engagement, Users and Platform (policies, the passkey domain wizard,
-// tool requests).
+// AI providers, Engagement, Users and Platform (policies, the vault, API key
+// encryption, the passkey domain wizard).
 //
 // Self-service: POST /auth/password, POST /auth/mfa/enrol/start,
 // POST /auth/mfa/enrol/confirm, the /auth/webauthn/* routes.
@@ -537,6 +537,13 @@ document.addEventListener("DOMContentLoaded", async function () {
   // together at the end, so the slowest one (the control center) no longer
   // holds up the Users list or the Platform cards.
   const tasks = [];
+  // One GET /dashboard shared by the vault, key-encryption and provider cards
+  // (each used to fetch its own); `fresh` after a change re-reads it.
+  let dashMemo = null;
+  function dashboard(fresh) {
+    if (fresh || !dashMemo) dashMemo = Agenti.get("dashboard").catch((e) => { dashMemo = null; throw e; });
+    return dashMemo;
+  }
 
   // ---------- Agents: the agent types on this server, and building one ----------
   // Hand-built agents arrive with a deploy; built agents (manifest "built")
@@ -913,7 +920,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         + ` Kept outputs are not touched. This cannot be undone.`,
       confirmText: "DELETE",
       submit: (creds) => Agenti.post(`admin/agent-builder/${encodeURIComponent(name)}/remove`,
-        { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+        { ...creds }),
     });
     if (!r) return;
     await refreshAgents();
@@ -1284,7 +1291,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             ? "Confirm it's you. Another admin approves it before it takes effect; until then, runs must fit both versions."
             : "Confirm it's you. It takes effect at once, approved by you.",
           submit: (creds) => Agenti.post("engagement", { ...body,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            ...creds }),
         });
         if (!r) return;
         done((r.pending ? "Change submitted: another admin approves it before it takes effect."
@@ -1305,7 +1312,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const r = await Agenti.requireApproval({
           title, description,
           submit: (creds) => Agenti.post(path, { ...body,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            ...creds }),
         });
         if (!r) return;
         done(message + stoppedNote(r));
@@ -1525,9 +1532,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const vDlg = document.getElementById("vault-dialog");
     const vForm = document.getElementById("vault-form");
     const vFormBanner = document.getElementById("vault-form-banner");
-    async function paintVault() {
+    async function paintVault(fresh) {
       try {
-        const d = await Agenti.get("dashboard");
+        const d = await dashboard(fresh);
         const st = d.storage || {};
         document.getElementById("vault-on-row").hidden = d.vault !== "off";
         if (d.vault === "unlocked") {
@@ -1557,9 +1564,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       const pass = document.getElementById("vault-pass").value;
       const pass2 = document.getElementById("vault-pass2").value;
       const size = document.getElementById("vault-size").value;
-      if (pass.length < 12) { Agenti.banner(vFormBanner, "err", "The passphrase must be at least 12 characters."); return; }
-      if (pass !== pass2) { Agenti.banner(vFormBanner, "err", "The two passphrases are not the same."); return; }
-      if (!document.getElementById("vault-ack").checked) { Agenti.banner(vFormBanner, "err", "Tick the box to confirm you have stored the passphrase."); return; }
+      const bad = Agenti.passphraseProblem(pass, { again: pass2, ack: document.getElementById("vault-ack") });
+      if (bad) { Agenti.banner(vFormBanner, "err", bad); return; }
       vDlg.close();
       vBtn.disabled = true;
       Agenti.banner(vBanner, "ok", "Turning the vault on — this takes a few minutes. Keep this page open.");
@@ -1568,11 +1574,11 @@ document.addEventListener("DOMContentLoaded", async function () {
           title: "Turn on the vault",
           description: `Confirm it's you to create a ${size.replace("G", " GB")} encrypted vault and move the data into it.`,
           submit: (creds) => Agenti.post("admin/vault/enable", { size, passphrase: pass,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            ...creds }),
         });
         if (!r) { Agenti.banner(vBanner, "warn", "Canceled — nothing was changed."); return; }
         Agenti.banner(vBanner, "ok", "The vault is on. After every restart of the server, someone must unlock it at its terminal: sudo agenti vault unlock");
-        await paintVault();
+        await paintVault(true);
       } catch (err) {
         Agenti.banner(vBanner, "err", Agenti.errorText(err));
       } finally {
@@ -1602,9 +1608,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       vault: "the vault. Unlocking the vault unlocks them too.",
       passphrase: "a key passphrase. After every restart of the server, an admin unlocks them here.",
     };
-    async function paintKeys() {
+    async function paintKeys(fresh) {
       try {
-        const d = await Agenti.get("dashboard");
+        const d = await dashboard(fresh);
         const k = d.keys || {};
         kBanner.className = "banner";
         kRow.hidden = true; kMode = "";
@@ -1655,9 +1661,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       e.preventDefault();
       const seal = kMode === "seal";
       const pass = document.getElementById("keys-pass").value;
-      if (pass.length < 12) { Agenti.banner(kFormBanner, "err", "The key passphrase is at least 12 characters."); return; }
-      if (seal && pass !== document.getElementById("keys-pass2").value) { Agenti.banner(kFormBanner, "err", "The two passphrases are not the same."); return; }
-      if (seal && !document.getElementById("keys-ack").checked) { Agenti.banner(kFormBanner, "err", "Tick the box to confirm you have stored the passphrase."); return; }
+      const bad = Agenti.passphraseProblem(pass, seal
+        ? { again: document.getElementById("keys-pass2").value, ack: document.getElementById("keys-ack") } : {});
+      if (bad) { Agenti.banner(kFormBanner, "err", bad); return; }
       kDlg.close();
       kBtn.disabled = true;
       try {
@@ -1666,10 +1672,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           description: seal ? "Confirm it's you to encrypt the API keys with this passphrase."
                             : "Confirm it's you to unlock the API keys so runs can start.",
           submit: (creds) => Agenti.post(`admin/keys/${seal ? "seal" : "unlock"}`, { passphrase: pass,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            ...creds }),
         });
         if (!r) { Agenti.banner(kBanner, "warn", "Canceled. Nothing was changed."); return; }
-        await paintKeys();
+        await paintKeys(true);
         Agenti.banner(kBanner, "ok", seal ? "The API keys are encrypted. Replace keys saved before at the provider when you can."
                                          : "The API keys are unlocked. Runs can start.");
       } catch (err) {
@@ -1694,7 +1700,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       } catch (e) { return ""; }
     };
     pList.innerHTML = AgentiModels.PROVIDERS.map((p) => {
-      const local = p.id === "local";
+      const local = !!p.selfHosted;
       return `
       <div class="panel provider-card" data-provider="${p.id}">
         <div class="provider-card-head">
@@ -1741,11 +1747,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     }).join("");
     if (typeof applyIcons === "function") applyIcons(pList);
 
-    async function paintProviders() {
-      const providers = await AgentiModels.status({ fresh: true });
+    async function paintProviders(fresh) {
       // The first key on a box with no TPM and no vault asks for the key
       // passphrase that seals it (keystore.py).
-      const dk = await Agenti.get("dashboard").then((d) => d.keys || {}).catch(() => ({}));
+      const [providers, dk] = await Promise.all([
+        AgentiModels.status({ fresh: true }),
+        dashboard(fresh).then((d) => d.keys || {}).catch(() => ({})),
+      ]);
       const askPass = !!(dk.needs_passphrase && dk.state === "none");
       pList.querySelectorAll("[data-pass]").forEach((el) => { el.hidden = !askPass; });
       for (const p of AgentiModels.PROVIDERS) {
@@ -1755,8 +1763,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         const save = card.querySelector("[data-save]");
         if (!info) { badge.className = "badge incomplete"; badge.textContent = "Unknown"; continue; }
         badge.className = "badge " + (info.ready ? "completed" : "incomplete");
-        badge.textContent = info.ready ? (p.id === "local" ? "Address saved" : "Key saved") : "Not set up";
-        save.lastChild.textContent = info.ready ? (p.id === "local" ? "Replace" : "Replace key") : (p.id === "local" ? "Save" : "Save key");
+        badge.textContent = info.ready ? (p.selfHosted ? "Address saved" : "Key saved") : "Not set up";
+        save.lastChild.textContent = (info.ready ? "Replace" : "Save") + (p.selfHosted ? "" : " key");
         card.querySelector("[data-check]").disabled = !info.ready;
       }
     }
@@ -1783,26 +1791,26 @@ document.addEventListener("DOMContentLoaded", async function () {
         const key = keyEl.value.trim();
         const base_url = addrEl ? addrEl.value.trim() : "";
         if (/\s/.test(key)) { Agenti.banner(banner, "err", "An API key has no spaces. Paste it again without them."); return; }
-        if (p.id !== "local" && !key) { Agenti.banner(banner, "err", `Paste the ${p.name} API key first.`); keyEl.focus(); return; }
+        if (!p.selfHosted && !key) { Agenti.banner(banner, "err", `Paste the ${p.name} API key first.`); keyEl.focus(); return; }
         if (addrEl && !relayCmd(base_url)) { Agenti.banner(banner, "err", "Enter the server's full address, starting with http:// or https://, e.g. http://model.example.com:11434/v1"); addrEl.focus(); return; }
         const passBox = card.querySelector("[data-pass]");
         const passphrase = passBox.hidden ? undefined : card.querySelector(`#pv-${p.id}-pass`).value;
-        if (!passBox.hidden && passphrase.length < 12) { Agenti.banner(banner, "err", "Choose a key passphrase of at least 12 characters."); return; }
-        if (!passBox.hidden && passphrase !== card.querySelector(`#pv-${p.id}-pass2`).value) { Agenti.banner(banner, "err", "The two key passphrases are not the same."); return; }
+        const bad = passBox.hidden ? "" : Agenti.passphraseProblem(passphrase, { again: card.querySelector(`#pv-${p.id}-pass2`).value });
+        if (bad) { Agenti.banner(banner, "err", bad); return; }
         save.disabled = true;
         try {
           const r = await Agenti.requireApproval({
             title: `Save the ${p.name} settings`,
-            description: `Confirm it's you to save the organization's ${p.name} ${p.id === "local" ? "server" : "key"}. Runs started from now on use it.`,
+            description: `Confirm it's you to save the organization's ${p.name} ${p.noun}. Runs started from now on use it.`,
             submit: (creds) => Agenti.post("admin/api-key", { key, provider: p.id, base_url, passphrase,
-              password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+              ...creds }),
           });
           if (!r) { Agenti.banner(banner, "warn", "Canceled — nothing was changed."); return; }
           form.reset();
           if (addrEl) addrEl.dispatchEvent(new Event("input"));
-          Agenti.banner(banner, "ok", `Saved. Runs started from now on use this ${p.id === "local" ? "server" : "key"}. Use Check connection to confirm it works.`);
+          Agenti.banner(banner, "ok", `Saved. Runs started from now on use this ${p.noun}. Use Check connection to confirm it works.`);
           result.textContent = ""; result.className = "check-result";
-          await paintProviders();
+          await paintProviders(true);
           await paintKeys();
         } catch (err) {
           Agenti.banner(banner, "err", Agenti.errorText(err));
@@ -2053,7 +2061,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             + `everywhere immediately.`,
         submit: (creds) => Agenti.post(`admin/users/${encodeURIComponent(name)}/reset-password`,
           { mode, new_password: mode === "direct" ? newPassword : undefined,
-            password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            ...creds }),
       });
     }
 
@@ -2064,7 +2072,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           + `prompted to set up 2FA again at their next sign-in, if it's required for `
           + `their account.`,
         submit: (creds) => Agenti.post(`admin/users/${encodeURIComponent(name)}/reset-mfa`,
-          { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { ...creds }),
       });
     }
 
@@ -2163,7 +2171,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         title: "Grant access",
         description: `Grant ${describeAccess(role)} to '${name}'.`,
         submit: (creds) => Agenti.post(userUrl(name, "access"),
-          { role, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { role, ...creds }),
       });
     }
 
@@ -2176,7 +2184,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           + `and passkey moves with it. Their session ends; they'll need to sign in `
           + `again as '${newName}'.`,
         submit: (creds) => Agenti.post(userUrl(oldName, "rename"),
-          { new_name: newName, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { new_name: newName, ...creds }),
       });
     }
 
@@ -2188,7 +2196,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           + `past reports, run history and audit logs, marked (deleted).`,
         confirmText: "DELETE",
         submit: (creds) => Agenti.post(userUrl(name, "delete"),
-          { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { ...creds }),
       });
     }
 
@@ -2198,7 +2206,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         description: `Re-enable '${name}'. They can sign in again and get back whatever `
           + `access the account kept, so this needs your password and a 2FA code (or a passkey).`,
         submit: (creds) => Agenti.post(userUrl(name, "enable"),
-          { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { ...creds }),
       });
     }
 
@@ -2261,7 +2269,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           description: `Disable '${disableName}'. They are signed out at once and cannot sign in `
             + `until an admin re-enables the account (the check mark by their status dot).`,
           submit: (creds) => Agenti.post(userUrl(disableName, "disable"),
-            { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+            { ...creds }),
         });
         if (!r) return; // canceled
         Agenti.banner(usersBanner, "ok", `'${disableName}' is disabled (approved by ${r.approved_by}).`);
@@ -2357,7 +2365,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               + `'${name}' with ${describeAccess(role)}. Confirm it's you to finish.`,
             submit: (creds) => Agenti.post("admin/users", {
               name, kind, role, no_link: kind === "service",
-              password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+              ...creds }),
           });
           if (!r) return;     // canceled: nothing was created; the wizard stays open
           newUserDlg.close();

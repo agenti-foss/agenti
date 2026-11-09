@@ -363,7 +363,7 @@
         description: state.edit ? `Changes “${checked.spec.title}”.`
           : `Builds “${checked.spec.title}” and makes it ready.`,
         submit: (creds) => A.post(state.edit ? "admin/agent-builder/update" : "admin/agent-builder/create",
-          { spec, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { spec, ...creds }),
       });
       if (!result) return;   // canceled — stay on Review
       $("#wiz-done-title").textContent = state.edit ? `${checked.spec.title} was updated` : `${checked.spec.title} is ready`;

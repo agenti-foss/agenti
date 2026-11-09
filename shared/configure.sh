@@ -54,7 +54,6 @@ RETENTION_TIMER="$SYSTEMD_DIR/agenti-retention.timer"
 RELAY_UNIT="$SYSTEMD_DIR/agenti-relay.service"
 RELAY_SOCKET="$SYSTEMD_DIR/agenti-relay.socket"
 KEYS_UNIT="$SYSTEMD_DIR/agenti-keys.service"
-KS_PY="$AUTHD_PYTHON"; [[ -x "$KS_PY" ]] || KS_PY=python3
 
 ok()   { printf '  [ OK ] %s\n' "$*"; }
 warn() { printf '  [WARN] %s\n' "$*"; }
@@ -307,13 +306,13 @@ configure_data() {
 # keep working, and the dashboard warns until an admin sets a key passphrase.
 configure_keys() {
     local st state
-    st=$("$KS_PY" "$AGENTI_LIBDIR/keystore.py" status 2>/dev/null) || { warn "could not read the API keys' state (sudo agenti keys status)"; return 0; }
-    state=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
+    st=$(agenti_keystore status 2>/dev/null) || { warn "could not read the API keys' state (sudo agenti keys status)"; return 0; }
+    state=$(printf '%s' "$st" | agenti_json_field state)
     if [[ "$state" == plain ]]; then
-        if [[ "$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["needs_passphrase"])')" == True ]]; then
+        if [[ "$(printf '%s' "$st" | agenti_json_field needs_passphrase)" == True ]]; then
             warn "the API keys are NOT encrypted yet (saved before 0.1.4; this machine has no TPM and no vault)."
             warn "  set a key passphrase:  sudo agenti keys seal   (or Settings → Platform → API key encryption)"
-        elif "$KS_PY" "$AGENTI_LIBDIR/keystore.py" seal >/dev/null 2>&1; then
+        elif agenti_keystore seal >/dev/null 2>&1; then
             ok "API keys encrypted. Plain copies saved before may linger in the disk's free space: rotate those keys at the provider."
         else
             warn "the API keys could not be encrypted (sudo agenti keys seal says why)"
@@ -593,7 +592,7 @@ Before=agenti-api.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=$KS_PY $AGENTI_LIBDIR/keystore.py unlock --auto
+ExecStart=$AGENTI_KS_PY $AGENTI_LIBDIR/keystore.py unlock --auto
 
 [Install]
 WantedBy=multi-user.target
@@ -839,7 +838,7 @@ cmd_remove() {
     while read -r p; do rm -rf "${p:?}"; done < <(all_unit_paths)
     rm -f "$API_UNIT" "$API_SOCKET" "$AUTHD_UNIT" "$RETENTION_SERVICE" "$RETENTION_TIMER" "$RELAY_UNIT" "$RELAY_SOCKET" "$KEYS_UNIT" "$SUDOERS_DST" "$SUDOERS_DST.agenti-new"
     # The unlocked keys live in memory: gone with Agenti (the encrypted files stay).
-    "$KS_PY" "$AGENTI_LIBDIR/keystore.py" lock >/dev/null 2>&1 || true
+    agenti_keystore lock >/dev/null 2>&1 || true
     clean_bytecode
     reload
     ok "stopped; units and the sudoers grant removed (settings, accounts and data kept)"

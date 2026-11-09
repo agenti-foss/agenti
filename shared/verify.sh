@@ -909,11 +909,10 @@ _KEYS_VERIFIED=0
 verify_keys() {
     [[ $_KEYS_VERIFIED -eq 0 ]] || return 0
     _KEYS_VERIFIED=1
-    local py="$AUTHD_PYTHON"; [[ -x "$py" ]] || py=python3
     local st rc=0 state seal f
-    st=$("$py" "$AGENTI_LIBDIR/keystore.py" status 2>/dev/null) || { fail "cannot read the API keys' state"; return 1; }
-    state=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
-    seal=$(printf '%s' "$st" | python3 -c 'import json,sys; print(json.load(sys.stdin)["seal"] or "")')
+    st=$(agenti_keystore status 2>/dev/null) || { fail "cannot read the API keys' state"; return 1; }
+    state=$(printf '%s' "$st" | agenti_json_field state)
+    seal=$(printf '%s' "$st" | agenti_json_field seal)
     case "$state" in
         unlocked) ok "API keys encrypted (sealed by $seal) and unlocked" ;;
         locked)   warn "API keys encrypted (sealed by $seal) but LOCKED — runs cannot start: sudo agenti keys unlock" ;;

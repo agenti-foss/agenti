@@ -196,15 +196,15 @@
           }
           const needPass = !document.getElementById("finish-pass-wrap").hidden;
           const passphrase = needPass ? document.getElementById("finish-pass").value : undefined;
-          if (needPass && passphrase.length < 12) { Agenti.banner(kBanner, "err", "Choose a key passphrase of at least 12 characters."); return; }
-          if (needPass && passphrase !== document.getElementById("finish-pass2").value) { Agenti.banner(kBanner, "err", "The two key passphrases are not the same."); return; }
+          const bad = needPass ? Agenti.passphraseProblem(passphrase, { again: document.getElementById("finish-pass2").value }) : "";
+          if (bad) { Agenti.banner(kBanner, "err", bad); return; }
           kBtn.disabled = true;
           try {
             const r = await Agenti.requireApproval({
               title: "Save the API key",
               description: `Confirm it's you to save this ${name} key for the organization's runs.`,
               submit: (creds) => Agenti.post("admin/api-key", { key, provider, passphrase,
-                password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+                ...creds }),
             });
             if (!r) { Agenti.banner(kBanner, "warn", "Canceled — nothing was saved."); return; }
             kForm.reset();

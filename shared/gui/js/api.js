@@ -110,6 +110,15 @@ const Agenti = (() => {
     el.className = `banner ${kind} show`;
     el.textContent = text;
   }
+  // A new passphrase (vault, API keys): what is wrong with it, or "".
+  // `again` is the retyped copy and `ack` the "I have stored it" box, when
+  // the form has them. The server checks the same rules again.
+  function passphraseProblem(pass, { again = null, ack = null } = {}) {
+    if (pass.length < 12) return "The passphrase must be at least 12 characters.";
+    if (again !== null && pass !== again) return "The two passphrases are not the same.";
+    if (ack && !ack.checked) return "Tick the box to confirm you have stored the passphrase.";
+    return "";
+  }
   // Relative time for a card ("2 h ago"); the full date stays on a tooltip.
   function ago(ts) {
     if (!ts) return "—";
@@ -1389,10 +1398,10 @@ const Agenti = (() => {
     get: (p, opts) => call("GET", p, undefined, opts),
     post: (p, b, opts) => call("POST", p, b === undefined ? {} : b, opts),
     del: (p, opts) => call("DELETE", p, undefined, opts),
-    stream, setCsrf, csrf, clearAuth, ApiError, esc, when, ago, banner, flash, showFlash, errorText, normaliseSecondFactor,
+    stream, setCsrf, csrf, clearAuth, ApiError, esc, when, ago, banner, passphraseProblem, flash, showFlash, errorText, normaliseSecondFactor,
     me: () => memoGet("auth/me"), run,
     copyText, copyButton, copyButtonHtml, wireCopyButtons, qrCode,
-    webauthnCreate, webauthnGet, webauthnOriginHint, webauthnConfig, passkeysUsable,
+    webauthnCreate, webauthnGet, webauthnOriginHint, passkeysUsable,
     requireApproval, confirmDanger, frameDialog,
     cardBanner, dismissibleBanner, hiddenBannerCount, showHiddenBanners, forgetClosedBanners, tip, codeWaitHtml, codeWaitCount,
     icon, iconEl, ti, avatarInner, avatarHue, spriteSvg, roleAtLeast, roleLabel,

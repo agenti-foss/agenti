@@ -22,6 +22,7 @@
  * consistent rhythm is most of what separates "tidy" from "designed".
  */
 :root {
+  --qr-card: #ffffff; --qr-ink: #0b0d12;   /* the 2FA QR code (.qr-card) */
   --bg: #f6f7f9;
   --bg-elevated: #ffffff;
   --bg-inset: #f0f2f5;
@@ -80,6 +81,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --qr-card: #0d0f14; --qr-ink: #f5f7fa;
     --bg: #0f1114;
     --bg-elevated: #191c21;
     --bg-inset: #212630;
@@ -104,6 +106,7 @@
 }
 
 :root[data-theme="dark"] {
+  --qr-card: #0d0f14; --qr-ink: #f5f7fa;
   --bg: #0f1114;
   --bg-elevated: #191c21;
   --bg-inset: #212630;
@@ -1039,14 +1042,6 @@ td.actions { text-align: right; white-space: nowrap; }
   overflow-wrap: anywhere;
 }
 .banner.show { display: block; }
-/* a banner the reader may close: room on the right for the close button */
-.banner-dismissable { position: relative; padding-right: 40px; }
-.banner-close {
-  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
-  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; cursor: pointer;
-}
-.banner-close:hover { background: var(--bg-hover); }
 .banner.err {
   background: color-mix(in srgb, var(--err) 10%, transparent);
   border-color: color-mix(in srgb, var(--err) 28%, transparent);
@@ -1256,8 +1251,6 @@ dialog.send-modal .field-row input { width: 100%; min-width: 0; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
   border: 1px solid var(--border, #ccc); font-size: 0.8rem; margin: 2px 2px 2px 0; white-space: nowrap; max-width: 100%; }
 .chip-locked { opacity: 0.75; }
-.chip-x { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1;
-  padding: 0 2px; min-width: 24px; min-height: 24px; }
 .access-cell { max-width: 280px; white-space: normal; }
 /* A plain active/disabled indicator for a compact table row — the word
  * itself is still on the title tooltip, just not taking up a whole column. */
@@ -1279,8 +1272,6 @@ button.link-btn, button.link-btn:hover:not(:disabled), button.link-btn:active:no
 button.link-btn:hover:not(:disabled) { color: var(--accent-hover); }
 /* In a row of card actions, the destructive one sits apart on the right. */
 .chat-actions .push-right { margin-left: auto; }
-/* Between a row's safe actions and its destructive ones. */
-.actions-gap { display: inline-block; width: var(--space-3); }
 .status-cell { text-align: center; }
 
 /* ---- the target bank: pick from the organization's authorized scope ----------
@@ -1394,12 +1385,7 @@ code.value {
  * card, the favicon in the center, and ONE color for every dot (operator
  * note 2026-11-08). It follows the theme: black on white in light mode,
  * white on near-black in dark mode, which current authenticator apps and
- * phone cameras read. */
-:root { --qr-card: #ffffff; --qr-ink: #0b0d12; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --qr-card: #0d0f14; --qr-ink: #f5f7fa; }
-}
-:root[data-theme="dark"] { --qr-card: #0d0f14; --qr-ink: #f5f7fa; }
+ * phone cameras read (--qr-card / --qr-ink, with the theme's colors). */
 .qr-card {
   width: 248px; max-width: 100%; aspect-ratio: 1; flex: 0 0 auto;
   border-radius: 18px; padding: 0;
@@ -1544,40 +1530,11 @@ code.value {
   border-color: var(--warn);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent);
 }
-/* A tool call (▸) or its result (↳): one quiet monospace line, indented
- * under the member's bubbles with its color as a dot. */
-.chat-tool {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: -4px 0 0 38px;
-  max-width: 78%;
-  font-family: var(--mono);
-  font-size: 0.74rem;
-  color: var(--text-dim);
-}
-.chat-tool .dot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--hue) 55% 50%); flex: 0 0 auto; position: relative; top: -1px; }
-.chat-tool code { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
-.chat-tool-who { flex: 0 0 auto; font-family: var(--font, inherit); font-weight: 650; font-size: 0.74rem; color: color-mix(in srgb, hsl(var(--hue) 60% 50%) 75%, var(--text)); }
-.chat-tool.error { color: var(--err); }
-/* Kickoff and completion votes: centered system pills. */
-.chat-system { text-align: center; margin: 4px 0; }
-.chat-system .pill {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 550;
-  background: var(--bg-elevated);
-  border: 1px solid color-mix(in srgb, hsl(var(--hue) 60% 50%) 35%, var(--border));
-  color: color-mix(in srgb, hsl(var(--hue) 60% 50%) 70%, var(--text));
-}
-.chat-system-body { font-size: 0.82rem; color: var(--text-dim); max-width: 64ch; margin: 5px auto 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .console.activity { padding: var(--space-3); font-size: 0.9rem; }
   .say { max-width: 100%; }
   .chat-steps { margin-left: 8px; }
-  .chat-msg, .chat-tool { max-width: 94%; }
+  .chat-msg { max-width: 94%; }
   .chat { max-height: 70vh; }
 }
 
@@ -1763,11 +1720,6 @@ code.value {
 }
 @keyframes agenti-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 .console .row.says { padding: 6px 0; }
-.console .row.says .says-text {
-  font-family: var(--font); font-size: 0.88rem; line-height: 1.45; color: var(--text);
-  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 10px; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap;
-}
 .console .row.queued { opacity: 0.7; font-style: italic; }
 .console .row.queued .tool { color: var(--warn); }
 .console .row.muted { color: var(--text-dim); }
@@ -1803,7 +1755,6 @@ code.value {
 .icon-btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 50%, var(--border)); }
 .composer-controls .icon-btn.danger:first-of-type { margin-left: var(--space-3); }
 .icon-btn.danger:hover { background: color-mix(in srgb, var(--err) 12%, transparent); border-color: var(--err); color: var(--err); }
-.console-hint { margin: 0; }
 
 /* ---- reports: rendered Markdown ---------------------------------------- */
 .report { line-height: 1.55; font-size: 0.95rem; max-width: 100%; font-family: var(--report-font); }
@@ -1915,9 +1866,6 @@ details.disclosure > summary::before {
 details.disclosure[open] > summary::before { transform: rotate(45deg); }
 details.disclosure > summary:hover { color: var(--text); }
 details.disclosure > :not(summary) { margin-top: var(--space-2); }
-ul.tools-list { margin: 4px 0 10px; padding-left: 1.3em; }
-ul.tools-list li { margin: 3px 0; line-height: 1.45; }
-ul.tools-list code { font-size: 0.85em; }
 details.tools-panel h3 { margin: 12px 0 4px; }
 
 /* ---------- quick-launch category cards (phase 7 of the generic-launcher
@@ -1981,11 +1929,6 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   white-space: normal; overflow-wrap: anywhere;
   flex: 1;
 }
-.category-card .cat-foot {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  font-size: 0.78rem; color: var(--text-faint);
-}
-.category-card .cat-foot .req { color: var(--accent); font-weight: 550; }
 
 /* ---- motion ------------------------------------------------------------
  * Everything above animates at 100–400ms. Someone who has asked their OS for
@@ -2022,7 +1965,7 @@ details.tools-panel h3 { margin: 12px 0 4px; }
 .segmented button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 
 /* ---------- list rows ----------
- * The Settings lists (per-person overrides, tool requests,
+ * The Settings lists (per-person overrides,
  * passkeys) used to nest a .panel inside a .panel with inline padding. A
  * grouped list — one bordered stack, a hairline between rows, the action on
  * the right — is what a settings screen reads as, and it is one rule. */
@@ -2225,7 +2168,6 @@ details.tools-panel h3 { margin: 12px 0 4px; }
   details.disclosure > summary, details.tools-panel > summary { min-height: 44px; }
   .list-pager .pager-size select { min-height: 40px; padding: 6px 8px; }
   .back-link { min-height: 40px; }
-  .chip-x { min-width: 32px; min-height: 32px; }
   /* A two-column dialog row (Engagement ID | Client) is two half-width boxes
    * that truncate their values at 390px: one per line instead. */
   dialog .field-row > .field { flex-basis: 100%; }
@@ -2327,7 +2269,6 @@ dialog#user-dashboard-dialog::backdrop { background: rgba(0,0,0,0.55); }
 .agent-type-meta { display: flex; align-items: center; gap: 4px var(--space-2); flex-wrap: wrap; font-size: 0.8rem; }
 .agent-type-meta .chip { margin: 0; }
 .agent-type-actions { display: flex; gap: var(--space-2); flex: 0 0 auto; }
-.agent-type.just-built { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 dialog.wizard {
   border: var(--border-w) solid var(--border); border-radius: var(--radius); padding: 0;
@@ -2367,8 +2308,6 @@ dialog.wizard::backdrop { background: rgba(0, 0, 0, 0.5); }
 }
 .wizard-spacer { flex: 1; }
 .hint.warn, .warn { color: var(--warn); }
-
-.wiz-kits { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-2); }
 .wiz-kit, .wiz-tool {
   display: flex; align-items: flex-start; gap: 10px; margin: 0; cursor: pointer;
   padding: var(--space-3); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm);
@@ -2452,8 +2391,6 @@ dialog.danger-modal { border-color: color-mix(in srgb, var(--err) 45%, var(--bor
 .ih svg { color: var(--accent); flex: 0 0 auto; }
 /* Short, single-sentence lead under a panel title. */
 .lead { color: var(--text-dim); font-size: 0.86rem; margin: -2px 0 12px; }
-/* A label/value pair shown as title over subtitle inside a .list-row. */
-.kv-badge { margin-left: 6px; font-size: 0.7rem; font-weight: 500; color: var(--text-faint); font-style: normal; }
 .ti-scope { margin: 4px 0 10px; }
 .denied-patterns { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
 .denied-patterns code { font-size: 0.8rem; }
@@ -2881,14 +2818,11 @@ mark.docs-mark {
 .dlg-section-head { margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .dlg-section-head:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
 dialog .dlg-section-head h3.dlg-section { margin: 0; padding: 0; border: 0; }
-.dlg-sub { margin: 2px 0 0; font-size: 0.82rem; color: var(--text-dim); }
-.field-sub { margin: -2px 0 6px; font-size: 0.78rem; color: var(--text-faint); line-height: 1.4; }
 .check-row {
   display: flex; align-items: flex-start; gap: 10px; margin: 10px 0; font-weight: normal; cursor: pointer;
 }
 .check-row input { width: auto; margin-top: 3px; flex: 0 0 auto; }
 .check-row .check-title { display: block; color: var(--text); font-weight: 550; }
-.check-row .field-sub { display: block; margin: 1px 0 0; }
 .eng-fold > summary { gap: 10px; }
 .eng-fold .fold-title { color: var(--text); font-weight: 600; font-size: 0.92rem; }
 .eng-fold .fold-sub { color: var(--text-faint); font-weight: 450; font-size: 0.8rem; }

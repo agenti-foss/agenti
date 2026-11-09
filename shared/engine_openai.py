@@ -54,19 +54,34 @@ MAX_REPLY_BYTES = 8_000_000
 CONVERSATION = "conversation.json"
 
 
+_TLS = None
+
+
+def _tls():
+    """One verifying TLS context per process (loading the CA bundle is the
+    costly part); each turn still opens its own connection, so the relay
+    checks the destination every time."""
+    global _TLS
+    if _TLS is None:
+        import ssl
+        _TLS = ssl.create_default_context()
+    return _TLS
+
+
 def _post_json(url: str, body: dict, headers: dict, relay: str, timeout: float) -> dict:
     """POST JSON, through the relay's CONNECT tunnel when there is one (http
     and https alike: the relay only tunnels, it never reads the traffic)."""
     u = urlsplit(url)
     https = u.scheme == "https"
     host, port = u.hostname or "", u.port or (443 if https else 80)
+    tls = {"context": _tls()} if https else {}
     cls = http.client.HTTPSConnection if https else http.client.HTTPConnection
     if relay:
         r = urlsplit(relay if "://" in relay else f"http://{relay}")
-        conn = cls(r.hostname, r.port or 80, timeout=timeout)
+        conn = cls(r.hostname, r.port or 80, timeout=timeout, **tls)
         conn.set_tunnel(host, port)
     else:
-        conn = cls(host, port, timeout=timeout)
+        conn = cls(host, port, timeout=timeout, **tls)
     path = (u.path or "/") + (f"?{u.query}" if u.query else "")
     try:
         conn.request("POST", path, body=json.dumps(body).encode(),

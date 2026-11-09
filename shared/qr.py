@@ -15,14 +15,12 @@ written — see that file for the fixtures.
 
 WHAT IT DOES: byte-mode encoding only (an otpauth URI is arbitrary text),
 every version 1–40, every error-correction level, automatic mask selection
-by the standard's penalty rules, and two renderers: an SVG string for the
-browser (data: URI in an <img>, so nothing is ever injected as markup) and
-a half-block text rendering for a terminal (`agenti admin user
-enroll-2fa`), so the root CLI path shows a scannable code too.
+by the standard's penalty rules, and a half-block text rendering for a
+terminal (`agenti admin user enroll-2fa`), so the root CLI path shows a
+scannable code too. The browser draws the modules itself (api.js qrCode).
 
     >>> import qr
     >>> m = qr.encode("otpauth://totp/Agenti:alice?secret=...")
-    >>> svg = qr.to_svg(m)
     >>> print(qr.to_text(m))
 
 The implementation follows the reference structure of Project Nayuki's
@@ -34,7 +32,7 @@ from __future__ import annotations
 
 from collections import deque
 
-__all__ = ["encode", "to_svg", "to_text", "QRError", "ECL_LEVELS"]
+__all__ = ["encode", "to_text", "QRError", "ECL_LEVELS"]
 
 ECL_LEVELS = ("L", "M", "Q", "H")
 _ECL_INDEX = {"L": 0, "M": 1, "Q": 2, "H": 3}
@@ -411,32 +409,6 @@ def encode(text: str | bytes, ecl: str = "M", *, min_version: int = 1,
     sym.apply_mask(mask)
     sym.draw_format_bits(mask)
     return sym.modules
-
-
-def to_svg(modules: list[list[bool]], *, scale: int = 4, border: int = 4,
-           dark: str = "#000", light: str = "#fff") -> str:
-    """A self-contained SVG with the standard four-module quiet zone. One
-    <path> for all dark modules, so the document stays small (a version-7
-    code is about 3 KB) and contains no text at all — safe to hand a browser
-    as a data: URI in an <img>."""
-    size = len(modules)
-    dim = (size + 2 * border) * scale
-    parts = []
-    for r, row in enumerate(modules):
-        c = 0
-        while c < size:                       # one rectangle per horizontal run
-            if row[c]:
-                start = c
-                while c < size and row[c]:
-                    c += 1
-                w = (c - start) * scale
-                parts.append(f"M{(start + border) * scale},{(r + border) * scale}h{w}v{scale}h-{w}z")
-            else:
-                c += 1
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{dim}" height="{dim}" '
-            f'viewBox="0 0 {dim} {dim}" shape-rendering="crispEdges">'
-            f'<rect width="100%" height="100%" fill="{light}"/>'
-            f'<path d="{"".join(parts)}" fill="{dark}"/></svg>')
 
 
 def to_text(modules: list[list[bool]], *, border: int = 2) -> str:

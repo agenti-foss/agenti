@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           ? "This fires a real Metasploit module against a real target the moment you confirm."
           : "The agent will be told why and asked to wait for guidance.",
         submit: (creds) => Agenti.post(`${base}/action-pending/${encodeURIComponent(requestId)}`,
-          { decision, reason: reason || undefined, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { decision, reason: reason || undefined, ...creds }),
       });
       if (!res) { row.querySelectorAll("button").forEach((x) => (x.disabled = false)); return; }
       exploitKey = null; await refreshExploitApprovals(`force-${Date.now()}`);
@@ -589,14 +589,14 @@ document.addEventListener("DOMContentLoaded", async function () {
   function loadModelNames() {
     const provider = AgentiModels.providerOf(currentModel) || "anthropic";
     modelNames = modelNames || Agenti.get(`models?${new URLSearchParams({ provider, agent })}`)
-      .then((r) => (r.models || []).map((m) => (m.startsWith(provider + ":") ? m.slice(provider.length + 1) : m)))
+      .then((r) => (r.models || []).map((m) => AgentiModels.bareName(m, provider)))
       .catch((e) => { modelNames = null; say("err", els.msg, Agenti.errorText(e) + " You can still type /model and a model name."); return []; });
     return modelNames;
   }
   // "haiku" (as launched) is the listed claude-haiku-… model.
   function isCurrent(bare) {
     const now = AgentiModels.describe(currentModel).bare;
-    return bare === now || (["haiku", "sonnet", "opus"].includes(now) && bare.startsWith(`claude-${now}`));
+    return bare === now || AgentiModels.matchesAlias(now, bare);
   }
   async function switchOptions() {
     return (await loadModelNames()).map((b) => ({ value: b, hint: isCurrent(b) ? "current" : "" }));

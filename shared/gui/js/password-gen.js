@@ -228,7 +228,6 @@ window.AgentiPassword = (() => {
 
     return {
       get value() { return input.value; },
-      get generated() { return input.value === generated; },
       regenerate: fill,
       hide() { setShown(false); setPanel(false); },
       check() {
@@ -248,5 +247,5 @@ window.AgentiPassword = (() => {
     };
   }
 
-  return { attach, generate, MIN, MAX };
+  return { attach };
 })();

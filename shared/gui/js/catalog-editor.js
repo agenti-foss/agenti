@@ -121,7 +121,7 @@
           ? `Changes how ${e.name} is described and which arguments are blocked.`
           : `Adds ${e.name} to the program catalog. No agent gets it until you switch it on for that agent.`,
         submit: (creds) => A.post(state.editing ? "admin/catalog/update" : "admin/catalog/add",
-          { entry: e, password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+          { entry: e, ...creds }),
       });
       if (!res) return;
       dlg.close();
@@ -161,7 +161,7 @@
       title: `Remove ${name} from the catalog?`,
       description: `${name} stops being offered. This is refused while any agent still has it switched on.`,
       submit: (creds) => A.post(`admin/catalog/${encodeURIComponent(name)}/remove`,
-        { password: creds.password, totp: creds.totp, reauth: creds.reauth }),
+        { ...creds }),
     });
     if (res && onRemoved) onRemoved(name);
     return res;
