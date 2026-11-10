@@ -68,6 +68,7 @@ jobs:
           name: gui-views
           path: tests/gui/out/
           if-no-files-found: error
+          retention-days: 7
 
   secrets:
     name: Secrets scan (whole git history)

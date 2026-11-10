@@ -61,6 +61,7 @@ jobs:
           name: runtime-amd64
           path: dist/
           if-no-files-found: error
+          retention-days: 7
 
   runtime-arm64:
     name: agenti-runtime (arm64)
@@ -79,6 +80,7 @@ jobs:
           name: runtime-arm64
           path: dist/
           if-no-files-found: error
+          retention-days: 7
 
   deb:
     name: agenti
@@ -100,6 +102,7 @@ jobs:
           name: agenti-deb
           path: dist/
           if-no-files-found: error
+          retention-days: 7
 
   lintian:
     name: lintian

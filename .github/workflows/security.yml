@@ -70,6 +70,7 @@ jobs:
           name: codeql-${{ matrix.language }}
           path: codeql-results/
           if-no-files-found: error
+          retention-days: 7
       - name: Findings (any one not reviewed fails this job)
         # Each finding is either fixed or listed, with its reason, in
         # .github/codeql-reviewed.json (audit run 1, item 9).
